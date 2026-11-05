@@ -4,14 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultIngressLanes, type IngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
 import { provideTo } from "@deployer/effect-core";
 import type { NodeDoorClient, NodeDoorStatus, NodeDoorView } from "@deployer/mesh-client";
-import type { EnvService } from "@deployer/shared/config/env/env.module";
 import type { EdgeContext } from "@deployer/shared/core/modules/edge/edge-provider";
+import type { EnvService } from "@deployer/shared/config/env/env.module";
 import { TEST_TUNNEL_ID, testEdgeRegistry } from "@deployer/shared/core/modules/edge/testing/edge-registry.fixture";
 import { EnvHostnameService } from "@deployer/shared/core/modules/platform-ingress/services/hostname.service";
-import type { IngressLanesService } from "@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service";
-import type { NodeNetworkConfigRepository } from "@deployer/shared/core/modules/reachability/repositories/node-network-config.repository";
-import { PublicEdgeService } from "@deployer/shared/core/modules/reachability/services/public-edge.service";
-import type { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
+import type { IngressLanesServiceShape } from "@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service";
+import type { NodeNetworkConfigRepositoryShape } from "@deployer/shared/core/modules/reachability/repositories/node-network-config.repository";
+import { makePublicEdgeService } from "@deployer/shared/core/modules/reachability/services/public-edge.service";
+import type { TraefikConfigRefresherShape } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
 
 import { DnsProviderRegistryService } from "@/modules/providers/dns/shared/dns-provider-registry.service";
 
@@ -73,13 +73,13 @@ function setup(initial: IngressLanes = defaultIngressLanes()) {
 	let lanes = initial;
 	const order: string[] = [];
 	const lanesService = {
-		getLanes: vi.fn(() => Promise.resolve(lanes)),
+		getLanes: vi.fn(() => Effect.succeed(lanes)),
 		setLanes: vi.fn((next: IngressLanes) => {
 			order.push(`setLanes:${next.public?.provider ?? "none"}`);
 			lanes = next;
-			return Promise.resolve(next);
+			return Effect.succeed(next);
 		}),
-	} as unknown as IngressLanesService;
+	} as unknown as IngressLanesServiceShape;
 	const { registry, tunnel } = testEdgeRegistry();
 	tunnel.provisioned = true;
 	vi.spyOn(tunnel, "provision").mockImplementation((ctx: EdgeContext) => {
@@ -97,9 +97,9 @@ function setup(initial: IngressLanes = defaultIngressLanes()) {
 				: [],
 		),
 	);
-	const nodeConfigs = { list: vi.fn(() => Promise.resolve([])) } as unknown as NodeNetworkConfigRepository;
+	const nodeConfigs = { list: vi.fn(() => Effect.succeed([])) } as unknown as NodeNetworkConfigRepositoryShape;
 	const env = { get: vi.fn(() => "") } as unknown as EnvService;
-	const publicEdge = new PublicEdgeService(registry, nodeConfigs, env);
+	const publicEdge = makePublicEdgeService({ registry, nodeConfigs, prefix: "" });
 	const dns = {
 		results: vi.fn(() => Effect.succeed([])),
 		reconcile: vi.fn(() => Effect.succeed([])),
@@ -110,7 +110,7 @@ function setup(initial: IngressLanes = defaultIngressLanes()) {
 		view: vi.fn((): Promise<NodeDoorView | null> => Promise.resolve(doorView)),
 		blockNode: vi.fn(async () => ["m2"] as readonly string[]),
 	} as unknown as NodeDoorClient;
-	const refresher = { refresh: vi.fn() } as unknown as TraefikConfigRefresher;
+	const refresher = { refresh: vi.fn() } as unknown as TraefikConfigRefresherShape;
 	// The fakes need nothing from the context beyond what is provided here, so the DNS registry's
 	// adapter requirements are discharged.
 	const service = provideTo(IngressEdgeService.live, (effect) =>

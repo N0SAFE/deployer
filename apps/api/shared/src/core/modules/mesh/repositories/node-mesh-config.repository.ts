@@ -1,57 +1,57 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Context, Effect } from "effect";
 
 import { nodeMeshConfig } from "@deployer/nest-schema/local";
-import { LocalDatabase, type LocalDatabaseShape } from "@deployer/node-state"
+import type { LocalDatabaseError, LocalDatabaseShape } from "@deployer/node-state";
 
 export type NodeMeshConfigRow = typeof nodeMeshConfig.$inferSelect;
 
-@Injectable()
-export class NodeMeshConfigRepository {
-    private readonly logger = new Logger(NodeMeshConfigRepository.name);
+const MISSING_TABLE = "no such table: node_mesh_config";
 
-    constructor(@Inject(LocalDatabase) private readonly localDb: LocalDatabaseShape) {}
+export type NodeMeshConfigRepositoryShape = {
+	/** The row, or null when there is none or the local table has not been migrated yet. */
+	readonly find: () => Effect.Effect<NodeMeshConfigRow | null, LocalDatabaseError>;
+	/**
+	 * Returns the row after insert, OR `null` if the local `node_mesh_config` table hasn't been migrated yet. Callers must
+	 * handle the `null` case by using in-memory defaults — see `SystemMeshConfigService`'s boot resolution for the fallback.
+	 */
+	readonly upsert: (data: Omit<typeof nodeMeshConfig.$inferInsert, "id">) => Effect.Effect<NodeMeshConfigRow | null, LocalDatabaseError>;
+};
 
-    find(): NodeMeshConfigRow | null {
-        try {
-            const rows = this.localDb.db.select().from(nodeMeshConfig).limit(1).all();
-            return rows[0] ?? null;
-        } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : String(error);
-            if (message.includes("no such table: node_mesh_config")) {
-                return null;
-            }
-            throw error;
-        }
-    }
+const isMissingTable = (error: LocalDatabaseError) => error.reason.includes(MISSING_TABLE);
 
-    /**
-     * Returns the row after insert, OR `null` if the local
-     * `node_mesh_config` table hasn't been migrated yet. Callers must
-     * handle the `null` case by using in-memory defaults — see
-     * `SystemMeshConfigService.ensureMeshConfig()` for the fallback.
-     */
-    upsert(data: Omit<typeof nodeMeshConfig.$inferInsert, "id">): NodeMeshConfigRow | null {
-        const now = new Date().toISOString();
-        try {
-            this.localDb.db
-                .insert(nodeMeshConfig)
-                .values({ id: 1, ...data, updatedAt: now })
-                .onConflictDoUpdate({
-                    target: nodeMeshConfig.id,
-                    set: { ...data, updatedAt: now },
-                })
-                .run();
-        } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : String(error);
-            if (message.includes("no such table: node_mesh_config")) {
-                this.logger.warn(
-                    "node_mesh_config table missing on local SQLite — local migrations probably did not run. " +
-                        "Returning null so the caller can fall back to in-memory defaults.",
-                );
-                return null;
-            }
-            throw error;
-        }
-        return this.find();
-    }
+export function makeNodeMeshConfigRepository(localDb: LocalDatabaseShape): NodeMeshConfigRepositoryShape {
+	const find: NodeMeshConfigRepositoryShape["find"] = () =>
+		localDb
+			.use("node_mesh_config.find", (db) => db.select().from(nodeMeshConfig).limit(1).all())
+			.pipe(
+				Effect.map((rows) => rows[0] ?? null),
+				Effect.catchIf(isMissingTable, () => Effect.succeed(null)),
+			);
+
+	return {
+		find,
+		upsert: (data) =>
+			Effect.gen(function* () {
+				const now = new Date().toISOString();
+				yield* localDb.use("node_mesh_config.upsert", (db) => {
+					db
+						.insert(nodeMeshConfig)
+						.values({ id: 1, ...data, updatedAt: now })
+						.onConflictDoUpdate({ target: nodeMeshConfig.id, set: { ...data, updatedAt: now } })
+						.run();
+				});
+				return yield* find();
+			}).pipe(
+				Effect.catchIf(isMissingTable, () =>
+					Effect.logWarning(
+						"node_mesh_config table missing on local SQLite — local migrations probably did not run. " +
+							"Returning null so the caller can fall back to in-memory defaults.",
+					).pipe(Effect.as(null)),
+				),
+			),
+	};
 }
+
+export class NodeMeshConfigRepository extends Context.Service<NodeMeshConfigRepository, NodeMeshConfigRepositoryShape>()(
+	"shared/NodeMeshConfigRepository",
+) {}

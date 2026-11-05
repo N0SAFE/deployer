@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject } from '@nestjs/common'
+import { Context, Effect } from 'effect'
 import z from 'zod/v4'
 
 import {
@@ -11,12 +11,12 @@ import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { AppError } from "@deployer/errors";
 import { meshEnrollmentContract } from '@deployer/fleet-contracts'
 import { nodeAgentLink, nodeDoorFromEnv, serviceLink, type NodeDoorClient } from '@deployer/mesh-client'
-import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state"
-import { SwarmBootstrap, type SwarmBootstrapShape } from "@deployer/swarm"
-import { SwarmCluster, type SwarmClusterShape } from "@deployer/swarm"
+import type { NodeConfigRepositoryShape } from "@deployer/node-state"
+import type { SwarmBootstrapShape, SwarmClusterShape } from "@deployer/swarm"
 
-import { EnvService } from "../../../../config/env/env.module"
+import type { EnvService } from "../../../../config/env/env.module"
 import { DEPLOYER_VERSION, semverCompare } from '../../../utils/deployer-version'
+import { SetupInitializationFailed } from '../setup.errors'
 import { runStep, type EmitEvent, SetupStepTracker } from '../utils/setup-runner.utils'
 
 import type { ClientContext, ClientLink } from '@orpc/client'
@@ -30,38 +30,42 @@ const nodeViewSchema = z.object({ self: z.object({ nodeId: z.string().min(1) }) 
 const FLEET_WAIT_MS = 60_000
 const FLEET_POLL_MS = 2_000
 
-@Injectable()
-export class RemoteInitializationService {
-    private readonly logger = new Logger(RemoteInitializationService.name)
-
-    constructor(
-        @Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape,
-        private readonly envService: EnvService,
-        /** Joins this node to the FLEET's swarm from the grant the fleet issued. */
-        @Inject(SwarmBootstrap) private readonly swarmBootstrap: SwarmBootstrapShape,
-        /** Read-back of the engine state for the finalize report. */
-        @Inject(SwarmCluster) private readonly swarmCluster: SwarmClusterShape,
-    ) {}
-
-    /** This node's agent, over its node door: how the token is redeemed. Overridable in tests. */
-    protected nodeDoor(): NodeDoorClient {
-        return nodeDoorFromEnv(this.envService)
-    }
-
-    /** The link to this node's agent: the way a node that is not in the fleet yet reaches it. Overridable in tests. */
-    protected agentLink(): ClientLink<ClientContext> | undefined {
-        return nodeAgentLink()
-    }
-
+export type RemoteInitializationServiceShape = {
     /**
      * Run the remote join flow.
      *
-     * Owns: agent_join → mesh_handshake → version_check → register_node → finalize. The operator proved who they are
-     * when they issued the join token on a node of the fleet; this node redeems it with its own agent, which joins the
-     * swarm, and then asks the fleet to enroll it over the mesh. Nothing here is configured from an address or a
-     * password. Returns the final `{ nodeId, databaseUrl }` so the orchestration layer can emit the terminal event.
+     * Owns: agent_join → mesh_handshake → version_check → register_node → finalize. The operator proved who they are when
+     * they issued the join token on a node of the fleet; this node redeems it with its own agent, which joins the swarm,
+     * and then asks the fleet to enroll it over the mesh. Nothing here is configured from an address or a password.
+     * Resolves the final `{ nodeId, databaseUrl }` so the orchestration layer can emit the terminal event. The steps are
+     * async work (agent, mesh, swarm) driven through the step tracker; a stop is a `SetupInitializationFailed`.
      */
-    async initialize(
+    readonly initialize: (
+        input: SetupInitializeRemoteInput,
+        tracker: SetupStepTracker,
+        emit: EmitEvent,
+    ) => Effect.Effect<{ nodeId: string; databaseUrl: string }, SetupInitializationFailed>
+}
+
+type Ports = {
+    readonly nodeConfigRepository: NodeConfigRepositoryShape
+    readonly envService: EnvService
+    /** Joins this node to the FLEET's swarm from the grant the fleet issued. */
+    readonly swarmBootstrap: SwarmBootstrapShape
+    /** Read-back of the engine state for the finalize report. */
+    readonly swarmCluster: SwarmClusterShape
+    /** This node's agent, over its node door: how the token is redeemed. Overridable in tests. */
+    readonly nodeDoor?: () => NodeDoorClient
+    /** The link to this node's agent: the way a node that is not in the fleet yet reaches it. Overridable in tests. */
+    readonly agentLink?: () => ClientLink<ClientContext> | undefined
+}
+
+export function makeRemoteInitializationService(ports: Ports): RemoteInitializationServiceShape {
+    const { nodeConfigRepository, envService, swarmBootstrap, swarmCluster } = ports
+    const nodeDoor = ports.nodeDoor ?? (() => nodeDoorFromEnv(envService))
+    const agentLink = ports.agentLink ?? (() => nodeAgentLink())
+
+    async function initialize(
         input: SetupInitializeRemoteInput,
         tracker: SetupStepTracker,
         emit: EmitEvent,
@@ -73,9 +77,9 @@ export class RemoteInitializationService {
         /** Whether this node entered the cluster's mesh (Swarm then rides it). */
         let meshJoined = false
 
-        const agent = this.agentLink()
-        const door = this.nodeDoor()
-        const serverUrl = this.resolveServerUrl() ?? input.serverUrl
+        const agent = agentLink()
+        const door = nodeDoor()
+        const serverUrl = resolveServerUrl() ?? input.serverUrl
         /**
          * The token the agent handshake uses. `meshJoinToken` is the agent's own (the encoded one `roster.join`
          * accepts); `token` is the platform's grant. They are the same string on a node added from the fleet's UI, so the
@@ -197,7 +201,7 @@ export class RemoteInitializationService {
             const now = new Date().toISOString()
             // The repository mirrors the row into the node's agent itself while it answers; the local file remains the
             // fallback.
-            await runPromiseUnwrapped(this.nodeConfigRepository.upsert({
+            await runPromiseUnwrapped(nodeConfigRepository.upsert({
                 nodeId,
                 strategy: 'remote',
                 setupState: 'setup_done',
@@ -246,11 +250,11 @@ export class RemoteInitializationService {
             // The managers advertise MESH addresses, so the join can only succeed
             // once a WireGuard link is up — wait for it rather than racing it.
             if (meshJoined) {
-                const linked = await this.waitForLink(door)
+                const linked = await waitForLink(door)
                 stepLog(linked ? '✅ Mesh link established' : '⚠️  No mesh link yet — attempting the join anyway')
             }
-            await runPromiseUnwrapped(this.swarmBootstrap.converge('setup'))
-            const snapshot = await runPromiseUnwrapped(this.swarmCluster.getLocalClusterSnapshot())
+            await runPromiseUnwrapped(swarmBootstrap.converge('setup'))
+            const snapshot = await runPromiseUnwrapped(swarmCluster.getLocalClusterSnapshot())
 
             if (snapshot.localNodeState === 'active') {
                 stepLog('✅ Joined the Swarm cluster')
@@ -269,7 +273,7 @@ export class RemoteInitializationService {
      * Wait until the agent has completed a WireGuard handshake with some member — the moment Swarm can reach a manager's
      * mesh address. Returns false on timeout (the caller proceeds and lets Swarm's own join retry report the outcome).
      */
-    private async waitForLink(door: NodeDoorClient, timeoutMs = 60_000, pollMs = 2_000): Promise<boolean> {
+    async function waitForLink(door: NodeDoorClient, timeoutMs = 60_000, pollMs = 2_000): Promise<boolean> {
         const deadline = Date.now() + timeoutMs
         while (Date.now() < deadline) {
             const status = await door.status()
@@ -293,13 +297,13 @@ export class RemoteInitializationService {
      * A value for a key `EnvService` types as `string`, which an unset key still answers `undefined` for at runtime.
      * Reading through a method keeps the optional chain honest instead of a crash on `undefined.trim`.
      */
-    private optionalEnv(key: 'APP_URL' | 'NEXT_PUBLIC_APP_URL'): string | undefined {
-        return this.envService.get(key)
+    function optionalEnv(key: 'APP_URL' | 'NEXT_PUBLIC_APP_URL'): string | undefined {
+        return envService.get(key)
     }
 
-    private resolveServerUrl(): string | null {
-        const appUrl = this.optionalEnv('APP_URL')?.trim() ?? ''
-        const candidate = appUrl.length > 0 ? appUrl : (this.optionalEnv('NEXT_PUBLIC_APP_URL')?.trim() ?? '')
+    function resolveServerUrl(): string | null {
+        const appUrl = optionalEnv('APP_URL')?.trim() ?? ''
+        const candidate = appUrl.length > 0 ? appUrl : (optionalEnv('NEXT_PUBLIC_APP_URL')?.trim() ?? '')
         if (!candidate) {
             return null
         }
@@ -310,4 +314,16 @@ export class RemoteInitializationService {
             return null
         }
     }
+
+    return {
+        initialize: (input, tracker, emit) =>
+            Effect.tryPromise({
+                try: () => initialize(input, tracker, emit),
+                catch: (cause) => new SetupInitializationFailed({ reason: cause instanceof Error ? cause.message : String(cause), cause }),
+            }),
+    }
 }
+
+export class RemoteInitializationService extends Context.Service<RemoteInitializationService, RemoteInitializationServiceShape>()(
+    'shared/RemoteInitializationService',
+) {}

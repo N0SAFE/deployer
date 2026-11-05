@@ -1,26 +1,38 @@
-import { createModuleContext } from "@deployer/nest-effect";
+import type { Context } from "effect";
+
+import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
+import { createModuleContext, effectHostProvider } from "@deployer/nest-effect";
+import { SupervisorOrchestrator } from "@deployer/supervision";
 
 import { EnvModule, EnvService } from "../../../config/env/env.module";
 import { DatabaseModule } from '../database/database.module';
+import { DatabasePort } from '../database/storage';
 import { CoreDockerModule } from '../docker/docker.module';
 import { CoreEdgeModule } from '../edge/edge.module';
+import { EdgeProviderRegistry, type EdgeProviderRegistryShape } from '../edge/edge-provider.registry';
 import { EventsModule } from '../events/events.module';
 import { CorePlatformIngressModule } from '../platform-ingress/platform-ingress.module';
+import { HostnameService } from '../platform-ingress/services/hostname.service';
+import { IngressLanesService, type IngressLanesServiceShape } from '../platform-ingress/services/ingress-lanes.service';
+import { PlatformConfigService, type PlatformConfigServiceShape } from '../platform-ingress/services/platform-config.service';
+import { PlatformRoutesSource, type PlatformRoutesSourceShape } from '../platform-ingress/services/platform-routes-source.service';
+import { PlatformWebTargetService, type PlatformWebTargetServiceShape } from '../platform-ingress/services/platform-web-target.service';
 import { SupervisorsModule } from "../supervision/index";
 
 import { TraefikIngressConfigController } from './controllers/traefik-ingress-config.controller';
+import { CoreEventStreamPoolService, type CoreEventStreamPoolServiceShape } from '../events/base/index';
 import { TraefikEventService } from './events/traefik-event.service';
-import { TraefikTemplateRepository } from './repositories/traefik-template.repository';
-import { TraefikRepository } from './repositories/traefik.repository';
-import { TraefikConfigRefresher } from './services/traefik-config-refresher.service';
-import { TraefikFileSystemService } from './services/traefik-file-system.service';
-import { TraefikIngressConfigService } from './services/traefik-ingress-config.service';
+import { makeTraefikTemplateRepository, TraefikTemplateRepository } from './repositories/traefik-template.repository';
+import { makeTraefikRepository, TraefikRepository } from './repositories/traefik.repository';
+import { TraefikConfigRefresher, makeTraefikConfigRefresher } from './services/traefik-config-refresher.service';
+import { makeTraefikFileSystem, TraefikFileSystemService } from './services/traefik-file-system.service';
+import { makeTraefikIngressConfigService, TraefikIngressConfigService } from './services/traefik-ingress-config.service';
 import { TraefikMiddlewareLibraryService } from './services/traefik-middleware-library.service';
-import { TraefikSyncService } from './services/traefik-sync.service';
-import { TraefikTemplateService } from './services/traefik-template.service';
+import { makeTraefikSync, TraefikSyncService } from './services/traefik-sync.service';
+import { makeTraefikTemplateService, TraefikTemplateService } from './services/traefik-template.service';
 import { TraefikValidationService } from './services/traefik-validation.service';
 import { TraefikVariableResolverService } from './services/traefik-variable-resolver.service';
-import { TraefikService } from './services/traefik.service';
+import { makeTraefikService, TraefikService } from './services/traefik.service';
 
 
 /**
@@ -40,6 +52,11 @@ import { TraefikService } from './services/traefik.service';
  *
  * Services exported: ...
  */
+const makeTraefikSyncFromPorts = (
+  repository: Context.Service.Shape<typeof TraefikRepository>,
+  fileSystem: Context.Service.Shape<typeof TraefikFileSystemService>,
+) => makeTraefikSync({ repository, fileSystem });
+
 export class TraefikCoreModule extends createModuleContext({
   imports: [
     DatabaseModule,
@@ -66,26 +83,69 @@ export class TraefikCoreModule extends createModuleContext({
   ],
   controllers: [TraefikIngressConfigController],
   providers: [
+    effectHostProvider(),
     // Services
-    TraefikTemplateService,
-    TraefikVariableResolverService,
-    TraefikService,
-    TraefikSyncService,
+    {
+      provide: TraefikTemplateService,
+      useFactory: makeTraefikTemplateService,
+      inject: [TraefikTemplateRepository],
+    },
+    { provide: TraefikVariableResolverService, useValue: TraefikVariableResolverService.live },
     {
       provide: TraefikFileSystemService,
-      useFactory: (envService: EnvService, traefikRepository: TraefikRepository) =>
-        new TraefikFileSystemService(envService, traefikRepository),
+      useFactory: (env: EnvService, repository: Context.Service.Shape<typeof TraefikRepository>) =>
+        makeTraefikFileSystem({ basePath: env.get('TRAEFIK_CONFIG_BASE_PATH'), backupPath: env.get('TRAEFIK_BACKUP_PATH') }, repository),
       inject: [EnvService, TraefikRepository],
     },
-    TraefikValidationService,
-    TraefikMiddlewareLibraryService,
-    TraefikEventService,
+    {
+      provide: TraefikSyncService,
+      useFactory: makeTraefikSyncFromPorts,
+      inject: [TraefikRepository, TraefikFileSystemService],
+    },
+    {
+      provide: TraefikService,
+      useFactory: (
+        repository: Context.Service.Shape<typeof TraefikRepository>,
+        fileSystem: Context.Service.Shape<typeof TraefikFileSystemService>,
+        sync: Context.Service.Shape<typeof TraefikSyncService>,
+      ) => makeTraefikService({ repository, fileSystem, sync }),
+      inject: [TraefikRepository, TraefikFileSystemService, TraefikSyncService],
+    },
+    { provide: TraefikValidationService, useValue: TraefikValidationService.live },
+    { provide: TraefikMiddlewareLibraryService, useValue: TraefikMiddlewareLibraryService.live },
+    { provide: TraefikEventService, useFactory: (pool?: CoreEventStreamPoolServiceShape) => new TraefikEventService(pool), inject: [{ token: CoreEventStreamPoolService, optional: true }] },
     // Live-ingress config (served to Traefik's HTTP provider).
-    TraefikIngressConfigService,
-    TraefikConfigRefresher,
+    {
+      provide: TraefikIngressConfigService,
+      useFactory: (
+        env: EnvService,
+        dockerEngine: DockerEngineShape,
+        hostnames: HostnameService,
+        lanes: IngressLanesServiceShape,
+        webTarget: PlatformWebTargetServiceShape,
+        routesSource: PlatformRoutesSourceShape,
+        traefikRepository: Context.Service.Shape<typeof TraefikRepository>,
+        platformConfig: PlatformConfigServiceShape,
+        edges: EdgeProviderRegistryShape,
+      ) => makeTraefikIngressConfigService({ env, dockerEngine, hostnames, lanes, webTarget, routesSource, traefikRepository, platformConfig, edges }),
+      inject: [EnvService, DockerEngine, HostnameService, IngressLanesService, PlatformWebTargetService, PlatformRoutesSource, TraefikRepository, PlatformConfigService, EdgeProviderRegistry],
+    },
+    {
+      provide: TraefikConfigRefresher,
+      useFactory: makeTraefikConfigRefresher,
+      inject: [SupervisorOrchestrator],
+    },
     // Repositories
-    TraefikRepository,
-    TraefikTemplateRepository,
+    {
+      provide: TraefikRepository,
+      useFactory: (database: Context.Service.Shape<typeof DatabasePort>) => makeTraefikRepository({ database }),
+      inject: [DatabasePort],
+    },
+    {
+      provide: TraefikTemplateRepository,
+      useFactory: (database: Context.Service.Shape<typeof DatabasePort>) => makeTraefikTemplateRepository({ database }),
+      inject: [DatabasePort],
+    },
   ],
   exports: [
     // Services

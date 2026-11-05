@@ -1,19 +1,26 @@
-import { createModuleContext } from "@deployer/nest-effect";
+import { DockerEngine, PostgresProvisioner, type DockerEngineShape, type PostgresProvisionerShape } from "@deployer/docker";
+import { AppLifecycle, type AppLifecycleShape } from "@deployer/lifecycle";
+import { createModuleContext, effectHostProvider, serviceLifecycle } from "@deployer/nest-effect";
+import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state";
+import { SupervisorOrchestrator, type SupervisorOrchestratorShape } from "@deployer/supervision";
+import { SwarmBootstrap, SwarmCluster, type SwarmBootstrapShape, type SwarmClusterShape } from "@deployer/swarm";
 
-import { EnvModule } from "../../../config/env/env.module";
+import { EnvModule, EnvService } from "../../../config/env/env.module";
 import { LocalDatabaseModule } from "../database/local/local-database.module";
 import { CoreDockerModule } from "../docker/docker.module";
 import { AppLifecycleModule } from "../lifecycle";
 import { MeshInitializationModule } from "../mesh/initialization/mesh-initialization.module";
-import { MeshVersionService } from "../mesh/version/mesh-version.service";
+import { MeshInitializationService, type MeshInitializationServiceShape } from "../mesh/initialization/services/mesh-initialization.service";
+import { makeMeshVersionService, MeshVersionService } from "../mesh/version/mesh-version.service";
 import { NodeStateModule } from "../node-state/node-state.module";
 import { CoreReachabilityModule } from "../reachability/core-reachability.module";
 import { SupervisorsModule } from "../supervision/index";
 import { SwarmCoreModule } from "../swarm/swarm.module";
 
-import { InitializationService } from "./services/initialization.service";
-import { LocalInitializationService } from "./services/local-initialization.service";
-import { RemoteInitializationService } from "./services/remote-initialization.service";
+import { InitializationService, makeInitializationService } from "./services/initialization.service";
+import { LocalInitializationService, makeLocalInitializationService, type LocalInitializationServiceShape } from "./services/local-initialization.service";
+import { makeRemoteInitializationService, RemoteInitializationService, type RemoteInitializationServiceShape } from "./services/remote-initialization.service";
+import { CoreEventStreamPoolService, type CoreEventStreamPoolServiceShape } from "../events/base/index";
 import { SetupEventService } from "./services/setup-event.service";
 
 
@@ -47,11 +54,41 @@ export class CoreInitializationModule extends createModuleContext({
 		AppLifecycleModule,
 	],
     providers: [
-        LocalInitializationService,
-        RemoteInitializationService,
-        InitializationService,
-        SetupEventService,
-        MeshVersionService,
+        {
+            provide: LocalInitializationService,
+            useFactory: (
+                postgresProvisioner: PostgresProvisionerShape,
+                dockerEngine: DockerEngineShape,
+                env: EnvService,
+                nodeConfigRepository: NodeConfigRepositoryShape,
+                swarmBootstrap: SwarmBootstrapShape,
+                swarmCluster: SwarmClusterShape,
+                supervisors: SupervisorOrchestratorShape,
+            ) =>
+                makeLocalInitializationService({ postgresProvisioner, dockerEngine, env, nodeConfigRepository, swarmBootstrap, swarmCluster, supervisors }),
+            inject: [PostgresProvisioner, DockerEngine, EnvService, NodeConfigRepository, SwarmBootstrap, SwarmCluster, SupervisorOrchestrator],
+        },
+        {
+            provide: RemoteInitializationService,
+            useFactory: (nodeConfigRepository: NodeConfigRepositoryShape, envService: EnvService, swarmBootstrap: SwarmBootstrapShape, swarmCluster: SwarmClusterShape) =>
+                makeRemoteInitializationService({ nodeConfigRepository, envService, swarmBootstrap, swarmCluster }),
+            inject: [NodeConfigRepository, EnvService, SwarmBootstrap, SwarmCluster],
+        },
+        {
+            provide: InitializationService,
+            useFactory: (
+                nodeConfigRepository: NodeConfigRepositoryShape,
+                localInitializationService: LocalInitializationServiceShape,
+                remoteInitializationService: RemoteInitializationServiceShape,
+                setupEventService: SetupEventService,
+                lifecycle: AppLifecycleShape,
+            ) => makeInitializationService({ nodeConfigRepository, localInitializationService, remoteInitializationService, setupEventService, lifecycle }),
+            inject: [NodeConfigRepository, LocalInitializationService, RemoteInitializationService, SetupEventService, AppLifecycle],
+        },
+        serviceLifecycle(InitializationService),
+        effectHostProvider(),
+        { provide: SetupEventService, useFactory: (pool?: CoreEventStreamPoolServiceShape) => new SetupEventService(pool), inject: [{ token: CoreEventStreamPoolService, optional: true }] },
+        { provide: MeshVersionService, useFactory: (mesh: MeshInitializationServiceShape) => makeMeshVersionService(mesh), inject: [MeshInitializationService] },
     ],
     exports: [InitializationService, LocalInitializationService, RemoteInitializationService, SetupEventService, MeshVersionService],
 }) {}

@@ -12,47 +12,51 @@
  * So the value is loaded once at init and refreshed on a timer; both seams read this cache instead of
  * doing a synchronous round trip through an async repository.
  */
-import { Inject, Injectable, Logger, type OnApplicationShutdown, type OnModuleInit } from "@nestjs/common";
+import { Context, Effect } from "effect";
 
-import { runPromiseUnwrapped } from "@deployer/effect-core";
 import { NodeConfigRepository, type NodeConfigRepositoryShape, type NodeConfigRow } from "@deployer/node-state";
+import type { ServiceLifecycleShape } from "@deployer/nest-effect";
 
 const REFRESH_INTERVAL_MS = 30_000;
 
-@Injectable()
-export class NodeConfigSnapshot implements OnModuleInit, OnApplicationShutdown {
-	private readonly logger = new Logger(NodeConfigSnapshot.name);
-	private row: NodeConfigRow | null = null;
-	private timer: ReturnType<typeof setInterval> | null = null;
-
-	constructor(@Inject(NodeConfigRepository) private readonly nodeConfigRepository: NodeConfigRepositoryShape) {}
-
+export type NodeConfigSnapshotShape = ServiceLifecycleShape & {
 	/** The last loaded row, or null before the first successful refresh. Synchronous by design. */
-	current(): NodeConfigRow | null {
-		return this.row;
-	}
+	readonly current: () => NodeConfigRow | null;
+	/** Reload the row and resolve it; a failure is logged and keeps the previous value (a stale URL is better than none). */
+	readonly refresh: () => Effect.Effect<NodeConfigRow | null>;
+};
 
-	/** Reload the row; a failure keeps the previous value (a stale URL is better than none). */
-	async refresh(): Promise<NodeConfigRow | null> {
-		try {
-			this.row = await runPromiseUnwrapped(this.nodeConfigRepository.find());
-		} catch (error: unknown) {
-			this.logger.warn(`Node config refresh failed, keeping the previous value: ${error instanceof Error ? error.message : String(error)}`);
-		}
-		return this.row;
-	}
+export function makeNodeConfigSnapshot(
+	nodeConfig: Pick<NodeConfigRepositoryShape, "find">,
+	options: { readonly refreshIntervalMs: number } = { refreshIntervalMs: REFRESH_INTERVAL_MS },
+): NodeConfigSnapshotShape {
+	let row: NodeConfigRow | null = null;
 
-	async onModuleInit(): Promise<void> {
-		await this.refresh();
-		this.timer = setInterval(() => {
-			void this.refresh();
-		}, REFRESH_INTERVAL_MS);
-		// Never hold the event loop open for a cache refresh.
-		this.timer.unref?.();
-	}
+	const refresh: NodeConfigSnapshotShape["refresh"] = () =>
+		nodeConfig.find().pipe(
+			Effect.map((found) => {
+				row = found;
+			}),
+			Effect.catch((error: unknown) =>
+				Effect.logWarning(`Node config refresh failed, keeping the previous value: ${error instanceof Error ? error.message : String(error)}`),
+			),
+			Effect.map(() => row),
+		);
 
-	onApplicationShutdown(): void {
-		if (this.timer !== null) clearInterval(this.timer);
-		this.timer = null;
-	}
+	return {
+		current: () => row,
+		refresh,
+		onStart: () => Effect.asVoid(refresh()),
+		// The runner owns the fiber and interrupts it at shutdown, so the cache never holds the process open.
+		run: () =>
+			Effect.forever(Effect.sleep(options.refreshIntervalMs).pipe(Effect.andThen(refresh()))),
+	};
+}
+
+export class NodeConfigSnapshot extends Context.Service<NodeConfigSnapshot, NodeConfigSnapshotShape>()("shared/NodeConfigSnapshot") {
+	static readonly provider = {
+		provide: NodeConfigSnapshot,
+		useFactory: (nodeConfig: NodeConfigRepositoryShape) => makeNodeConfigSnapshot(nodeConfig),
+		inject: [NodeConfigRepository],
+	};
 }

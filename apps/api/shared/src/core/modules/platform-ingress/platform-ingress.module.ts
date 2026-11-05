@@ -14,27 +14,61 @@
  * coupling the `AppModule` graph check surfaces.
  */
 
+import type { Context } from "effect";
+
 import { createGlobalModule } from "@deployer/nest-effect";
 
-import { EnvModule } from "../../../config/env/env.module";
+import { EnvModule, EnvService } from "../../../config/env/env.module";
+import { DatabasePort } from "../database/storage";
 import { CoreDockerModule } from "../docker/docker.module";
+import { ClusterSettings, type ClusterSettingsShape } from "../mesh-node/cluster-settings";
 
-import { AppInstanceService } from "./services/app-instance.service";
+import { AppInstanceService, makeAppInstanceService } from "./services/app-instance.service";
 import { EnvHostnameService, HostnameService } from "./services/hostname.service";
-import { IngressLanesService } from "./services/ingress-lanes.service";
-import { PlatformConfigService } from "./services/platform-config.service";
-import { PlatformRoutesSource } from "./services/platform-routes-source.service";
-import { PlatformWebTargetService } from "./services/platform-web-target.service";
+import { IngressLanesService, makeIngressLanesService } from "./services/ingress-lanes.service";
+import { makePlatformConfigService, PlatformConfigService, type PlatformConfigServiceShape } from "./services/platform-config.service";
+import { makePlatformRoutesSource, PlatformRoutesSource } from "./services/platform-routes-source.service";
+import { makePlatformWebTargetService, PlatformWebTargetService } from "./services/platform-web-target.service";
 
 export const CorePlatformIngressModule = createGlobalModule({
 	imports: [CoreDockerModule, EnvModule],
 	providers: [
-		{ provide: HostnameService, useClass: EnvHostnameService },
-		IngressLanesService,
-		AppInstanceService,
-		PlatformConfigService,
-		PlatformWebTargetService,
-		PlatformRoutesSource,
+		{ provide: HostnameService, useFactory: (env: EnvService) => new EnvHostnameService(env), inject: [EnvService] },
+		{
+			provide: IngressLanesService,
+			useFactory: (settings: ClusterSettingsShape, env: EnvService) =>
+				makeIngressLanesService({ settings, entryPort: () => env.get("DEPLOYER_TRAEFIK_HTTP_PORT") }),
+			inject: [ClusterSettings, EnvService],
+		},
+		{
+			provide: AppInstanceService,
+			useFactory: (database: Context.Service.Shape<typeof DatabasePort>) => makeAppInstanceService(database),
+			inject: [DatabasePort],
+		},
+		{
+			provide: PlatformConfigService,
+			useFactory: (database: Context.Service.Shape<typeof DatabasePort>, env: EnvService) =>
+				makePlatformConfigService({ database, managedWebSeed: () => env.get("MANAGED_WEB_APP_ENABLED") }),
+			inject: [DatabasePort, EnvService],
+		},
+		{
+			provide: PlatformWebTargetService,
+			useFactory: (platformConfig: PlatformConfigServiceShape, env: EnvService) =>
+				makePlatformWebTargetService({
+					platformConfig,
+					env: {
+						webTarget: () => env.get("DEPLOYER_WEB_TARGET"),
+						managedWebExternal: () => env.get("MANAGED_WEB_APP_EXTERNAL"),
+						prefix: () => env.get("DEPLOYER_PREFIX"),
+					},
+				}),
+			inject: [PlatformConfigService, EnvService],
+		},
+		{
+			provide: PlatformRoutesSource,
+			useFactory: (database: Context.Service.Shape<typeof DatabasePort>) => makePlatformRoutesSource(database),
+			inject: [DatabasePort],
+		},
 	],
 	exports: [
 		HostnameService,

@@ -2,13 +2,13 @@ import { Context, Effect } from "effect";
 import { Observable } from "rxjs";
 
 import { serviceOver, type Over } from "@deployer/effect-core";
-import type { EgressService } from "@deployer/shared/core/modules/egress/egress.service";
+import type { EgressServiceShape } from "@deployer/shared/core/modules/egress/egress.service";
 import type { NodeNetworkConfigData } from "@deployer/shared/core/modules/reachability/services/node-network-config.mapper";
-import type { PublicAccessPointService } from "@deployer/shared/core/modules/reachability/services/public-access-point.service";
-import type { ReachabilityService } from "@deployer/shared/core/modules/reachability/services/reachability.service";
-import type { TraefikConfigRefresher } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
+import type { PublicAccessPointServiceShape } from "@deployer/shared/core/modules/reachability/services/public-access-point.service";
+import type { ReachabilityServiceShape } from "@deployer/shared/core/modules/reachability/services/reachability.service";
+import type { TraefikConfigRefresherShape } from "@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service";
 
-import { attempt, attemptSync } from "../../../core/effects";
+import { attemptSync } from "../../../core/effects";
 import {
 	EgressPort,
 	PublicAccessPointPort,
@@ -20,10 +20,10 @@ import {
 type NodeNetworkView = NodeNetworkConfigData;
 
 /** What the shared services answer, so this layer's types follow them rather than restate them. */
-type DomainCheck = Awaited<ReturnType<ReachabilityService["checkDomainReachability"]>>;
-type DomainGate = Awaited<ReturnType<ReachabilityService["checkDomainGate"]>>;
-type AccessPointState = Awaited<ReturnType<PublicAccessPointService["getAccessPoint"]>>;
-type NodeConfigUpdate = Parameters<ReachabilityService["updateNodeNetworkConfig"]>[0];
+type DomainCheck = Effect.Success<ReturnType<ReachabilityServiceShape["checkDomainReachability"]>>;
+type DomainGate = Effect.Success<ReturnType<ReachabilityServiceShape["checkDomainGate"]>>;
+type AccessPointState = Effect.Success<ReturnType<PublicAccessPointServiceShape["getAccessPoint"]>>;
+type NodeConfigUpdate = Parameters<ReachabilityServiceShape["updateNodeNetworkConfig"]>[0];
 
 /** Live availability of the stack's public URL. */
 type PublicUrlProbe = {
@@ -66,7 +66,7 @@ export type NodeReachabilityServiceShape = {
 	readonly checkDomain: (domain: string, expectedIp?: string) => Effect.Effect<DomainCheck, unknown, NodeReachabilityPorts>;
 	readonly getPublicIp: () => Effect.Effect<{ ip: string | null }, unknown, NodeReachabilityPorts>;
 	readonly getNodeNetworkConfig: (
-		nodeId: Parameters<ReachabilityService["getNodeNetworkConfig"]>[0],
+		nodeId: Parameters<ReachabilityServiceShape["getNodeNetworkConfig"]>[0],
 	) => Effect.Effect<NodeNetworkView, unknown, NodeReachabilityPorts>;
 	readonly listNodeNetworkConfigs: () => Effect.Effect<{ configs: NodeNetworkView[] }, unknown, NodeReachabilityPorts>;
 	/** Changing a node's address makes Traefik publish the new Host rule: re-converge now. */
@@ -83,10 +83,10 @@ export type NodeReachabilityServiceShape = {
 };
 
 type Ports = {
-	readonly reachability: ReachabilityService;
-	readonly accessPoint: PublicAccessPointService;
-	readonly egress: EgressService;
-	readonly refresher: TraefikConfigRefresher;
+	readonly reachability: ReachabilityServiceShape;
+	readonly accessPoint: PublicAccessPointServiceShape;
+	readonly egress: EgressServiceShape;
+	readonly refresher: TraefikConfigRefresherShape;
 };
 
 /** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
@@ -117,9 +117,9 @@ function makeNodeReachabilityService({ reachability, accessPoint, egress, refres
 	const isOk = (status: number) => status >= 200 && status < 300;
 
 	const probePublicUrl = Effect.fn("NodeReachabilityService.probePublicUrl")(function* () {
-		const publicUrl = yield* attempt(() => reachability.getNodePublicUrl());
+		const publicUrl = yield* reachability.getNodePublicUrl();
 		if (!publicUrl) return { publicUrl: null, lastCheckedAt: null, lastStatus: null, reachable: null };
-		return yield* attempt(() => egress.operator({ url: `${publicUrl}/health` })).pipe(
+		return yield* egress.operator({ url: `${publicUrl}/health` }).pipe(
 			Effect.map(
 				(resp): PublicUrlProbe => ({
 					publicUrl,
@@ -146,7 +146,7 @@ function makeNodeReachabilityService({ reachability, accessPoint, egress, refres
 			// Any authenticated user can name this URL: it goes through the operator egress policy
 			// (no loopback / link-local / metadata, no redirects) and failures are reported as a
 			// category, never as a resolved address or a transport error.
-			return yield* attempt(() => egress.operator({ url: probeUrl })).pipe(
+			return yield* egress.operator({ url: probeUrl }).pipe(
 				Effect.map((resp) => ({
 					url,
 					reachable: isOk(resp.status),
@@ -168,30 +168,30 @@ function makeNodeReachabilityService({ reachability, accessPoint, egress, refres
 		probePublicUrl,
 
 		checkDomain: Effect.fn("NodeReachabilityService.checkDomain")(function* (domain, expectedIp) {
-			return yield* attempt(() => reachability.checkDomainReachability(domain, expectedIp));
+			return yield* reachability.checkDomainReachability(domain, expectedIp);
 		}),
 
 		getPublicIp: Effect.fn("NodeReachabilityService.getPublicIp")(function* () {
-			return { ip: yield* attempt(() => reachability.getPublicIp()) };
+			return { ip: yield* reachability.getPublicIp() };
 		}),
 
 		getNodeNetworkConfig: Effect.fn("NodeReachabilityService.getNodeNetworkConfig")(function* (nodeId) {
-			return toNodeNetworkView(yield* attempt(() => reachability.getNodeNetworkConfig(nodeId)));
+			return toNodeNetworkView(yield* reachability.getNodeNetworkConfig(nodeId));
 		}),
 
 		listNodeNetworkConfigs: Effect.fn("NodeReachabilityService.listNodeNetworkConfigs")(function* () {
-			const configs = yield* attempt(() => reachability.listNodeNetworkConfigs());
+			const configs = yield* reachability.listNodeNetworkConfigs();
 			return { configs: configs.map(toNodeNetworkView) };
 		}),
 
 		updateNodeNetworkConfig: Effect.fn("NodeReachabilityService.updateNodeNetworkConfig")(function* (input) {
-			const updated = yield* attempt(() => reachability.updateNodeNetworkConfig(input));
+			const updated = yield* reachability.updateNodeNetworkConfig(input);
 			refresher.refresh();
 			return toNodeNetworkView(updated);
 		}),
 
 		checkDomainGate: Effect.fn("NodeReachabilityService.checkDomainGate")(function* () {
-			const gate = yield* attempt(() => reachability.checkDomainGate());
+			const gate = yield* reachability.checkDomainGate();
 			return {
 				allowed: gate.allowed,
 				reason: gate.reason,
@@ -201,7 +201,7 @@ function makeNodeReachabilityService({ reachability, accessPoint, egress, refres
 		}),
 
 		getPublicAccessPoint: Effect.fn("NodeReachabilityService.getPublicAccessPoint")(function* () {
-			const state = yield* attempt(() => accessPoint.getAccessPoint());
+			const state = yield* accessPoint.getAccessPoint();
 			yield* Effect.logInfo(
 				`Public access point requested: kind=${String(state.kind)} url=${state.publicUrl ?? "none"} reachable=${String(state.reachable)}`,
 			);

@@ -1,11 +1,10 @@
-import { Logger, type OnModuleDestroy } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { Effect, Stream } from 'effect';
 import { EMPTY, merge, Observable, Subject } from 'rxjs';
 import { filter as rxFilter, map } from 'rxjs/operators';
 
 import { runPromiseUnwrapped } from '@deployer/effect-core';
 import {
-  EventLogUnavailable,
   makeEventJournal,
   type EventJournalShape,
   type EventLogStoreShape,
@@ -68,22 +67,6 @@ type EventSubscriptionData<T> = {
 
 export type { PersistedEventLog };
 
-/** The Promise-based log the app registers; the journal sees it as an Effect store. */
-export type EventLogPersistenceAdapter = {
-  insertMany(logs: PersistedEventLog[]): Promise<void>;
-  findRecentByEventKey(input: {
-    namespace: string;
-    eventName: string;
-    eventKey: string;
-    limit: number;
-  }): Promise<PersistedEventLog[]>;
-  findRecentByEventName(input: {
-    namespace: string;
-    eventName: string;
-    limit: number;
-  }): Promise<PersistedEventLog[]>;
-}
-
 type ReplayOptions = {
   replayLimit?: number;
   includePersisted?: boolean;
@@ -129,7 +112,7 @@ type QueryByInputOptions<TInput> = {
 export abstract class BaseEventService<
   TContracts extends EventContracts = EventContracts,
   TNamespace extends string = string,
-> implements OnModuleDestroy {
+> {
   /** The registered log, seen through an Effect store; null until the app registers one. */
   private static eventLogStore: EventLogStoreShape | null = null;
   private static readonly serviceRegistry = new Set<BaseEventService>();
@@ -190,26 +173,9 @@ export abstract class BaseEventService<
     return Object.keys(this.contracts);
   }
 
-  static configurePersistenceAdapter(adapter: EventLogPersistenceAdapter): void {
-    BaseEventService.eventLogStore = BaseEventService.storeFor(adapter);
-  }
-
-  /** Lifts the Promise adapter to the journal's Effect store; a rejection is an `EventLogUnavailable` carrying the original error. */
-  private static storeFor(adapter: EventLogPersistenceAdapter): EventLogStoreShape {
-    const lift = <A>(run: () => Promise<A>) =>
-      Effect.tryPromise({
-        try: run,
-        catch: (cause) =>
-          Object.assign(
-            new EventLogUnavailable({ reason: cause instanceof Error ? cause.message : String(cause) }),
-            { cause },
-          ),
-      });
-    return {
-      insertMany: (logs) => lift(() => adapter.insertMany([...logs])),
-      findRecentByEventKey: (query) => lift(() => adapter.findRecentByEventKey(query)),
-      findRecentByEventName: (query) => lift(() => adapter.findRecentByEventName(query)),
-    };
+  /** Binds the durable log every event service persists to (an Effect store). */
+  static configureEventLogStore(store: EventLogStoreShape): void {
+    BaseEventService.eventLogStore = store;
   }
 
   static hasBaseEventSymbol(value: unknown): value is BaseEventServiceSymbolized {
@@ -709,12 +675,16 @@ export abstract class BaseEventService<
   }
 
   /**
-   * NestJS lifecycle hook — stops the journal's periodic flush and pending retry so the process can
-   * exit cleanly. Concrete event services inherit it; a subclass needing more teardown must override
-   * and call `super.onModuleDestroy()`.
+   * Stops the journal's periodic flush and pending retry so the process can exit cleanly. The events module calls
+   * {@link disposeAll} at shutdown; a subclass needing more teardown overrides this and calls `super.dispose()`.
    */
-  onModuleDestroy(): void {
+  dispose(): void {
     Effect.runSync(this.journal.close);
+  }
+
+  /** Disposes every event service built in this process. */
+  static disposeAll(): void {
+    for (const service of BaseEventService.serviceRegistry) service.dispose();
   }
 }
 

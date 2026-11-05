@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Context } from "effect";
 
 import {
     configurationScopeSchema,
@@ -46,19 +46,22 @@ const runtimeConfigurationDefinitions: RuntimeConfigurationDefinitionMap = {
     },
 };
 
-@Injectable()
-export class ConfigurationDefinitionService {
-    private readonly definitions: RuntimeConfigurationDefinitionMap;
+export type ConfigurationDefinitionServiceShape = {
+    readonly listDefinitions: () => RuntimeConfigurationDefinition[];
+    readonly getDefinition: (scope: ConfigurationScope) => RuntimeConfigurationDefinition;
+};
 
-    constructor() {
-        this.definitions = runtimeConfigurationDefinitions;
-    }
-
-    listDefinitions(): RuntimeConfigurationDefinition[] {
-        return configurationScopeSchema.options.map((scope) => this.getDefinition(scope));
-    }
-
-    getDefinition(scope: ConfigurationScope): RuntimeConfigurationDefinition {
-        return this.definitions[scope];
-    }
+/** The definitions are constants: the service is pure, so its methods are plain reads. */
+export function makeConfigurationDefinitionService(
+    definitions: RuntimeConfigurationDefinitionMap = runtimeConfigurationDefinitions,
+): ConfigurationDefinitionServiceShape {
+    const getDefinition = (scope: ConfigurationScope) => definitions[scope];
+    return {
+        listDefinitions: () => configurationScopeSchema.options.map(getDefinition),
+        getDefinition,
+    };
 }
+
+export class ConfigurationDefinitionService extends Context.Service<ConfigurationDefinitionService, ConfigurationDefinitionServiceShape>()(
+    "shared/ConfigurationDefinitionService",
+) {}

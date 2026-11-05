@@ -8,7 +8,7 @@ import { AnalyticsController } from "./analytics.controller";
 
 /**
  * The generator a built procedure was given through `.effect(...)`: the controller's whole behaviour.
- * The oRPC builder is stubbed to capture it, and `serve` to pass the effect through, so the spec runs the
+ * The oRPC builder is stubbed to capture it, and the `.effect()` boundary to pass the effect through, so the spec runs the
  * handler against a substituted `AnalyticsService`.
  */
 type Handler = (args: { input: unknown; context: unknown }) => Generator<unknown, unknown, never>;

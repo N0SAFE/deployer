@@ -3,12 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import { Correlation, CurrentActor, HttpRequest, clientAddressOf, domainError, headerOf } from "@deployer/effect-core";
 
-import { createServe } from "./serve";
+import { inBoundary, configureBoundary } from "./boundary";
 
 class Missing extends domainError("Missing", "not_found")() {}
 
-const onDefect = vi.fn();
-const { serve, serveAnonymous } = createServe({ service: "svc-test", onDefect });
+const failures = vi.fn();
+configureBoundary({ service: "svc-test", onDomainFailure: failures });
+const serve = (ctx: Parameters<typeof inBoundary>[0]) => <A, E, R>(effect: Effect.Effect<A, E, R>) => inBoundary(ctx, effect);
 
 const whoAmI = Effect.gen(function* () {
 	const actor = yield* CurrentActor;
@@ -16,16 +17,14 @@ const whoAmI = Effect.gen(function* () {
 	return `${actor.id}:${id}`;
 });
 
-describe("createServe", () => {
+describe("request boundary", () => {
 	it("provides the actor and correlation id", async () => {
 		const ctx = { auth: { user: { id: "u1" } }, request: { headers: { "x-correlation-id": "c1" } } };
 		await expect(Effect.runPromise(serve(ctx)(whoAmI))).resolves.toBe("u1:c1");
 	});
 
-	it("refuses an anonymous caller as unauthorized, but lets serveAnonymous through", async () => {
-		const refused = await Effect.runPromise(Effect.flip(serve({})(whoAmI)));
-		expect((refused as { code: string }).code).toBe("UNAUTHORIZED");
-		await expect(Effect.runPromise(serveAnonymous({})(whoAmI))).resolves.toMatch(/^anonymous:/);
+	it("lets an anonymous caller act as the anonymous user: the gate in front of the handler is what refuses", async () => {
+		await expect(Effect.runPromise(serve({})(whoAmI))).resolves.toMatch(/^anonymous:/);
 	});
 
 	it("maps domain errors and logs defects with the correlation id", async () => {
@@ -35,7 +34,7 @@ describe("createServe", () => {
 
 		const hidden = await Effect.runPromise(Effect.flip(serve(ctx)(Effect.die(new Error("secret")))));
 		expect((hidden as { code: string }).code).toBe("INTERNAL_SERVER_ERROR");
-		expect(onDefect).toHaveBeenCalledWith(expect.anything(), "c2");
+		expect(failures).toHaveBeenCalledWith(ctx, expect.objectContaining({ _tag: "Missing" }), "c2");
 	});
 
 	it("supplies the request itself, so a handler can read it without a Nest scope", async () => {

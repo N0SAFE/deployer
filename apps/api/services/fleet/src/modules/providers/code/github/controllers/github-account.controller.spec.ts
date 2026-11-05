@@ -14,7 +14,7 @@ import { GithubAppsStore, type GithubAppsStoreShape } from "../repositories/gith
 import { GitHubAppsController } from "./github-account.controller";
 
 // Authentication and role checks are the shared middlewares' concern; here they let the call
-// through so the rest of the chain (Effect context, `serve`, failure handling) runs for real.
+// through so the rest of the chain (Effect context, the `.effect()` boundary, failure handling) runs for real.
 vi.mock("@deployer/shared/core/modules/auth/orpc/middlewares", async () => {
     const { os } = await import("@orpc/server");
     const passThrough = () => os.$context().middleware(({ next }) => next());
@@ -47,12 +47,12 @@ describe("GitHubAppsController", () => {
         findProviderApps: vi.fn((_providerAppId?: string) => Effect.succeed([row] as (typeof row)[])),
     };
     const gitHub = {
-        registerInstallation: vi.fn(),
+        registerInstallation: vi.fn(() => Effect.void),
         listInstallations: vi.fn(),
         listInstallationRepositories: vi.fn(),
         listRepositoryBranches: vi.fn(),
     };
-    const accessPoint = { getAccessPoint: vi.fn() };
+    const accessPoint = { getAccessPoint: vi.fn((): Effect.Effect<unknown> => Effect.succeed({ configured: false })) };
     const context = {
         ...effectContext(
             Context.make(GithubAppsStore, store as unknown as GithubAppsStoreShape).pipe(
@@ -139,7 +139,7 @@ describe("GitHubAppsController", () => {
     });
 
     it("refuses an OAuth start when the node has no public access point", async () => {
-        accessPoint.getAccessPoint.mockResolvedValue({ configured: false, error: "No access point" });
+        accessPoint.getAccessPoint.mockReturnValue(Effect.succeed({ configured: false, error: "No access point" }));
 
         await expect(call(controller.oauthInit(), { params: { appId: "a1" }, body: { url: "x", state: "y" } })).rejects.toMatchObject({
             code: "BAD_REQUEST",
@@ -148,7 +148,7 @@ describe("GitHubAppsController", () => {
     });
 
     it("starts an OAuth flow towards the node's public URL", async () => {
-        accessPoint.getAccessPoint.mockResolvedValue({ configured: true, reachable: true, publicUrl: "https://deploy.example.com" });
+        accessPoint.getAccessPoint.mockReturnValue(Effect.succeed({ configured: true, reachable: true, publicUrl: "https://deploy.example.com" }));
 
         const result = await call<{ url: string; state: string }>(controller.oauthInit(), { params: { appId: "a1" }, body: { url: "x", state: "y" } });
 
@@ -171,10 +171,10 @@ describe("GitHubAppsController", () => {
         });
 
         it("discovers the installation from GitHub when the database has none, and stores it", async () => {
-            gitHub.listInstallations.mockResolvedValue([{ id: 42 }]);
-            gitHub.listInstallationRepositories.mockResolvedValue([
+            gitHub.listInstallations.mockReturnValue(Effect.succeed([{ id: 42 }]));
+            gitHub.listInstallationRepositories.mockReturnValue(Effect.succeed([
                 { id: 1, name: "repo", full_name: "org/repo", description: null, html_url: "u", default_branch: "main", language: "TypeScript", private: false },
-            ]);
+            ]));
 
             const result = await call<{ repos: { full_name: string }[]; _meta: { installed: boolean } }>(controller.listRepos());
 
@@ -186,17 +186,17 @@ describe("GitHubAppsController", () => {
         });
 
         it("says the app is not installed when GitHub knows no installation, and when discovery fails", async () => {
-            gitHub.listInstallations.mockResolvedValueOnce([]);
+            gitHub.listInstallations.mockReturnValueOnce(Effect.succeed([]));
             expect(await call(controller.listRepos())).toMatchObject({ repos: [], _meta: { installed: false } });
 
-            gitHub.listInstallations.mockRejectedValueOnce(new Error("github down"));
+            gitHub.listInstallations.mockReturnValueOnce(Effect.fail(new Error("github down")));
             expect(await call(controller.listRepos())).toMatchObject({ repos: [], _meta: { installed: false } });
             expect(gitHub.listInstallationRepositories).not.toHaveBeenCalled();
         });
 
         it("does not register a personal-access-token app, which has no app credentials", async () => {
             store.findProviderApps.mockReturnValue(Effect.succeed([{ ...row, appId: "pat", installationId: "7" }]));
-            gitHub.listInstallationRepositories.mockResolvedValue([]);
+            gitHub.listInstallationRepositories.mockReturnValue(Effect.succeed([]));
 
             await call(controller.listRepos());
 
@@ -206,7 +206,7 @@ describe("GitHubAppsController", () => {
 
     describe("listBranches", () => {
         it("lists no branches when the app is not installed anywhere", async () => {
-            gitHub.listInstallations.mockResolvedValue([]);
+            gitHub.listInstallations.mockReturnValue(Effect.succeed([]));
 
             expect(await call(controller.listBranches(), { params: { owner: "org", repo: "repo" } })).toEqual({
                 owner: "org",
@@ -217,7 +217,7 @@ describe("GitHubAppsController", () => {
 
         it("lists the branches through the app's installation", async () => {
             row.installationId = "42";
-            gitHub.listRepositoryBranches.mockResolvedValue([{ name: "main", sha: "abc", protected: false }]);
+            gitHub.listRepositoryBranches.mockReturnValue(Effect.succeed([{ name: "main", sha: "abc", protected: false }]));
 
             const result = await call<{ branches: unknown[] }>(controller.listBranches(), { params: { owner: "org", repo: "repo" } });
 
@@ -232,7 +232,7 @@ describe("GitHubAppsController", () => {
             expect(await call(controller.detectRunner(), { params: { owner: "org", repo: "repo" } })).toEqual({ detected: [], defaultBuilder: null });
 
             store.findProviderApps.mockReturnValue(Effect.succeed([row]));
-            gitHub.listInstallations.mockResolvedValue([]);
+            gitHub.listInstallations.mockReturnValue(Effect.succeed([]));
             expect(await call(controller.detectRunner(), { params: { owner: "org", repo: "repo" } })).toEqual({ detected: [], defaultBuilder: null });
         });
     });

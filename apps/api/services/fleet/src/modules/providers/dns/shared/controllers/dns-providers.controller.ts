@@ -15,7 +15,6 @@ import { providersContract } from "@deployer/fleet-contracts";
 import { procedure } from "@deployer/nest-effect";
 import { requireAuth, requirePlatformRole } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
-import { serve } from "@/core/orpc/serve";
 import { CloudflareAppService } from "@/modules/providers/dns/cloudflare/services/cloudflare-app.service";
 
 
@@ -30,9 +29,9 @@ export class DnsProvidersController {
     list() {
         return procedure(providersContract.dns.list)
             .use(requireAuth())
-            .effect(function* ({ context }) {
+            .effect(function* () {
                 const apps = yield* CloudflareAppService;
-                const providers = yield* serve(context)(apps.listApps());
+                const providers = yield* apps.listApps();
                 return { providers, total: providers.length };
             });
     }
@@ -42,17 +41,16 @@ export class DnsProvidersController {
         return procedure(providersContract.dns.create)
             .use(requireAuth())
             .use(requirePlatformRole(DNS_OPERATOR_ROLES))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const apps = yield* CloudflareAppService;
-                return yield* serve(context)(
-                    apps.createApp({
+                return yield* apps.createApp({
                         name: input.name,
                         providerType: input.providerType,
                         apiToken: input.apiToken,
                         accountEmail: input.accountEmail,
                         features: input.features,
-                    }),
-                );
+                    })
+                ;
             });
     }
 
@@ -61,9 +59,9 @@ export class DnsProvidersController {
         return procedure(providersContract.dns.update)
             .use(requireAuth())
             .use(requirePlatformRole(DNS_OPERATOR_ROLES))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const apps = yield* CloudflareAppService;
-                return yield* serve(context)(apps.updateApp(input.params.id, input.body ?? {}));
+                return yield* apps.updateApp(input.params.id, input.body ?? {});
             });
     }
 
@@ -72,9 +70,9 @@ export class DnsProvidersController {
         return procedure(providersContract.dns.delete)
             .use(requireAuth())
             .use(requirePlatformRole(DNS_OPERATOR_ROLES))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const apps = yield* CloudflareAppService;
-                const success = yield* serve(context)(apps.deleteApp(input.params.id));
+                const success = yield* apps.deleteApp(input.params.id);
                 return { success };
             });
     }
@@ -83,9 +81,9 @@ export class DnsProvidersController {
     checkState() {
         return procedure(providersContract.dns.checkState)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const apps = yield* CloudflareAppService;
-                return yield* serve(context)(apps.getLiveState(input.params.id, true));
+                return yield* apps.getLiveState(input.params.id, true);
             });
     }
 }

@@ -41,16 +41,16 @@ describe("PlatformManagedWebService", () => {
 		ensured.mockClear();
 		delete process.env.CLOUDFLARE_WEB_TUNNEL_PROVIDER_ID;
 		platformConfig = {
-			isManagedWebAppEnabled: vi.fn(() => Promise.resolve(enabled)),
+			isManagedWebAppEnabled: vi.fn(() => Effect.succeed(enabled)),
 			setManagedWebAppEnabled: vi.fn((value: boolean) => {
 				enabled = value;
-				return Promise.resolve();
+				return Effect.void;
 			}),
-			getManagedWebOrigin: vi.fn(() => Promise.resolve(null)),
-			setManagedWebOrigin: vi.fn(() => Promise.resolve()),
-			getManagedWebTunnel: vi.fn(() => Promise.resolve(null)),
-			setManagedWebTunnel: vi.fn(() => Promise.resolve()),
-			clearManagedWebTunnel: vi.fn(() => Promise.resolve()),
+			getManagedWebOrigin: vi.fn(() => Effect.succeed(null)),
+			setManagedWebOrigin: vi.fn(() => Effect.void),
+			getManagedWebTunnel: vi.fn(() => Effect.succeed(null)),
+			setManagedWebTunnel: vi.fn(() => Effect.void),
+			clearManagedWebTunnel: vi.fn(() => Effect.void),
 		};
 		tunnel = {
 			createTunnel: vi.fn(() => Effect.succeed({ hostname: "web.example.com", tunnel: { id: "t1" } })),
@@ -153,7 +153,7 @@ describe("PlatformManagedWebService", () => {
 		});
 
 		it("clears the tunnel and converges even when removing it at the provider fails", async () => {
-			platformConfig.getManagedWebTunnel.mockResolvedValue({ tunnelId: "t1", hostname: "web.example.com", providerId: "cf-1" });
+			platformConfig.getManagedWebTunnel.mockReturnValue(Effect.succeed({ tunnelId: "t1", hostname: "web.example.com", providerId: "cf-1" }));
 			tunnel.deleteTunnel.mockReturnValue(Effect.fail(new Error("provider down")));
 			await run(service.disableTunnel());
 			expect(platformConfig.clearManagedWebTunnel).toHaveBeenCalledOnce();

@@ -1,20 +1,18 @@
 /**
  * AppInstanceService — identity layer for deployer web app installations.
  *
- * Tokens are opaque (32 random bytes, base64url). Only the SHA-256 hash is
- * stored. The raw token is returned exactly once at registration/provisioning.
- * Heartbeats keep instances "active"; stale/revoked instances fail gateway
- * verification immediately.
+ * Tokens are opaque (32 random bytes, base64url). Only the SHA-256 hash is stored. The raw token is returned exactly once at
+ * registration/provisioning. Heartbeats keep instances "active"; stale/revoked instances fail gateway verification immediately.
  */
 
 import { randomBytes, createHash } from "node:crypto";
 
-import { Injectable, Logger } from "@nestjs/common";
 import { and, eq, lt } from "drizzle-orm";
+import { Context, Effect } from "effect";
 
 import { appInstances, type AppInstanceEntity } from "@deployer/nest-schema/global/platform/app-instance";
 
-import { GlobalDatabaseService } from "../../database/services/global-database.service";
+import { storage, StorageFailure, type DatabasePort } from "../../database/storage";
 
 /** Instances without a heartbeat for this long become stale. */
 export const STALE_AFTER_MS = 30 * 60 * 1000;
@@ -25,135 +23,106 @@ export type MintedToken = {
 	instanceId: string;
 	/** Raw token — handed to the caller once, never persisted in clear. */
 	appToken: string;
-}
+};
 
-@Injectable()
-export class AppInstanceService {
-	private readonly logger = new Logger(AppInstanceService.name);
-
-	constructor(private readonly db: GlobalDatabaseService) {}
-
+export type AppInstanceServiceShape = {
 	/** Create an instance and mint its one-time token. */
-	async create(input: {
-		label: string;
-		kind: "managed" | "external";
-		createdByUserId?: string | null;
-	}): Promise<MintedToken> {
-		const raw = randomBytes(32).toString("base64url");
-		const tokenHash = this.hash(raw);
+	readonly create: (input: { label: string; kind: "managed" | "external"; createdByUserId?: string | null }) => Effect.Effect<MintedToken, StorageFailure>;
+	/** The instance for a raw token when it is active; null when unknown, revoked or stale-expired (gateway enforcement). */
+	readonly verifyByToken: (rawToken: string) => Effect.Effect<AppInstanceEntity | null, StorageFailure>;
+	/** Bump `lastSeenAt` and reactivate a stale instance; null when revoked or unknown. */
+	readonly heartbeat: (rawToken: string) => Effect.Effect<Date | null, StorageFailure>;
+	/** Every instance (admin surface); token hashes are never exposed by the callers. */
+	readonly list: () => Effect.Effect<AppInstanceEntity[], StorageFailure>;
+	/** Revoke by id; idempotent. True when a live instance was revoked. */
+	readonly revoke: (instanceId: string) => Effect.Effect<boolean, StorageFailure>;
+	/** Mark silent instances stale and auto-revoke long-dead ones. Called periodically. */
+	readonly sweepStale: (now?: Date) => Effect.Effect<void, StorageFailure>;
+	/** The managed instance (spawned by this API), if any. */
+	readonly findManaged: () => Effect.Effect<AppInstanceEntity | null, StorageFailure>;
+};
 
-		const [row] = await this.db.db
-			.insert(appInstances)
-			.values({
-				label: input.label,
-				kind: input.kind,
-				tokenHash,
-				status: "active",
-				createdByUserId: input.createdByUserId ?? null,
-			})
-			.returning();
+const hash = (rawToken: string): string => createHash("sha256").update(rawToken).digest("hex");
 
-		if (row === undefined) {
-			throw new Error("app instance insert returned no row");
-		}
-		this.logger.log(`Created ${input.kind} app instance "${input.label}" (${row.id})`);
-		return { instanceId: row.id, appToken: raw };
-	}
+export function makeAppInstanceService(database: Context.Service.Shape<typeof DatabasePort>): AppInstanceServiceShape {
+	return {
+		create: (input) =>
+			Effect.gen(function* () {
+				const raw = randomBytes(32).toString("base64url");
+				const [row] = yield* storage(database, (db) =>
+					db
+						.insert(appInstances)
+						.values({ label: input.label, kind: input.kind, tokenHash: hash(raw), status: "active", createdByUserId: input.createdByUserId ?? null })
+						.returning(),
+				);
+				if (row === undefined) return yield* new StorageFailure({ cause: new Error("app instance insert returned no row") });
+				yield* Effect.logInfo(`Created ${input.kind} app instance "${input.label}" (${row.id})`);
+				return { instanceId: row.id, appToken: raw };
+			}),
 
-	/**
-	 * Verify a raw token for gateway enforcement.
-	 * Returns the instance when active; null when unknown/revoked/stale-expired.
-	 */
-	async verifyByToken(rawToken: string): Promise<AppInstanceEntity | null> {
-		const tokenHash = this.hash(rawToken);
-		const rows = await this.db.db
-			.select()
-			.from(appInstances)
-			.where(eq(appInstances.tokenHash, tokenHash))
-			.limit(1);
+		verifyByToken: (rawToken) =>
+			storage(database, (db) => db.select().from(appInstances).where(eq(appInstances.tokenHash, hash(rawToken))).limit(1)).pipe(
+				Effect.map((rows) => {
+					const row = rows[0];
+					return row?.status === "active" ? row : null;
+				}),
+			),
 
-		const row = rows[0];
-		if (row === undefined) return null;
-		if (row.status !== "active") return null;
-		return row;
-	}
+		heartbeat: (rawToken) =>
+			Effect.gen(function* () {
+				const tokenHash = hash(rawToken);
+				const touch = (status: "active" | "stale") =>
+					storage(database, (db) =>
+						db
+							.update(appInstances)
+							.set({ lastSeenAt: new Date(), status: "active", updatedAt: new Date() })
+							.where(and(eq(appInstances.tokenHash, tokenHash), eq(appInstances.status, status)))
+							.returning({ lastSeenAt: appInstances.lastSeenAt }),
+					);
+				const updated = (yield* touch("active"))[0];
+				if (updated !== undefined) return updated.lastSeenAt;
+				// A stale-but-not-revoked heartbeat reactivates the instance.
+				return (yield* touch("stale"))[0]?.lastSeenAt ?? null;
+			}),
 
-	/** Heartbeat: bump lastSeenAt; reactivates stale instances. Null when revoked/unknown. */
-	async heartbeat(rawToken: string): Promise<Date | null> {
-		const tokenHash = this.hash(rawToken);
-		const updated = await this.db.db
-			.update(appInstances)
-			.set({ lastSeenAt: new Date(), status: "active", updatedAt: new Date() })
-			.where(and(eq(appInstances.tokenHash, tokenHash), eq(appInstances.status, "active")))
-			.returning({ lastSeenAt: appInstances.lastSeenAt });
+		list: () => storage(database, (db) => db.select().from(appInstances)),
 
-		const row = updated[0];
-		if (row !== undefined) return row.lastSeenAt;
+		revoke: (instanceId) =>
+			Effect.gen(function* () {
+				const updated = yield* storage(database, (db) =>
+					db
+						.update(appInstances)
+						.set({ status: "revoked", updatedAt: new Date() })
+						.where(and(eq(appInstances.id, instanceId)))
+						.returning({ id: appInstances.id, status: appInstances.status }),
+				);
+				const row = updated[0];
+				if (row?.status !== "revoked") return false;
+				yield* Effect.logWarning(`Revoked app instance ${instanceId}`);
+				return true;
+			}),
 
-		// Stale-but-not-revoked heartbeats reactivate the instance.
-		const revived = await this.db.db
-			.update(appInstances)
-			.set({ lastSeenAt: new Date(), status: "active", updatedAt: new Date() })
-			.where(and(eq(appInstances.tokenHash, tokenHash), eq(appInstances.status, "stale")))
-			.returning({ lastSeenAt: appInstances.lastSeenAt });
-		const revivedRow = revived[0];
-		return revivedRow?.lastSeenAt ?? null;
-	}
+		sweepStale: (now = new Date()) =>
+			Effect.gen(function* () {
+				yield* storage(database, (db) =>
+					db
+						.update(appInstances)
+						.set({ status: "stale", updatedAt: now })
+						.where(and(eq(appInstances.status, "active"), lt(appInstances.lastSeenAt, new Date(now.getTime() - STALE_AFTER_MS)))),
+				);
+				yield* storage(database, (db) =>
+					db
+						.update(appInstances)
+						.set({ status: "revoked", updatedAt: now })
+						.where(and(eq(appInstances.status, "stale"), lt(appInstances.updatedAt, new Date(now.getTime() - AUTO_REVOKE_AFTER_MS)))),
+				);
+			}),
 
-	/** List all instances (admin surface) — never exposes token hashes. */
-	async list(): Promise<AppInstanceEntity[]> {
-		return await this.db.db.select().from(appInstances);
-	}
-
-	/** Revoke by id. Idempotent. Returns true when a live instance was revoked. */
-	async revoke(instanceId: string): Promise<boolean> {
-		const updated = await this.db.db
-			.update(appInstances)
-			.set({ status: "revoked", updatedAt: new Date() })
-			.where(and(eq(appInstances.id, instanceId)))
-			.returning({ id: appInstances.id, status: appInstances.status });
-		const row = updated[0];
-		if (row === undefined || row.status !== "revoked") return false;
-		this.logger.warn(`Revoked app instance ${instanceId}`);
-		return true;
-	}
-
-	/**
-	 * Sweeper: mark silent instances stale, auto-revoke long-dead ones.
-	 * Called periodically (console refresh / orchestrator tick).
-	 */
-	async sweepStale(now = new Date()): Promise<void> {
-		await this.db.db
-			.update(appInstances)
-			.set({ status: "stale", updatedAt: now })
-			.where(
-				and(
-					eq(appInstances.status, "active"),
-					lt(appInstances.lastSeenAt, new Date(now.getTime() - STALE_AFTER_MS)),
-				),
-			);
-		await this.db.db
-			.update(appInstances)
-			.set({ status: "revoked", updatedAt: now })
-			.where(
-				and(
-					eq(appInstances.status, "stale"),
-					lt(appInstances.updatedAt, new Date(now.getTime() - AUTO_REVOKE_AFTER_MS)),
-				),
-			);
-	}
-
-	/** Find the managed instance (spawned by this API), if any. */
-	async findManaged(): Promise<AppInstanceEntity | null> {
-		const rows = await this.db.db
-			.select()
-			.from(appInstances)
-			.where(and(eq(appInstances.kind, "managed"), eq(appInstances.status, "active")))
-			.limit(1);
-		return rows[0] ?? null;
-	}
-
-	private hash(rawToken: string): string {
-		return createHash("sha256").update(rawToken).digest("hex");
-	}
+		findManaged: () =>
+			storage(database, (db) =>
+				db.select().from(appInstances).where(and(eq(appInstances.kind, "managed"), eq(appInstances.status, "active"))).limit(1),
+			).pipe(Effect.map((rows) => rows[0] ?? null)),
+	};
 }
+
+export class AppInstanceService extends Context.Service<AppInstanceService, AppInstanceServiceShape>()("shared/AppInstanceService") {}

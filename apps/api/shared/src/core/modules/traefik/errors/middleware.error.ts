@@ -1,3 +1,5 @@
+import { domainError } from '@deployer/effect-core';
+
 import { TraefikError } from './config.error';
 
 /**
@@ -46,5 +48,24 @@ export class MiddlewareConfigurationError extends TraefikError {
       { middlewareName, middlewareType, validationErrors }
     );
     this.name = MiddlewareConfigurationError.name;
+  }
+}
+
+/** A middleware builder was called without a required option. */
+export class MiddlewareOptionsInvalid extends domainError("MiddlewareOptionsInvalid", "validation")<{
+  readonly middlewareName: string;
+  readonly missingFields: readonly string[];
+}>() {
+  override publicMessage() { return `Missing required fields: ${this.missingFields.join(", ")}`; }
+}
+
+/** A middleware option is present but invalid (an empty user list, fewer than one retry attempt, ...). */
+export class MiddlewareConfigurationInvalid extends domainError("MiddlewareConfigurationInvalid", "validation")<{
+  readonly middlewareName: string;
+  readonly middlewareType: string;
+  readonly validationErrors: readonly string[];
+}>() {
+  override publicMessage() {
+    return `Invalid configuration for middleware '${this.middlewareName}' (type: ${this.middlewareType}): ${this.validationErrors.join(", ")}`;
   }
 }

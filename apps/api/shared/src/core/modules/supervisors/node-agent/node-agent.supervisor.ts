@@ -17,7 +17,7 @@ import {
 	type NodeAgentSwarmSupervisor,
 } from "@deployer/platform-supervisors";
 
-import { buildSupervisor, type SupervisorEventBus, type SupervisorRegistration } from "../../supervision/index";
+import { buildSupervisor, type SupervisorEventBusFacade, type SupervisorRegistration } from "../../supervision/index";
 
 import type { EnvService } from "../../../../config/env/env.module";
 
@@ -26,7 +26,7 @@ export { NODE_AGENT_SWARM_SUPERVISOR_ID };
 export type NodeAgentSwarmRegistrationDeps = {
 	readonly engine: DockerEngineShape;
 	readonly env: EnvService;
-	readonly bus: SupervisorEventBus;
+	readonly bus: SupervisorEventBusFacade;
 };
 
 export function makeNodeAgentSwarmRegistration(deps: NodeAgentSwarmRegistrationDeps): {

@@ -1,35 +1,35 @@
+import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
 import { defaultIngressLanes, type IngressLanes } from "@deployer/contracts-entities/entities/ingress/index";
 
-import { INGRESS_LANES_SETTING, IngressLanesService } from "./ingress-lanes.service";
+import { INGRESS_LANES_SETTING, makeIngressLanesService } from "./ingress-lanes.service";
 
-import type { EnvService } from "../../../../config/env/env.module";
-import type { ClusterSettings } from "../../mesh-node/cluster-settings";
+import type { ClusterSettingsShape } from "../../mesh-node/cluster-settings";
 
-const env = { get: vi.fn((key: string) => (key === "DEPLOYER_TRAEFIK_HTTP_PORT" ? 8080 : undefined)) } as unknown as EnvService;
+const entryPort = () => 8080;
 
 function settings(stored: IngressLanes | undefined) {
 	return {
-		read: vi.fn((_key: string, _schema: unknown, fallback: IngressLanes) => Promise.resolve(stored ?? fallback)),
-		write: vi.fn(() => Promise.resolve()),
-	} as unknown as ClusterSettings;
+		read: vi.fn((_key: string, _schema: unknown, fallback: IngressLanes) => Effect.succeed(stored ?? fallback)),
+		write: vi.fn(() => Effect.void),
+	} as unknown as ClusterSettingsShape;
 }
 
 describe("IngressLanesService", () => {
 	it("reads local-only on the configured entry port when nothing is stored (never fails open)", async () => {
-		expect(await new IngressLanesService(settings(undefined), env).getLanes()).toEqual(defaultIngressLanes(8080));
+		expect(await Effect.runPromise(makeIngressLanesService({ settings: settings(undefined), entryPort }).getLanes())).toEqual(defaultIngressLanes(8080));
 	});
 
 	it("reads the replicated lanes when they exist", async () => {
 		const stored = { ...defaultIngressLanes(80), private: { enabled: true, domain: "corp.internal", exposeOnLan: false } };
-		expect(await new IngressLanesService(settings(stored), env).getLanes()).toEqual(stored);
+		expect(await Effect.runPromise(makeIngressLanesService({ settings: settings(stored), entryPort }).getLanes())).toEqual(stored);
 	});
 
 	it("writes the lanes under the replicated key", async () => {
 		const store = settings(undefined);
 		const lanes = defaultIngressLanes(80);
-		await new IngressLanesService(store, env).setLanes(lanes);
+		await Effect.runPromise(makeIngressLanesService({ settings: store, entryPort }).setLanes(lanes));
 		expect(store.write).toHaveBeenCalledWith(INGRESS_LANES_SETTING, lanes);
 	});
 });

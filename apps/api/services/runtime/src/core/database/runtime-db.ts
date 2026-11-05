@@ -10,13 +10,13 @@ import {
 } from '@deployer/effect-infra'
 import type {
     GlobalDatabase,
-    GlobalDatabaseService,
+    GlobalDatabaseServiceShape,
 } from '@deployer/shared/core/modules/database/services/global-database.service'
 
 /** The shared global database the runtime service reads and writes (a Nest provider). */
 export class RuntimeDatabasePort extends Context.Service<
     RuntimeDatabasePort,
-    GlobalDatabaseService
+    GlobalDatabaseServiceShape
 >()('runtime/RuntimeDatabasePort') {}
 
 /**
@@ -45,7 +45,7 @@ export class RuntimeDb extends Context.Service<
  * deployment repository and the queue lifecycle). It is the SAME shared handle, so a transaction they
  * open is visible to the Effect services. Remove it when those callers move onto the tag.
  */
-export function runtimeDbOver(database: GlobalDatabaseService): DbShape<GlobalDatabase> {
+export function runtimeDbOver(database: GlobalDatabaseServiceShape): DbShape<GlobalDatabase> {
     return {
         use: (fn) => Effect.provideService(RuntimeDb.live.use(fn), RuntimeDatabasePort, database),
         transaction: (effect) =>

@@ -1,14 +1,14 @@
 import { Context } from 'effect'
 
 import type { NodeDoorClient } from '@deployer/mesh-client'
-import type { EdgeProviderRegistry } from '@deployer/shared/core/modules/edge/edge-provider.registry'
-import type { EgressService } from '@deployer/shared/core/modules/egress/egress.service'
+import type { EdgeProviderRegistryShape } from '@deployer/shared/core/modules/edge/edge-provider.registry'
+import type { EgressServiceShape } from '@deployer/shared/core/modules/egress/egress.service'
 import type { HostnameService } from '@deployer/shared/core/modules/platform-ingress/services/hostname.service'
-import type { IngressLanesService } from '@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service'
-import type { PublicAccessPointService } from '@deployer/shared/core/modules/reachability/services/public-access-point.service'
-import type { PublicEdgeService } from '@deployer/shared/core/modules/reachability/services/public-edge.service'
-import type { ReachabilityService } from '@deployer/shared/core/modules/reachability/services/reachability.service'
-import type { TraefikConfigRefresher } from '@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service'
+import type { IngressLanesServiceShape } from '@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service'
+import type { PublicAccessPointServiceShape } from '@deployer/shared/core/modules/reachability/services/public-access-point.service'
+import type { PublicEdgeServiceShape } from '@deployer/shared/core/modules/reachability/services/public-edge.service'
+import type { ReachabilityServiceShape } from '@deployer/shared/core/modules/reachability/services/reachability.service'
+import type { TraefikConfigRefresherShape } from '@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service'
 
 /**
  * The shared platform services reachability depends on, as Effect ports.
@@ -19,15 +19,15 @@ import type { TraefikConfigRefresher } from '@deployer/shared/core/modules/traef
  */
 export class IngressLanesPort extends Context.Service<
     IngressLanesPort,
-    IngressLanesService
+    IngressLanesServiceShape
 >()('fleet/IngressLanesPort') {}
 export class EdgeProvidersPort extends Context.Service<
     EdgeProvidersPort,
-    EdgeProviderRegistry
+    EdgeProviderRegistryShape
 >()('fleet/EdgeProvidersPort') {}
 export class PublicEdgePort extends Context.Service<
     PublicEdgePort,
-    PublicEdgeService
+    PublicEdgeServiceShape
 >()('fleet/PublicEdgePort') {}
 /** This node's NEW mesh agent, asked over its node door (local socket only). Null answer = no agent. */
 export class NodeAgentPort extends Context.Service<
@@ -40,16 +40,16 @@ export class HostnamesPort extends Context.Service<
 >()('fleet/HostnamesPort') {}
 export class TraefikRefresherPort extends Context.Service<
     TraefikRefresherPort,
-    TraefikConfigRefresher
+    TraefikConfigRefresherShape
 >()('fleet/TraefikRefresherPort') {}
 export class ReachabilityCorePort extends Context.Service<
     ReachabilityCorePort,
-    ReachabilityService
+    ReachabilityServiceShape
 >()('fleet/ReachabilityCorePort') {}
 export class PublicAccessPointPort extends Context.Service<
     PublicAccessPointPort,
-    PublicAccessPointService
+    PublicAccessPointServiceShape
 >()('fleet/PublicAccessPointPort') {}
-export class EgressPort extends Context.Service<EgressPort, EgressService>()(
+export class EgressPort extends Context.Service<EgressPort, EgressServiceShape>()(
     'fleet/EgressPort'
 ) {}

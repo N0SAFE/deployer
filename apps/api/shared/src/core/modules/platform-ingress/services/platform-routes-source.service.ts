@@ -29,8 +29,8 @@
  * typed contract of what the ingress publishes.
  */
 
-import { Inject, Injectable, Logger } from "@nestjs/common";
 import { and, desc, eq } from "drizzle-orm";
+import { Context, Effect } from "effect";
 import z from "zod/v4";
 
 import { routeVisibilitySchema, type RouteVisibility } from "@deployer/contracts-entities/entities/ingress/index";
@@ -42,9 +42,8 @@ import {
 } from "@deployer/nest-schema/global";
 import { nodeNetworkConfig } from "@deployer/nest-schema/global";
 
-import { GLOBAL_DATABASE_CONNECTION } from "../../database/database-connection"
-
-import type { GlobalDatabase } from "../../database/global/global-database.service";
+import { storage, type DatabasePort, type StorageFailure } from "../../database/storage";
+import { PlatformRoutesInvalid } from "../platform-ingress.errors";
 
 /** Where a supervised route comes from — operator/web visibility + origin. */
 export const supervisedRouteSourceSchema = z.enum([
@@ -152,35 +151,21 @@ export function hostnameOf(urlOrHost: string): string | null {
 	}
 }
 
-@Injectable()
-export class PlatformRoutesSource {
-	private readonly logger = new Logger(PlatformRoutesSource.name);
-
-	constructor(
-		@Inject(GLOBAL_DATABASE_CONNECTION)
-		private readonly db: GlobalDatabase,
-	) {}
-
+export type PlatformRoutesSourceShape = {
 	/**
 	 * All supervised routes from the database.
 	 *
-	 * Order is precedence: global address first, then deployments (newest first),
-	 * then previews. The FIRST source to claim a host or a label keeps it, and a
-	 * later route keeps only what nobody claimed before it — so an older deployment
-	 * can never take a label back from the newer one that superseded it.
+	 * Order is precedence: global address first, then deployments (newest first), then previews. The FIRST source to claim a
+	 * host or a label keeps it, and a later route keeps only what nobody claimed before it, so an older deployment can never
+	 * take a label back from the newer one that superseded it.
 	 */
-	async listSupervisedRoutes(): Promise<SupervisedRoute[]> {
-		return z
-			.array(supervisedRouteSchema)
-			.parse(
-				dedupeRoutes([...(await this.globalHostnameRoutes()), ...(await this.deploymentRoutes()), ...(await this.previewRoutes())]),
-			);
-	}
+	readonly listSupervisedRoutes: () => Effect.Effect<SupervisedRoute[], StorageFailure | PlatformRoutesInvalid>;
+};
 
-	// ─── Global public address (hostname / tunnel) → this API ─────────────
-
-	private async globalHostnameRoutes(): Promise<SupervisedRoute[]> {
-		const rows = await this.db.select().from(nodeNetworkConfig).limit(1);
+export function makePlatformRoutesSource(database: Context.Service.Shape<typeof DatabasePort>): PlatformRoutesSourceShape {
+	/** Global public address (hostname / tunnel) → this API. */
+	const globalHostnameRoutes = Effect.gen(function* () {
+		const rows = yield* storage(database, (db) => db.select().from(nodeNetworkConfig).limit(1));
 		const config = rows[0];
 		if (config === undefined) return [];
 
@@ -208,18 +193,19 @@ export class PlatformRoutesSource {
 		}
 
 		return routes;
-	}
+	});
 
-	// ─── Successful deployments → their container:port ─────────────────────
-
-	private async deploymentRoutes(): Promise<SupervisedRoute[]> {
-		const rows = await this.db
-			.select({ deployment: deployments, service: services, project: projects })
-			.from(deployments)
-			.innerJoin(services, eq(deployments.serviceId, services.id))
-			.innerJoin(projects, eq(services.projectId, projects.id))
-			.where(eq(deployments.status, "success"))
-			.orderBy(desc(deployments.createdAt));
+	/** Successful deployments → their container:port. */
+	const deploymentRoutes = Effect.gen(function* () {
+		const rows = yield* storage(database, (db) =>
+			db
+				.select({ deployment: deployments, service: services, project: projects })
+				.from(deployments)
+				.innerJoin(services, eq(deployments.serviceId, services.id))
+				.innerJoin(projects, eq(services.projectId, projects.id))
+				.where(eq(deployments.status, "success"))
+				.orderBy(desc(deployments.createdAt)),
+		);
 
 		// Newest first: the first deployment of a service claims its label, so the
 		// label always routes to the latest successful deployment.
@@ -247,17 +233,18 @@ export class PlatformRoutesSource {
 			});
 		}
 		return routes;
-	}
+	});
 
-	// ─── Active preview environments → their deployment container ─────────
-
-	private async previewRoutes(): Promise<SupervisedRoute[]> {
-		const rows = await this.db
-			.select({ preview: previewEnvironments, deployment: deployments, service: services })
-			.from(previewEnvironments)
-			.innerJoin(deployments, eq(previewEnvironments.deploymentId, deployments.id))
-			.innerJoin(services, eq(deployments.serviceId, services.id))
-			.where(and(eq(previewEnvironments.isActive, true), eq(deployments.status, "success")));
+	/** Active preview environments → their deployment container. */
+	const previewRoutes = Effect.gen(function* () {
+		const rows = yield* storage(database, (db) =>
+			db
+				.select({ preview: previewEnvironments, deployment: deployments, service: services })
+				.from(previewEnvironments)
+				.innerJoin(deployments, eq(previewEnvironments.deploymentId, deployments.id))
+				.innerJoin(services, eq(deployments.serviceId, services.id))
+				.where(and(eq(previewEnvironments.isActive, true), eq(deployments.status, "success"))),
+		);
 
 		const routes: SupervisedRoute[] = [];
 		for (const { preview, deployment, service } of rows) {
@@ -276,5 +263,18 @@ export class PlatformRoutesSource {
 			});
 		}
 		return routes;
-	}
+	});
+
+	return {
+		listSupervisedRoutes: () =>
+			Effect.gen(function* () {
+				const ordered = [...(yield* globalHostnameRoutes), ...(yield* deploymentRoutes), ...(yield* previewRoutes)];
+				return yield* Effect.try({
+					try: () => z.array(supervisedRouteSchema).parse(dedupeRoutes(ordered)),
+					catch: (cause) => new PlatformRoutesInvalid({ cause }),
+				});
+			}),
+	};
 }
+
+export class PlatformRoutesSource extends Context.Service<PlatformRoutesSource, PlatformRoutesSourceShape>()("shared/PlatformRoutesSource") {}

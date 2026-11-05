@@ -8,9 +8,7 @@
  * Nothing else in the codebase may construct these hostnames/origins.
  */
 
-import { Injectable } from "@nestjs/common";
-
-import { EnvService } from "../../../../config/env/env.module";
+import type { EnvService } from "../../../../config/env/env.module";
 
 export const DEPLOYER_BASE_HOST = "deployer.localhost";
 
@@ -40,7 +38,7 @@ export abstract class HostnameService {
 	abstract webOrigin(scheme?: "http" | "https"): string;
 }
 
-@Injectable()
+/** Pure string grammar over the environment: built by the module with `useFactory`, no Nest role. */
 export class EnvHostnameService extends HostnameService {
 	constructor(private readonly env: EnvService) {
 		super();

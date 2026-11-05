@@ -1,4 +1,5 @@
-import { Injectable } from "@nestjs/common";
+import { Context, Effect } from "effect";
+
 
 export type UploadBundleRecord = {
     uploadId: string;
@@ -9,20 +10,30 @@ export type UploadBundleRecord = {
     uploadedAt: string;
 }
 
-@Injectable()
-export class UploadBundleRegistryService {
-    private readonly recordsByUploadId = new Map<string, UploadBundleRecord>();
+export type UploadBundleRegistryShape = {
+    readonly register: (
+        record: Omit<UploadBundleRecord, "uploadedAt"> & { uploadedAt?: string },
+    ) => Effect.Effect<UploadBundleRecord>;
+    readonly findByUploadId: (uploadId: string) => Effect.Effect<UploadBundleRecord | null>;
+};
 
-    register(record: Omit<UploadBundleRecord, "uploadedAt"> & { uploadedAt?: string }): UploadBundleRecord {
-        const nextRecord: UploadBundleRecord = {
-            ...record,
-            uploadedAt: record.uploadedAt ?? new Date().toISOString(),
-        };
-        this.recordsByUploadId.set(nextRecord.uploadId, nextRecord);
-        return nextRecord;
-    }
+export class UploadBundleRegistry extends Context.Service<UploadBundleRegistry, UploadBundleRegistryShape>()(
+    "runtime/UploadBundleRegistry",
+) {}
 
-    findByUploadId(uploadId: string): UploadBundleRecord | null {
-        return this.recordsByUploadId.get(uploadId) ?? null;
-    }
+/** In-memory registry; the map lives in the closure, so a module provides one instance with `useFactory`. */
+export function makeUploadBundleRegistry(): UploadBundleRegistryShape {
+    const recordsByUploadId = new Map<string, UploadBundleRecord>();
+    return {
+        register: (record) =>
+            Effect.sync(() => {
+                const nextRecord: UploadBundleRecord = {
+                    ...record,
+                    uploadedAt: record.uploadedAt ?? new Date().toISOString(),
+                };
+                recordsByUploadId.set(nextRecord.uploadId, nextRecord);
+                return nextRecord;
+            }),
+        findByUploadId: (uploadId) => Effect.sync(() => recordsByUploadId.get(uploadId) ?? null),
+    };
 }

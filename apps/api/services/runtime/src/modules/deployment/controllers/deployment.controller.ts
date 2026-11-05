@@ -7,7 +7,6 @@ import { procedure } from "@deployer/nest-effect";
 import { deploymentContract } from "@deployer/runtime-contracts";
 import { authMiddleware, requireAuth, requireMesh, requirePlatformRole, requireSystemActor } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
-import { serve } from "../../../core/orpc/serve";
 import { DeploymentStreamOrchestratorService } from "../mesh/services/deployment-stream-orchestrator.service";
 import { DeploymentService } from "../services/deployment.service";
 import { DeploymentEventTriggerService } from "../triggers/deployment-event-trigger.service";
@@ -20,12 +19,7 @@ export class DeploymentController {
         "operator",
     ];
 
-    constructor(
-        private readonly deploymentService: DeploymentService,
-        private readonly deploymentStreamOrchestratorService: DeploymentStreamOrchestratorService,
-    ) {}
-
-    private resolvePlatformRole(context: unknown): PlatformRole | null {
+    private static resolvePlatformRole(context: unknown): PlatformRole | null {
         const authContext =
             context && typeof context === "object" && "auth" in context
                 ? (context as { auth?: { user?: { role?: unknown } | null } }).auth
@@ -54,7 +48,7 @@ export class DeploymentController {
             .use(requireSystemActor("runtime"))
             .effect(function* ({ input, context }) {
                 const trigger = yield* DeploymentEventTriggerService;
-                return yield* serve(context)(trigger.trigger(input, context.systemActor.deliveryId));
+                return yield* trigger.trigger(input, context.systemActor.deliveryId);
             });
     }
 
@@ -63,8 +57,9 @@ export class DeploymentController {
         return procedure(deploymentContract.list)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .handler(async ({ input }) => {
-                return this.deploymentService.listDeployments(input.query);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.listDeployments(input.query);
             });
     }
 
@@ -72,8 +67,9 @@ export class DeploymentController {
     listServicePreviews() {
         return procedure(deploymentContract.listServicePreviews)
             .use(requireAuth())
-            .handler(async ({ input }) => {
-                return this.deploymentService.listServicePreviews(input.params.serviceId);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.listServicePreviews(input.params.serviceId);
             });
     }
 
@@ -81,15 +77,15 @@ export class DeploymentController {
     promoteServicePreview() {
         return procedure(deploymentContract.promoteServicePreview)
             .use(requireAuth())
-            .handler(async ({ input, context }) => {
-                const userId = callerId(context);
-                const platformRole = this.resolvePlatformRole(context);
-                return this.deploymentService.promoteServicePreview(
-                    input.params.serviceId,
-                    input.body.previewName,
-                    userId,
-                    platformRole,
-                );
+            .effect(function* ({ input, context }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.promoteServicePreview(
+                        input.params.serviceId,
+                        input.body.previewName,
+                        callerId(context),
+                        DeploymentController.resolvePlatformRole(context),
+                    )
+                ;
             });
     }
 
@@ -98,8 +94,9 @@ export class DeploymentController {
         return procedure(deploymentContract.findById)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .handler(async ({ input }) => {
-                return this.deploymentService.getDeploymentById(input.params.id);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.getDeploymentById(input.params.id);
             });
     }
 
@@ -107,14 +104,10 @@ export class DeploymentController {
     trigger() {
         return procedure(deploymentContract.trigger)
             .use(requireAuth())
-            .handler(async ({ input, context }) => {
-                const userId = callerId(context);
-                const actorPlatformRole = this.resolvePlatformRole(context);
-                const deployment = await this.deploymentService.triggerDeployment(
-                    input,
-                    userId,
-                    actorPlatformRole,
-                );
+            .effect(function* ({ input, context }) {
+                const deployments = yield* DeploymentService;
+                const deployment = yield* deployments.triggerDeployment(input, callerId(context), DeploymentController.resolvePlatformRole(context))
+                ;
                 return {
                     deploymentId: deployment.id,
                     status: deployment.status,
@@ -127,13 +120,9 @@ export class DeploymentController {
     uploadBundle() {
         return procedure(deploymentContract.uploadBundle)
             .use(requireAuth())
-            .handler(async ({ input }) => {
-                const uploaded = await this.deploymentService.uploadBundle({
-                    file: input.file,
-                    fileName: input.fileName,
-                });
-
-                return uploaded;
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.uploadBundle({ file: input.file, fileName: input.fileName });
             });
     }
 
@@ -141,14 +130,15 @@ export class DeploymentController {
     cancel() {
         return procedure(deploymentContract.cancel)
             .use(requireAuth())
-            .handler(async ({ input, context }) => {
-                const actorPlatformRole = this.resolvePlatformRole(context);
-                const result = await this.deploymentService.cancelDeployment(
-                    input.params.id,
-                    callerId(context),
-                    input.body?.reason,
-                    actorPlatformRole,
-                );
+            .effect(function* ({ input, context }) {
+                const deployments = yield* DeploymentService;
+                const result = yield* deployments.cancelDeployment(
+                        input.params.id,
+                        callerId(context),
+                        input.body?.reason,
+                        DeploymentController.resolvePlatformRole(context),
+                    )
+                ;
                 return {
                     success: true,
                     message: "Deployment cancelled successfully",
@@ -162,15 +152,16 @@ export class DeploymentController {
     rollback() {
         return procedure(deploymentContract.rollback)
             .use(requireAuth())
-            .handler(async ({ input, context }) => {
-                const actorPlatformRole = this.resolvePlatformRole(context);
-                const rollback = await this.deploymentService.rollbackDeployment(
-                    input.params.id,
-                    input.body.targetDeploymentId,
-                    callerId(context),
-                    input.body.reason,
-                    actorPlatformRole,
-                );
+            .effect(function* ({ input, context }) {
+                const deployments = yield* DeploymentService;
+                const rollback = yield* deployments.rollbackDeployment(
+                        input.params.id,
+                        input.body.targetDeploymentId,
+                        callerId(context),
+                        input.body.reason,
+                        DeploymentController.resolvePlatformRole(context),
+                    )
+                ;
                 return {
                     rollbackDeploymentId: rollback.id,
                     message: "Rollback deployment queued successfully",
@@ -183,8 +174,9 @@ export class DeploymentController {
         return procedure(deploymentContract.getLogs)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .handler(async ({ input }) => {
-                return this.deploymentService.getDeploymentLogs(
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.getDeploymentLogs(
                     input.params.id,
                     input.query.limit,
                     input.query.offset,
@@ -204,14 +196,10 @@ export class DeploymentController {
     retry() {
         return procedure(deploymentContract.retry)
             .use(requireAuth())
-            .handler(async ({ input, context }) => {
-                const userId = callerId(context);
-                const actorPlatformRole = this.resolvePlatformRole(context);
-                const retry = await this.deploymentService.retryDeployment(
-                    input.params.id,
-                    userId,
-                    actorPlatformRole,
-                );
+            .effect(function* ({ input, context }) {
+                const deployments = yield* DeploymentService;
+                const retry = yield* deployments.retryDeployment(input.params.id, callerId(context), DeploymentController.resolvePlatformRole(context))
+                ;
                 return {
                     retryDeploymentId: retry.id,
                     message: "Retry deployment queued successfully",
@@ -223,8 +211,9 @@ export class DeploymentController {
     getRollbackHistory() {
         return procedure(deploymentContract.getRollbackHistory)
             .use(requireAuth())
-            .handler(async ({ input }) => {
-                return this.deploymentService.getRollbackHistory(input.params.id);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.getRollbackHistory(input.params.id);
             });
     }
 
@@ -233,24 +222,25 @@ export class DeploymentController {
         return procedure(deploymentContract.stream)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .handler(({ input }) => {
-                return this.deploymentStreamOrchestratorService.openDeploymentStream({
-                    deploymentId: input.params.id,
-                    replay: input.query.replay,
-                    replayLimit: input.query.replayLimit,
-                });
+            .effect(function* ({ input }) {
+                const orchestrator = yield* DeploymentStreamOrchestratorService;
+                return yield* orchestrator.openDeploymentStream({
+                        deploymentId: input.params.id,
+                        replay: input.query.replay,
+                        replayLimit: input.query.replayLimit,
+                    })
+                ;
             });
     }
 
     @Implement(deploymentContract.streamInternal)
     streamInternal() {
-        const deploymentService = this.deploymentService;
-
         return procedure(deploymentContract.streamInternal)
             .use(requireMesh())
             .use(requireAuth())
-            .handler(({ input }) => {
-                return deploymentService.streamDeploymentEvents({
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return deployments.streamDeploymentEvents({
                     deploymentId: input.params.id,
                     replay: input.query.replay,
                     replayLimit: input.query.replayLimit,
@@ -260,13 +250,12 @@ export class DeploymentController {
 
     @Implement(deploymentContract.streamService)
     streamService() {
-        const deploymentService = this.deploymentService;
-
         return procedure(deploymentContract.streamService)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .handler(({ input }) => {
-                return deploymentService.streamServiceEvents({
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return deployments.streamServiceEvents({
                     serviceId: input.params.serviceId,
                     replay: input.query.replay,
                     replayLimit: input.query.replayLimit,
@@ -276,13 +265,12 @@ export class DeploymentController {
 
     @Implement(deploymentContract.streamQuery)
     streamQuery() {
-        const deploymentService = this.deploymentService;
-
         return procedure(deploymentContract.streamQuery)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .handler(({ input }) => {
-                return deploymentService.streamQueryEvents({
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return deployments.streamQueryEvents({
                     deploymentId: input.query.deploymentId,
                     serviceId: input.query.serviceId,
                     projectId: input.query.projectId,
@@ -300,8 +288,9 @@ export class DeploymentController {
     streamsList() {
         return procedure(deploymentContract.streamsList)
             .use(requireAuth())
-            .handler(async ({ input }) => {
-                return this.deploymentService.listStreamDefinitions(input.query);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.listStreamDefinitions(input.query);
             });
     }
 
@@ -309,8 +298,9 @@ export class DeploymentController {
     streamFindById() {
         return procedure(deploymentContract.streamFindById)
             .use(requireAuth())
-            .handler(async ({ input }) => {
-                return this.deploymentService.getStreamDefinitionById(input.params.id);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.getStreamDefinitionById(input.params.id);
             });
     }
 
@@ -318,8 +308,9 @@ export class DeploymentController {
     getTemplateProvenance() {
         return procedure(deploymentContract.getTemplateProvenance)
             .use(requireAuth())
-            .handler(({ input }) => {
-                return this.deploymentService.getTemplateProvenance(input.params.id);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.getTemplateProvenance(input.params.id);
             });
     }
 
@@ -327,8 +318,9 @@ export class DeploymentController {
     upsertTemplateProvenance() {
         return procedure(deploymentContract.upsertTemplateProvenance)
             .use(requireAuth())
-            .handler(({ input }) => {
-                return this.deploymentService.upsertTemplateProvenance(input.params.id, input.body);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.upsertTemplateProvenance(input.params.id, input.body);
             });
     }
 
@@ -336,8 +328,9 @@ export class DeploymentController {
     getTemplateProvenanceByRun() {
         return procedure(deploymentContract.getTemplateProvenanceByRun)
             .use(requireAuth())
-            .handler(({ input }) => {
-                return this.deploymentService.getTemplateProvenanceByRun(input.params.runId);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.getTemplateProvenanceByRun(input.params.runId);
             });
     }
 
@@ -346,8 +339,9 @@ export class DeploymentController {
         return procedure(deploymentContract.createCompiledPlanSnapshot)
             .use(authMiddleware())
             .use(requireAuth())
-            .handler(({ input }) => {
-                return this.deploymentService.createCompiledPlanSnapshot(input.params.id, input.body);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.createCompiledPlanSnapshot(input.params.id, input.body);
             });
     }
 
@@ -355,8 +349,9 @@ export class DeploymentController {
     listCompiledPlanSnapshots() {
         return procedure(deploymentContract.listCompiledPlanSnapshots)
             .use(requireAuth())
-            .handler(({ input }) => {
-                return this.deploymentService.listCompiledPlanSnapshots(input.params.id);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.listCompiledPlanSnapshots(input.params.id);
             });
     }
 
@@ -364,8 +359,9 @@ export class DeploymentController {
     getCompiledPlanSnapshot() {
         return procedure(deploymentContract.getCompiledPlanSnapshot)
             .use(requireAuth())
-            .handler(({ input }) => {
-                return this.deploymentService.getCompiledPlanSnapshot(input.params.snapshotId);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.getCompiledPlanSnapshot(input.params.snapshotId);
             });
     }
 
@@ -373,8 +369,9 @@ export class DeploymentController {
     getCompiledPlanSnapshotByRun() {
         return procedure(deploymentContract.getCompiledPlanSnapshotByRun)
             .use(requireAuth())
-            .handler(({ input }) => {
-                return this.deploymentService.getCompiledPlanSnapshotByRun(input.params.runId);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.getCompiledPlanSnapshotByRun(input.params.runId);
             });
     }
 
@@ -382,8 +379,9 @@ export class DeploymentController {
     compilePlan() {
         return procedure(deploymentContract.compilePlan)
             .use(requireAuth())
-            .handler(({ input }) => {
-                return this.deploymentService.compilePlan(input);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.compilePlan(input);
             });
     }
 
@@ -391,8 +389,9 @@ export class DeploymentController {
     compilePlanPreview() {
         return procedure(deploymentContract.compilePlanPreview)
             .use(requireAuth())
-            .handler(({ input }) => {
-                return this.deploymentService.compilePlan(input);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.compilePlan(input);
             });
     }
 
@@ -400,8 +399,9 @@ export class DeploymentController {
     compileRollbackEdges() {
         return procedure(deploymentContract.compileRollbackEdges)
             .use(requireAuth())
-            .handler(({ input }) => {
-                return this.deploymentService.compileRollbackEdges(input);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.compileRollbackEdges(input);
             });
     }
 
@@ -410,8 +410,9 @@ export class DeploymentController {
         return procedure(deploymentContract.queueEnqueueJob)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .handler(({ input }) => {
-                return this.deploymentService.enqueueQueueJob(input);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.enqueueQueueJob(input);
             });
     }
 
@@ -420,8 +421,9 @@ export class DeploymentController {
         return procedure(deploymentContract.queueClaimJobs)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .handler(({ input }) => {
-                return this.deploymentService.claimQueueJobs(input);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.claimQueueJobs(input);
             });
     }
 
@@ -430,8 +432,9 @@ export class DeploymentController {
         return procedure(deploymentContract.queueHeartbeatJob)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .handler(({ input }) => {
-                return this.deploymentService.heartbeatQueueJob(input.params.jobId, input.body);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.heartbeatQueueJob(input.params.jobId, input.body);
             });
     }
 
@@ -440,8 +443,9 @@ export class DeploymentController {
         return procedure(deploymentContract.queueCompleteJob)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .handler(({ input }) => {
-                return this.deploymentService.completeQueueJob(input.params.jobId, input.body);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.completeQueueJob(input.params.jobId, input.body);
             });
     }
 
@@ -450,8 +454,9 @@ export class DeploymentController {
         return procedure(deploymentContract.queueFailJob)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .handler(({ input }) => {
-                return this.deploymentService.failQueueJob(input.params.jobId, input.body);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.failQueueJob(input.params.jobId, input.body);
             });
     }
 
@@ -459,8 +464,9 @@ export class DeploymentController {
     queueFindJobById() {
         return procedure(deploymentContract.queueFindJobById)
             .use(requireAuth())
-            .handler(({ input }) => {
-                return this.deploymentService.findQueueJobById(input.params.jobId);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.findQueueJobById(input.params.jobId);
             });
     }
 
@@ -468,8 +474,9 @@ export class DeploymentController {
     queueListJobs() {
         return procedure(deploymentContract.queueListJobs)
             .use(requireAuth())
-            .handler(({ input }) => {
-                return this.deploymentService.listQueueJobs(input.query);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.listQueueJobs(input.query);
             });
     }
 
@@ -477,8 +484,9 @@ export class DeploymentController {
     queueListDeadLetterJobs() {
         return procedure(deploymentContract.queueListDeadLetterJobs)
             .use(requireAuth())
-            .handler(({ input }) => {
-                return this.deploymentService.listDeadLetterJobs(input.query);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.listDeadLetterJobs(input.query);
             });
     }
 
@@ -486,8 +494,9 @@ export class DeploymentController {
     queueFindDeadLetterJobById() {
         return procedure(deploymentContract.queueFindDeadLetterJobById)
             .use(requireAuth())
-            .handler(({ input }) => {
-                return this.deploymentService.findDeadLetterJobById(input.params.deadLetterJobId);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.findDeadLetterJobById(input.params.deadLetterJobId);
             });
     }
 
@@ -496,8 +505,9 @@ export class DeploymentController {
         return procedure(deploymentContract.queueReplayDeadLetterJob)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .handler(({ input }) => {
-                return this.deploymentService.replayDeadLetterJob(input);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.replayDeadLetterJob(input);
             });
     }
 
@@ -505,8 +515,9 @@ export class DeploymentController {
     listRetryPolicies() {
         return procedure(deploymentContract.listRetryPolicies)
             .use(requireAuth())
-            .handler(({ input }) => {
-                return this.deploymentService.listRetryPolicies(input.query);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.listRetryPolicies(input.query);
             });
     }
 
@@ -514,8 +525,9 @@ export class DeploymentController {
     resolveRetryPolicy() {
         return procedure(deploymentContract.resolveRetryPolicy)
             .use(requireAuth())
-            .handler(({ input }) => {
-                return this.deploymentService.resolveRetryPolicy(input);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.resolveRetryPolicy(input);
             });
     }
 
@@ -524,8 +536,9 @@ export class DeploymentController {
         return procedure(deploymentContract.cancelExecution)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .handler(({ input }) => {
-                return this.deploymentService.cancelExecution(input.params.id, input.body);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.cancelExecution(input.params.id, input.body);
             });
     }
 
@@ -534,8 +547,9 @@ export class DeploymentController {
         return procedure(deploymentContract.resumeExecution)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .handler(({ input }) => {
-                return this.deploymentService.resumeExecution(input.params.id, input.body);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.resumeExecution(input.params.id, input.body);
             });
     }
 
@@ -543,8 +557,9 @@ export class DeploymentController {
     getExecutionCheckpoint() {
         return procedure(deploymentContract.getExecutionCheckpoint)
             .use(requireAuth())
-            .handler(({ input }) => {
-                return this.deploymentService.getExecutionCheckpoint(input.params.id);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.getExecutionCheckpoint(input.params.id);
             });
     }
 
@@ -552,8 +567,9 @@ export class DeploymentController {
     getExecutionCheckpointByRun() {
         return procedure(deploymentContract.getExecutionCheckpointByRun)
             .use(requireAuth())
-            .handler(({ input }) => {
-                return this.deploymentService.getExecutionCheckpointByRun(input.params.runId);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.getExecutionCheckpointByRun(input.params.runId);
             });
     }
 
@@ -562,8 +578,9 @@ export class DeploymentController {
         return procedure(deploymentContract.emitNodeLifecycleEvent)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .handler(({ input }) => {
-                return this.deploymentService.emitNodeLifecycleEvent(input.params.runId, input.body);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.emitNodeLifecycleEvent(input.params.runId, input.body);
             });
     }
 
@@ -571,8 +588,9 @@ export class DeploymentController {
     listNodeLifecycleEvents() {
         return procedure(deploymentContract.listNodeLifecycleEvents)
             .use(requireAuth())
-            .handler(({ input }) => {
-                return this.deploymentService.listNodeLifecycleEvents(input.params.runId, input.query);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.listNodeLifecycleEvents(input.params.runId, input.query);
             });
     }
 
@@ -580,8 +598,9 @@ export class DeploymentController {
     streamNodeLifecycleEvents() {
         return procedure(deploymentContract.streamNodeLifecycleEvents)
             .use(requireAuth())
-            .handler(({ input }) => {
-                return this.deploymentService.streamNodeLifecycleEvents({
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return deployments.streamNodeLifecycleEvents({
                     runId: input.params.runId,
                     fromSequence: input.query.fromSequence,
                     replay: input.query.replay,
@@ -594,8 +613,9 @@ export class DeploymentController {
     listPhaseTransitions() {
         return procedure(deploymentContract.listPhaseTransitions)
             .use(requireAuth())
-            .handler(({ input }) => {
-                return this.deploymentService.listPhaseTransitions(input.query ?? {});
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.listPhaseTransitions(input.query ?? {});
             });
     }
 
@@ -603,8 +623,9 @@ export class DeploymentController {
     validatePhaseTransition() {
         return procedure(deploymentContract.validatePhaseTransition)
             .use(requireAuth())
-            .handler(({ input }) => {
-                return this.deploymentService.validatePhaseTransition(input);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.validatePhaseTransition(input);
             });
     }
 
@@ -613,8 +634,9 @@ export class DeploymentController {
         return procedure(deploymentContract.applyPhaseTransition)
             .use(requireAuth())
             .use(requirePlatformRole(["superAdmin", "admin", "operator"]))
-            .handler(async ({ input }) => {
-                return this.deploymentService.applyPhaseTransition(input.params.id, input.body);
+            .effect(function* ({ input }) {
+                const deployments = yield* DeploymentService;
+                return yield* deployments.applyPhaseTransition(input.params.id, input.body);
             });
     }
 
@@ -622,13 +644,14 @@ export class DeploymentController {
     delete() {
         return procedure(deploymentContract.delete)
             .use(requireAuth())
-            .handler(async ({ input, context }) => {
-                const actorPlatformRole = this.resolvePlatformRole(context);
-                await this.deploymentService.deleteDeployment(
-                    input.params.id,
-                    callerId(context),
-                    actorPlatformRole,
-                );
+            .effect(function* ({ input, context }) {
+                const deployments = yield* DeploymentService;
+                yield* deployments.deleteDeployment(
+                        input.params.id,
+                        callerId(context),
+                        DeploymentController.resolvePlatformRole(context),
+                    )
+                ;
                 return { success: true };
             });
     }

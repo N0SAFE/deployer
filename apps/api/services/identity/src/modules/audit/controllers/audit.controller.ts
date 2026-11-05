@@ -5,7 +5,6 @@ import { auditExportContract, auditListContract } from "@deployer/identity-contr
 import { procedure } from "@deployer/nest-effect";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
-import { serve } from "@identity/core/orpc/serve";
 
 import { AuditService } from "../audit.service";
 
@@ -21,9 +20,9 @@ export class AuditController {
 	list() {
 		return procedure(auditListContract)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const audit = yield* AuditService;
-				return yield* serve(context)(audit.list(input.query));
+				return yield* audit.list(input.query);
 			});
 	}
 
@@ -31,9 +30,9 @@ export class AuditController {
 	export() {
 		return procedure(auditExportContract)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const audit = yield* AuditService;
-				return yield* serve(context)(audit.export(input.query));
+				return yield* audit.export(input.query);
 			});
 	}
 }

@@ -42,7 +42,7 @@ type NodeInventoryRow = ReturnType<typeof clusterNodeInventoryRowSchema.parse>;
 
 /**
  * Every call goes to a swarm service or a node repository, so a use case fails with whatever that
- * collaborator refused with (left as thrown; `serve` lets it through for the host to translate).
+ * collaborator refused with (left as thrown; the `.effect()` boundary lets it through for the host to translate).
  */
 export type ClusterServiceShape = {
     /** Swarm participation read-model (mode/policy/engine state). */

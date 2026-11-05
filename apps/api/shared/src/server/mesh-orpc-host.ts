@@ -1,5 +1,4 @@
 import { Logger } from "@nestjs/common";
-import { REQUEST } from "@nestjs/core";
 import { SmartCoercionHandlerPlugin } from "@orpc/json-schema";
 import { ORPCModule } from "@orpc/nest";
 import { ORPCError, type DefaultInitialContext } from "@orpc/server";
@@ -9,8 +8,8 @@ import { ZodToJsonSchemaConverter } from "@orpc/zod";
 import { domainErrorInterceptor } from "@deployer/effect-orpc";
 
 
-import { InternalErrorInsightService } from "../core/middlewares/internal-error/internal-error-insight.service";
-import { logOrpcErrors, transformNestJSErrorToOrpcError } from "../core/modules/auth/orpc/index";
+import { makeInternalErrorInsightService } from "../core/middlewares/internal-error/internal-error-insight.service";
+import { logOrpcErrors, transformDomainErrorToOrpcError } from "../core/modules/auth/orpc/index";
 
 import type { ORPCGlobalContext } from "../core/modules/auth/orpc/orpc-context";
 import type { ORPCAuthContext } from "../core/modules/auth/orpc/types";
@@ -88,12 +87,13 @@ export function createMeshOrpcModule<ExtraD extends ExtraTokens = []>(
 	const extra = options.extraContext;
 
 	return ORPCModule.forRootAsync({
-		useFactory: (request: Request, verify: MeshCredentialVerifier, ...deps: ExtraInstances<ExtraD>) => {
-			const insight = new InternalErrorInsightService();
+		useFactory: (verify: MeshCredentialVerifier, ...deps: ExtraInstances<ExtraD>) => {
+			const insight = makeInternalErrorInsightService();
 
 			const context = async (executionContext: ExecutionContext): Promise<DefaultInitialContext> =>
 				({
-					request,
+					// The live request, read from the call itself: nothing here is request-scoped.
+					request: executionContext.switchToHttp().getRequest<Request>(),
 					auth: meshAuthContext,
 					...(extra ? await extra.resolve(executionContext, ...deps) : {}),
 				});
@@ -102,7 +102,7 @@ export function createMeshOrpcModule<ExtraD extends ExtraTokens = []>(
 				interceptors: [
 					// Outermost, so an unauthenticated request is refused before anything is parsed or logged as an error.
 					meshCredentialInterceptor(verify),
-					transformNestJSErrorToOrpcError(),
+					transformDomainErrorToOrpcError(),
 					logOrpcErrors(new Logger("ORPC Errors"), insight),
 					domainErrorInterceptor(),
 				],
@@ -113,6 +113,6 @@ export function createMeshOrpcModule<ExtraD extends ExtraTokens = []>(
 				context,
 			};
 		},
-		inject: [REQUEST, MESH_CREDENTIAL_VERIFIER, ...(extra?.inject ?? [])],
+		inject: [MESH_CREDENTIAL_VERIFIER, ...(extra?.inject ?? [])],
 	});
 }

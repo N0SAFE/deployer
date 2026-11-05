@@ -1,4 +1,4 @@
-import { NotFoundException } from "@nestjs/common";
+import { Effect } from "effect";
 import { firstValueFrom, from } from "rxjs";
 import { map as rxMap, take, toArray } from "rxjs/operators";
 import { describe, it, expect, beforeEach, vi } from "vitest";
@@ -9,7 +9,7 @@ import { contractBuilder } from "@deployer/events";
 import { BaseEventService } from "../base/index";
 
 
-import { CoreEventSyncService } from "./core-event-sync.service";
+import { makeCoreEventSyncService, type CoreEventSyncServiceShape } from "./core-event-sync.service";
 
 const typedContracts = {
     statusChanged: contractBuilder()
@@ -42,7 +42,7 @@ class DxEventService extends BaseEventService<typeof dxContracts, "dx"> {
 }
 
 describe("CoreEventSyncService", () => {
-    let service: CoreEventSyncService;
+    let service: CoreEventSyncServiceShape;
     let repository: {
         findMany: ReturnType<typeof vi.fn>;
         findById: ReturnType<typeof vi.fn>;
@@ -80,22 +80,23 @@ describe("CoreEventSyncService", () => {
             observePooledStream: vi.fn((_key: string, factory: () => unknown) => factory()),
         };
 
-        service = new CoreEventSyncService(repository as never, streamPool as never);
+        service = makeCoreEventSyncService({ repository: repository as never, streamPool: streamPool as never });
     });
 
     it("should list streams via repository", async () => {
-        repository.findMany.mockResolvedValue({ data: [definition], meta: { total: 1, limit: 20, offset: 0, hasMore: false } });
-        const result = await service.listStreams({ limit: 20, offset: 0 });
+        repository.findMany.mockReturnValue(Effect.succeed({ data: [definition], meta: { total: 1, limit: 20, offset: 0, hasMore: false } }));
+        const result = await Effect.runPromise(service.listStreams({ limit: 20, offset: 0 }));
         expect(result.data).toHaveLength(1);
     });
 
     it("should throw when stream is missing", async () => {
-        repository.findById.mockResolvedValue(null);
-        await expect(service.getStreamById("missing")).rejects.toThrow(NotFoundException);
+        repository.findById.mockReturnValue(Effect.succeed(null));
+        const failure = await Effect.runPromise(Effect.flip(service.getStreamById("missing")));
+        expect(failure._tag).toBe("CoreEventStreamNotFound");
     });
 
     it("should stream sync envelopes from registered adapter", async () => {
-        repository.findById.mockResolvedValue(definition);
+        repository.findById.mockReturnValue(Effect.succeed(definition));
 
         service
             .namespace("deployment")
@@ -104,7 +105,7 @@ describe("CoreEventSyncService", () => {
                     { eventName: "statusChanged", payload: { deploymentId: "d-1" }, replayed: true },
                 ]);
             })
-            .register();
+            .register().pipe(Effect.runSync);
 
         const stream$ = service.streamSync({
             id: definition.id,
@@ -124,7 +125,7 @@ describe("CoreEventSyncService", () => {
     });
 
     it("should default stream sync replayLimit to 1 when omitted", async () => {
-        repository.findById.mockResolvedValue(definition);
+        repository.findById.mockReturnValue(Effect.succeed(definition));
 
         let capturedReplayLimit: number | undefined;
 
@@ -136,7 +137,7 @@ describe("CoreEventSyncService", () => {
                     { eventName: "statusChanged", payload: { deploymentId: "d-1" }, replayed: true },
                 ]);
             })
-            .register();
+            .register().pipe(Effect.runSync);
 
         const stream$ = service.streamSync({
             id: definition.id,
@@ -262,14 +263,14 @@ describe("CoreEventSyncService", () => {
     });
 
     it("should infer contracts from BaseEventService for namespace registration", async () => {
-        repository.findById.mockResolvedValue(definition);
+        repository.findById.mockReturnValue(Effect.succeed(definition));
 
         const typedService = new TypedDeploymentEventService();
         service
             .namespace("deployment")
             .fromEventService(typedService)
             .select("statusChanged", { deploymentId: "dep-typed-1" } as never)
-            .register();
+            .register().pipe(Effect.runSync);
 
         const stream$ = service.streamSync({
             id: definition.id,

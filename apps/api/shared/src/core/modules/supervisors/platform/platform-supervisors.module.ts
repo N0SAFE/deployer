@@ -25,18 +25,18 @@ import { createGlobalModule } from "@deployer/nest-effect";
 
 import { EnvModule, EnvService } from "../../../../config/env/env.module";
 import { CoreDockerModule } from "../../docker/docker.module";
-import { EdgeProviderRegistry } from "../../edge/edge-provider.registry";
+import { EdgeProviderRegistry, type EdgeProviderRegistryShape } from "../../edge/edge-provider.registry";
 import { CoreEdgeModule } from "../../edge/edge.module";
-import { ClusterSettings } from "../../mesh-node/cluster-settings";
+import { ClusterSettings, type ClusterSettingsShape } from "../../mesh-node/cluster-settings";
 import { CorePlatformIngressModule } from "../../platform-ingress/platform-ingress.module";
-import { AppInstanceService } from "../../platform-ingress/services/app-instance.service";
+import { AppInstanceService, type AppInstanceServiceShape } from "../../platform-ingress/services/app-instance.service";
 import { HostnameService } from "../../platform-ingress/services/hostname.service";
-import { IngressLanesService } from "../../platform-ingress/services/ingress-lanes.service";
-import { PlatformConfigService } from "../../platform-ingress/services/platform-config.service";
-import { PlatformWebTargetService } from "../../platform-ingress/services/platform-web-target.service";
+import { IngressLanesService, type IngressLanesServiceShape } from "../../platform-ingress/services/ingress-lanes.service";
+import { PlatformConfigService, type PlatformConfigServiceShape } from "../../platform-ingress/services/platform-config.service";
+import { PlatformWebTargetService, type PlatformWebTargetServiceShape } from "../../platform-ingress/services/platform-web-target.service";
 import { CoreReachabilityModule } from "../../reachability/core-reachability.module";
-import { PublicEdgeService } from "../../reachability/services/public-edge.service";
-import { supervisorProviders, SupervisorEventBus } from "../../supervision/index";
+import { PublicEdgeService, type PublicEdgeServiceShape } from "../../reachability/services/public-edge.service";
+import { supervisorProviders, SupervisorEventBus, type SupervisorEventBusFacade } from "../../supervision/index";
 import { makeNodeAgentSwarmRegistration } from "../node-agent/node-agent.supervisor";
 
 import { makeEdgeConnectorRegistration } from "./edge-connector.supervisor";
@@ -67,15 +67,15 @@ export const SupervisorsPlatformModule = createGlobalModule({
 		build: (
 			engine: DockerEngineShape,
 			env: EnvService,
-			bus: SupervisorEventBus,
+			bus: SupervisorEventBusFacade,
 			hostnameService: HostnameService,
-			lanes: IngressLanesService,
-			settings: ClusterSettings,
-			webTarget: PlatformWebTargetService,
-			edges: EdgeProviderRegistry,
-			platformConfig: PlatformConfigService,
-			appInstances: AppInstanceService,
-			edge: PublicEdgeService,
+			lanes: IngressLanesServiceShape,
+			settings: ClusterSettingsShape,
+			webTarget: PlatformWebTargetServiceShape,
+			edges: EdgeProviderRegistryShape,
+			platformConfig: PlatformConfigServiceShape,
+			appInstances: AppInstanceServiceShape,
+			edge: PublicEdgeServiceShape,
 		) => [
 			makeTraefikRegistration({ engine, hostnameService, env, lanes, settings, webTarget, edges, bus }).registration,
 			makeManagedWebRegistration({ engine, env, hostnameService, platformConfig, appInstances, bus }),

@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Effect } from "effect";
 import z from "zod/v4";
 
 import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
@@ -23,7 +23,6 @@ const apiTriggerSeamSchema = z.object({
  * `matches()` requires BOTH `provider === "api"` and a payload carrying `serviceId` and
  * `source`, so it cannot accidentally claim a webhook event.
  */
-@Injectable()
 export class ApiTriggerSource implements DeploymentTriggerSource {
     readonly sourceId = "api";
 
@@ -40,8 +39,8 @@ export class ApiTriggerSource implements DeploymentTriggerSource {
         return this.cast(event.payload) !== null;
     }
 
-    toTriggerInput(event: DeploymentTriggerEvent): Promise<DeploymentTriggerInput | null> {
-        return Promise.resolve(this.cast(event.payload));
+    toTriggerInput(event: DeploymentTriggerEvent) {
+        return Effect.succeed(this.cast(event.payload));
     }
 
     /**

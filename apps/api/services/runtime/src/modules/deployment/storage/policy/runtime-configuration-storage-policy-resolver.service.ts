@@ -1,5 +1,3 @@
-import { Injectable } from "@nestjs/common";
-
 import { deploymentStoragePolicySchema } from "../base/storage-policy.schema";
 
 import type {
@@ -7,10 +5,9 @@ import type {
     ResolveDeploymentStoragePolicyInput,
 } from "../base/storage-policy-resolver.interface";
 
-@Injectable()
-export class RuntimeConfigurationStoragePolicyResolverService implements DeploymentStoragePolicyResolver {
-    readonly name = "runtime-configuration-storage";
-    readonly priority = 300;
+export const runtimeConfigurationStoragePolicyResolver: DeploymentStoragePolicyResolver = {
+    name: "runtime-configuration-storage",
+    priority: 300,
 
     resolve(input: ResolveDeploymentStoragePolicyInput) {
         const parsedStoragePolicy = deploymentStoragePolicySchema.safeParse(
@@ -18,4 +15,4 @@ export class RuntimeConfigurationStoragePolicyResolverService implements Deploym
         );
         return parsedStoragePolicy.success ? parsedStoragePolicy.data : undefined;
     }
-}
+};

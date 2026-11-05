@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { user } from "@deployer/nest-schema/global/identity/auth";
 import { services } from "@deployer/nest-schema/global/project/deployment";
 import { projects } from "@deployer/nest-schema/global/project/deployment";
-import { GlobalDatabaseService } from "@deployer/shared/core/modules/database/services/global-database.service";
+import { GlobalDatabaseService, type GlobalDatabaseServiceShape } from "@deployer/shared/core/modules/database/services/global-database.service";
 
 import {  type SharedApiRuntimeContext } from "@/e2e/runtime";
 
@@ -22,7 +22,7 @@ import {  type SharedApiRuntimeContext } from "@/e2e/runtime";
  * service, and a direct insert states that premise precisely.
  */
 export class DeploymentFixtures {
-	constructor(private readonly database: GlobalDatabaseService) {}
+	constructor(private readonly database: GlobalDatabaseServiceShape) {}
 
 	/** An owner to hang fixtures off. */
 	async owner(): Promise<string> {
@@ -91,7 +91,7 @@ export type DeploymentCompleteStrategyContext = {
 export async function createDeploymentCompleteStrategyContext(
 	context: SharedApiRuntimeContext,
 ): Promise<DeploymentCompleteStrategyContext> {
-	const database = context.serviceMapper.get(GlobalDatabaseService);
+	const database = context.serviceMapper.get(GlobalDatabaseService) as unknown as GlobalDatabaseServiceShape;
 	const fixtures = new DeploymentFixtures(database);
 
 	return {

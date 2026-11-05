@@ -1,10 +1,11 @@
-import { Effect } from "effect";
+import { Cause, Effect, Exit } from "effect";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-import { DockerNotFound } from "@deployer/docker";
-import type { DockerEngineShape } from "@deployer/docker";
+import { DockerEngine, DockerNotFound } from "@deployer/docker";
 
-import { SwarmComposeRealizerService } from "./swarm-compose-realizer.service";
+import { RuntimeInvalid } from "../../../core/runtime.errors";
+
+import { SwarmComposeRealizer } from "./swarm-compose-realizer.service";
 
 const FULL_COMPOSE = `
 services:
@@ -63,8 +64,19 @@ services:
       - /host/path:/data
 `;
 
-describe("SwarmComposeRealizerService", () => {
-    let realizer: SwarmComposeRealizerService;
+describe("SwarmComposeRealizer", () => {
+    const realizer = new SwarmComposeRealizer.live();
+    let engine: unknown;
+    const parse = (yaml: string) => Effect.runSync(realizer.parseComposeYaml(yaml));
+    const validate = (model: ReturnType<typeof parse>) => Effect.runSync(realizer.validateCompatibility(model));
+    const realize = (model: ReturnType<typeof parse>, context: { projectId: string; deploymentId: string }) =>
+        Effect.runSync(realizer.realizeCompose(model, context));
+    const execute = (plan: ReturnType<typeof realize>) =>
+        Effect.runPromise(realizer.executeComposePlan(plan).pipe(Effect.provideService(DockerEngine, engine as never)));
+    const invalid = (yaml: string) => {
+        const exit = Effect.runSyncExit(realizer.parseComposeYaml(yaml));
+        return Exit.isFailure(exit) ? Cause.squash(exit.cause) : undefined;
+    };
     let dockerService: {
         ensureOverlayNetwork: ReturnType<typeof vi.fn>;
         listSwarmSecrets: ReturnType<typeof vi.fn>;
@@ -91,7 +103,7 @@ describe("SwarmComposeRealizerService", () => {
         // asked of it, and read at call time so a test can replace one.
         const ds = dockerService;
         const lift = (fn: unknown, ...args: unknown[]) => Effect.promise(() => (fn as (...a: unknown[]) => Promise<unknown>)(...args));
-        const engine = {
+        engine = {
             networks: { ensureOverlay: (request: unknown) => lift(ds.ensureOverlayNetwork, request) },
             swarmSecrets: { list: () => lift(ds.listSwarmSecrets), create: (options: unknown) => lift(ds.createSwarmSecret, options) },
             swarmConfigs: { list: () => lift(ds.listSwarmConfigs), create: (options: unknown) => lift(ds.createSwarmConfig, options) },
@@ -103,12 +115,11 @@ describe("SwarmComposeRealizerService", () => {
                 create: (spec: unknown) => lift(ds.createSwarmService, spec),
             },
         };
-        realizer = new SwarmComposeRealizerService(engine as never);
     });
 
     describe("parseComposeYaml", () => {
         it("parses a full compose file with normalization", () => {
-            const model = realizer.parseComposeYaml(FULL_COMPOSE);
+            const model = parse(FULL_COMPOSE);
             expect(model.services.length).toBe(2);
             const db = model.services.find((service) => service.name === "db");
             expect(db?.env).toEqual(["POSTGRES_PASSWORD=secret"]);
@@ -130,36 +141,40 @@ describe("SwarmComposeRealizerService", () => {
             expect(model.volumes["db-data"]).toEqual({});
         });
 
-        it("throws a readable error on non-compose YAML", () => {
-            expect(() => realizer.parseComposeYaml("foo: bar")).toThrow(/services/);
+        it("fails with RuntimeInvalid on non-compose YAML", () => {
+            const error = invalid("foo: bar");
+            expect(error).toBeInstanceOf(RuntimeInvalid);
+            expect((error as RuntimeInvalid).reason).toMatch(/services/);
         });
 
-        it("throws a readable error on invalid YAML", () => {
-            expect(() => realizer.parseComposeYaml("a: [unclosed")).toThrow(/Invalid compose YAML/);
+        it("fails with RuntimeInvalid on invalid YAML", () => {
+            const error = invalid("a: [unclosed");
+            expect(error).toBeInstanceOf(RuntimeInvalid);
+            expect((error as RuntimeInvalid).reason).toMatch(/Invalid compose YAML/);
         });
     });
 
     describe("validateCompatibility", () => {
         it("flags build-only services as errors", () => {
-            const model = realizer.parseComposeYaml(BUILD_ONLY);
-            const report = realizer.validateCompatibility(model);
+            const model = parse(BUILD_ONLY);
+            const report = validate(model);
             expect(report.issues.some((issue) => issue.severity === "error" && issue.path === "services.worker.image")).toBe(true);
         });
 
         it("flags bind mounts as errors", () => {
-            const model = realizer.parseComposeYaml(BIND_VOLUME);
-            const report = realizer.validateCompatibility(model);
+            const model = parse(BIND_VOLUME);
+            const report = validate(model);
             expect(report.issues.some((issue) => issue.severity === "error" && issue.message.includes("Bind mounts"))).toBe(true);
         });
 
         it("supports the full compose without errors", () => {
-            const model = realizer.parseComposeYaml(FULL_COMPOSE);
-            const report = realizer.validateCompatibility(model);
+            const model = parse(FULL_COMPOSE);
+            const report = validate(model);
             expect(report.issues.filter((issue) => issue.severity === "error")).toEqual([]);
         });
 
         it("tells the operator that declared host ports are not published", () => {
-            const report = realizer.validateCompatibility(realizer.parseComposeYaml(FULL_COMPOSE));
+            const report = validate(parse(FULL_COMPOSE));
             expect(report.issues).toContainEqual(
                 expect.objectContaining({ path: "services.api.ports", severity: "warn", message: expect.stringContaining("not published") }),
             );
@@ -168,8 +183,8 @@ describe("SwarmComposeRealizerService", () => {
 
     describe("realizeCompose", () => {
         it("builds a dependency-ordered plan with typed specs", () => {
-            const model = realizer.parseComposeYaml(FULL_COMPOSE);
-            const plan = realizer.realizeCompose(model, { projectId: "proj-1", deploymentId: "dep-1" });
+            const model = parse(FULL_COMPOSE);
+            const plan = realize(model, { projectId: "proj-1", deploymentId: "dep-1" });
 
             // db before api (depends_on ordering)
             expect(plan.services.map((entry) => entry.serviceName)).toEqual(["db", "api"]);
@@ -198,10 +213,10 @@ describe("SwarmComposeRealizerService", () => {
 
     describe("executeComposePlan", () => {
         it("creates networks, secrets, configs and services idempotently", async () => {
-            const model = realizer.parseComposeYaml(FULL_COMPOSE);
-            const plan = realizer.realizeCompose(model, { projectId: "proj-1", deploymentId: "dep-1" });
+            const model = parse(FULL_COMPOSE);
+            const plan = realize(model, { projectId: "proj-1", deploymentId: "dep-1" });
 
-            const summary = await realizer.executeComposePlan(plan);
+            const summary = await execute(plan);
 
             expect(dockerService.ensureOverlayNetwork).toHaveBeenCalledTimes(1);
             expect(dockerService.ensureOverlayNetwork).toHaveBeenCalledWith(
@@ -220,20 +235,20 @@ describe("SwarmComposeRealizerService", () => {
             dockerService.listSwarmSecrets.mockResolvedValue([
                 { ID: "s1", Spec: { Name: "deployer-proj-1-secret-api_key" } },
             ]);
-            const model = realizer.parseComposeYaml(FULL_COMPOSE);
-            const plan = realizer.realizeCompose(model, { projectId: "proj-1", deploymentId: "dep-1" });
+            const model = parse(FULL_COMPOSE);
+            const plan = realize(model, { projectId: "proj-1", deploymentId: "dep-1" });
 
-            await realizer.executeComposePlan(plan);
+            await execute(plan);
 
             expect(dockerService.createSwarmSecret).not.toHaveBeenCalled();
         });
 
         it("updates an existing service instead of creating it", async () => {
             dockerService.inspectSwarmService.mockResolvedValue({ ID: "existing", Version: { Index: 3 } });
-            const model = realizer.parseComposeYaml(FULL_COMPOSE);
-            const plan = realizer.realizeCompose(model, { projectId: "proj-1", deploymentId: "dep-1" });
+            const model = parse(FULL_COMPOSE);
+            const plan = realize(model, { projectId: "proj-1", deploymentId: "dep-1" });
 
-            const summary = await realizer.executeComposePlan(plan);
+            const summary = await execute(plan);
 
             expect(dockerService.updateSwarmService).toHaveBeenCalledTimes(2);
             expect(dockerService.updateSwarmService).toHaveBeenCalledWith(

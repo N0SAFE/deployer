@@ -35,7 +35,7 @@ import {
 import type { DockerEngineShape } from "@deployer/docker";
 import type { DockerRuntimeEventsStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/runtime/shared";
 import { AbstractDomainEventStreamService } from "@deployer/shared/core/modules/events/base/index";
-import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
+import { type CoreEventStreamPoolServiceShape } from "@deployer/shared/core/modules/events/base/index";
 import { isRecord } from "@deployer/type-guards"
 
 import { isRuntimeEventFilterNode } from "../runtime/runtime-event-filter";
@@ -48,7 +48,7 @@ export class DockerRuntimeEventsSourceService extends AbstractDomainEventStreamS
 
   constructor(
     private readonly dockerEngine: DockerEngineShape,
-    streamPool: CoreEventStreamPoolService,
+    streamPool: CoreEventStreamPoolServiceShape,
   ) {
     super(streamPool);
   }

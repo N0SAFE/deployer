@@ -7,11 +7,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import { DeploymentProviderBuilderRunnerStateMachineService } from "@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service";
 
-import { BuilderRegistryService } from "./builder-registry.service";
-import { DeploymentArtifactBuilderService } from "./deployment-artifact-builder.service";
-import { BuildpackFamilyBuilderStrategy } from "./strategies/buildpack-family-builder.strategy";
-import { DockerComposeBuilderStrategy } from "./strategies/docker-compose-builder.strategy";
-import { DockerfileBuilderStrategy } from "./strategies/dockerfile-builder.strategy";
+import { RuntimeInvalid } from "../../../core/runtime.errors";
+
+import { makeBuilderRegistry } from "./builder-registry.service";
+import { makeDeploymentArtifactBuilder, type BuildArtifactInput } from "./deployment-artifact-builder.service";
+import { makeBuildpackFamilyBuilderStrategy } from "./strategies/buildpack-family-builder.strategy";
+import { makeDockerComposeBuilderStrategy } from "./strategies/docker-compose-builder.strategy";
+import { makeDockerfileBuilderStrategy } from "./strategies/dockerfile-builder.strategy";
 
 
 /**
@@ -35,15 +37,15 @@ const withEngine = <T extends { buildImage: unknown; buildCompose?: unknown }>(m
         }));
 
 const createRegistry = (dockerService: { buildImage: ReturnType<typeof vi.fn>; buildCompose?: ReturnType<typeof vi.fn> }) =>
-    new BuilderRegistryService([
+    makeBuilderRegistry([
         // `as never` at the boundary only: the strategies take the real `DockerService`,
         // and this spec supplies the two methods it actually calls. A narrower
         // constructor type would weaken the production contract to suit a test.
-        new DockerfileBuilderStrategy(dockerService as never),
-        new DockerComposeBuilderStrategy(dockerService as never),
-        new BuildpackFamilyBuilderStrategy("nixpacks", dockerService as never),
-        new BuildpackFamilyBuilderStrategy("buildpack", dockerService as never),
-        new BuildpackFamilyBuilderStrategy("railpack", dockerService as never),
+        makeDockerfileBuilderStrategy(dockerService as never),
+        makeDockerComposeBuilderStrategy(dockerService as never),
+        makeBuildpackFamilyBuilderStrategy("nixpacks", dockerService as never),
+        makeBuildpackFamilyBuilderStrategy("buildpack", dockerService as never),
+        makeBuildpackFamilyBuilderStrategy("railpack", dockerService as never),
     ]);
 
 const createService = (
@@ -51,32 +53,35 @@ const createService = (
     gitServiceOverrides?: Partial<{ extractUploadedFile: ReturnType<typeof vi.fn> }>,
 ) => {
     const dockerService = withEngine(rawDockerService);
-    return new DeploymentArtifactBuilderService(
-        {
+    const builder = makeDeploymentArtifactBuilder({
+        gitService: {
             extractUploadedFile: vi.fn(),
             ...(gitServiceOverrides ?? {}),
         } as never,
+        stateMachine: DeploymentProviderBuilderRunnerStateMachineService.live,
         // See `createRegistry`: the spec supplies only the two Docker methods under
         // test, so the widening stays at this boundary.
-        dockerService as never,
-        new DeploymentProviderBuilderRunnerStateMachineService(),
-        createRegistry(dockerService),
-    );
+        builderRegistry: createRegistry(dockerService),
+    });
+    return {
+        buildContainerizedArtifact: (input: BuildArtifactInput) => Effect.runPromise(builder.buildContainerizedArtifact(input)),
+        failure: (input: BuildArtifactInput) => Effect.runPromise(Effect.flip(builder.buildContainerizedArtifact(input))),
+    };
 };
 
-describe("DeploymentArtifactBuilderService", () => {
+describe("DeploymentArtifactBuilder", () => {
     it("uses external builder only with explicit container image", async () => {
         const service = createService({ buildImage: vi.fn() });
 
-        await expect(
-            service.buildContainerizedArtifact({
+        const failure = await service.failure({
                 deploymentId: "dep-1",
                 serviceId: "svc-1",
                 builder: "external",
                 sourceCheckout: null,
                 fallbackContainerImage: null,
-            }),
-        ).rejects.toThrow("requires an explicit prebuilt container image");
+            });
+        expect(failure).toBeInstanceOf(RuntimeInvalid);
+        expect(failure).toMatchObject({ reason: expect.stringContaining("requires an explicit prebuilt container image") });
     });
 
     it("returns provided image for external builder", async () => {
@@ -133,8 +138,7 @@ describe("DeploymentArtifactBuilderService", () => {
         const service = createService({ buildImage: vi.fn() });
         const uploadDir = mkdtempSync(path.join("/tmp", "deployer-builder-policy-"));
 
-        await expect(
-            service.buildContainerizedArtifact({
+        const failure = await service.failure({
                 deploymentId: "dep-3",
                 serviceId: "svc-3",
                 builder: "buildpack",
@@ -148,8 +152,9 @@ describe("DeploymentArtifactBuilderService", () => {
                     cli: { bun: false },
                     buildCommand: "bun run build",
                 },
-            }),
-        ).rejects.toThrow("execution.customCommands.cli.bun is disabled");
+            });
+        expect(failure).toBeInstanceOf(RuntimeInvalid);
+        expect(failure).toMatchObject({ reason: expect.stringContaining("execution.customCommands.cli.bun is disabled") });
     });
 
     it("allows command-driven custom builder mode when builder is omitted", async () => {
@@ -191,8 +196,7 @@ describe("DeploymentArtifactBuilderService", () => {
         const service = createService({ buildImage: vi.fn() });
         const uploadDir = mkdtempSync(path.join("/tmp", "deployer-builder-user-dockerfile-"));
 
-        await expect(
-            service.buildContainerizedArtifact({
+        const failure = await service.failure({
                 deploymentId: "dep-5",
                 serviceId: "svc-5",
                 builder: "dockerfile",
@@ -206,15 +210,15 @@ describe("DeploymentArtifactBuilderService", () => {
                     cli: { node: true },
                     runCommand: "node server.js",
                 },
-            }),
-        ).rejects.toThrow("Custom build/run commands are allowed only for platform-managed builders");
+            });
+        expect(failure).toBeInstanceOf(RuntimeInvalid);
+        expect(failure).toMatchObject({ reason: expect.stringContaining("Custom build/run commands are allowed only for platform-managed builders") });
     });
 
     it("rejects custom commands for external builder", async () => {
         const service = createService({ buildImage: vi.fn() });
 
-        await expect(
-            service.buildContainerizedArtifact({
+        const failure = await service.failure({
                 deploymentId: "dep-6",
                 serviceId: "svc-6",
                 builder: "external",
@@ -224,8 +228,9 @@ describe("DeploymentArtifactBuilderService", () => {
                     cli: { node: true },
                     runCommand: "node server.js",
                 },
-            }),
-        ).rejects.toThrow("Custom build/run commands are allowed only for platform-managed builders");
+            });
+        expect(failure).toBeInstanceOf(RuntimeInvalid);
+        expect(failure).toMatchObject({ reason: expect.stringContaining("Custom build/run commands are allowed only for platform-managed builders") });
     });
 
     it("extracts uploaded ZIP file and builds dockerfile image from extracted context", async () => {
@@ -233,7 +238,7 @@ describe("DeploymentArtifactBuilderService", () => {
         const extractedDir = mkdtempSync(path.join("/tmp", "deployer-builder-extracted-"));
         writeFileSync(path.join(extractedDir, "Dockerfile"), "FROM nginx:alpine\n", "utf8");
 
-        const extractUploadedFile = vi.fn().mockResolvedValue(extractedDir);
+        const extractUploadedFile = vi.fn(() => Effect.succeed(extractedDir));
         const service = createService(dockerService, { extractUploadedFile });
 
         const archivePath = path.join(mkdtempSync(path.join("/tmp", "deployer-builder-archive-")), "bundle.zip");
@@ -266,14 +271,13 @@ describe("DeploymentArtifactBuilderService", () => {
     it("fails dockerfile builder when extracted ZIP context has no Dockerfile", async () => {
         const dockerService = { buildImage: vi.fn().mockResolvedValue(undefined) };
         const extractedDir = mkdtempSync(path.join("/tmp", "deployer-builder-no-dockerfile-"));
-        const extractUploadedFile = vi.fn().mockResolvedValue(extractedDir);
+        const extractUploadedFile = vi.fn(() => Effect.succeed(extractedDir));
         const service = createService(dockerService, { extractUploadedFile });
 
         const archivePath = path.join(mkdtempSync(path.join("/tmp", "deployer-builder-archive-")), "bundle.zip");
         writeFileSync(archivePath, "fake-archive-content", "utf8");
 
-        await expect(
-            service.buildContainerizedArtifact({
+        const failure = await service.failure({
                 deploymentId: "dep-zip-2",
                 serviceId: "svc-zip-2",
                 builder: "dockerfile",
@@ -283,8 +287,9 @@ describe("DeploymentArtifactBuilderService", () => {
                     uploadPath: archivePath,
                 },
                 fallbackContainerImage: null,
-            }),
-        ).rejects.toThrow("Builder 'dockerfile' requires a Dockerfile in the source context");
+            });
+        expect(failure).toBeInstanceOf(RuntimeInvalid);
+        expect(failure).toMatchObject({ reason: expect.stringContaining("Builder 'dockerfile' requires a Dockerfile in the source context") });
 
         expect(dockerService.buildImage).not.toHaveBeenCalled();
     });

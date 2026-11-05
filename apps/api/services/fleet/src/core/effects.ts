@@ -4,9 +4,9 @@ import { Cause, Effect } from 'effect'
  * Lift a Promise-returning call to a platform collaborator.
  *
  * The shared platform services are still Promise-based and refuse with their own error classes
- * (Nest exceptions, `AppError`, mesh errors). The failure is kept as thrown, and fleet's `serve`
+ * (Nest exceptions, `AppError`, mesh errors). The failure is kept as thrown, and fleet's the `.effect()` boundary
  * lets it through unchanged so the host's interceptors translate it exactly as they always did;
- * the domain's own refusals are `Fleet*` errors, which `serve` maps by kind.
+ * the domain's own refusals are `Fleet*` errors, which the `.effect()` boundary maps by kind.
  */
 export function attempt<A>(run: () => Promise<A>): Effect.Effect<A, unknown> {
     return Effect.tryPromise({ try: run, catch: (cause) => cause })

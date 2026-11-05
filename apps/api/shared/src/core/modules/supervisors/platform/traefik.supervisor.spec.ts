@@ -25,9 +25,9 @@ import { harness, testBus } from "../supervisor-test-harness";
 import { makeTraefikRegistration } from "./traefik.supervisor";
 
 import type { EnvService } from "../../../../config/env/env.module";
-import type { ClusterSettings } from "../../mesh-node/cluster-settings";
-import type { IngressLanesService } from "../../platform-ingress/services/ingress-lanes.service";
-import type { PlatformWebTargetService } from "../../platform-ingress/services/platform-web-target.service";
+import type { ClusterSettingsShape } from "../../mesh-node/cluster-settings";
+import type { IngressLanesServiceShape } from "../../platform-ingress/services/ingress-lanes.service";
+import type { PlatformWebTargetServiceShape } from "../../platform-ingress/services/platform-web-target.service";
 
 
 
@@ -169,14 +169,14 @@ function makeSupervisor(options: {
 	lanes?: IngressLanes;
 	bootstrapLabels?: Record<string, string> | null;
 	legacyForwarder?: boolean;
-	meshWrite?: () => Promise<void>;
+	meshWrite?: () => Effect.Effect<void, Error>;
 } = {}) {
 	const mocks = makeDockerService(options.bootstrapLabels ?? null, options.legacyForwarder ?? false);
 	const env = makeEnv(options.env);
-	const lanes = { getLanes: vi.fn(() => Promise.resolve(options.lanes ?? defaultIngressLanes())) } as unknown as IngressLanesService;
-	const writeSetting = vi.fn(options.meshWrite ?? (() => Promise.resolve()));
-	const settings = { write: writeSetting } as unknown as ClusterSettings;
-	const webTarget = { resolveWebTarget: vi.fn(() => Promise.resolve("deployer-managed-web")) } as unknown as PlatformWebTargetService;
+	const lanes = { getLanes: vi.fn(() => Effect.succeed(options.lanes ?? defaultIngressLanes())) } as unknown as IngressLanesServiceShape;
+	const writeSetting = vi.fn(options.meshWrite ?? (() => Effect.void));
+	const settings = { write: writeSetting } as unknown as ClusterSettingsShape;
+	const webTarget = { resolveWebTarget: vi.fn(() => Effect.succeed("deployer-managed-web")) } as unknown as PlatformWebTargetServiceShape;
 	const supervisor = harness(
 		makeTraefikRegistration({
 			engine: mocks.dockerService,
@@ -336,7 +336,7 @@ describe("traefik supervisor registration", () => {
 	});
 
 	it("still converges when no agent owns the door — only the doors are missing", async () => {
-		const { supervisor } = makeSupervisor({ meshWrite: () => Promise.reject(new Error("no mesh agent on this node")) });
+		const { supervisor } = makeSupervisor({ meshWrite: () => Effect.fail(new Error("no mesh agent on this node")) });
 		expect(await supervisor.ensureDesiredState()).toBe("converged");
 	});
 

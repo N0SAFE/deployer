@@ -1,8 +1,9 @@
-import { Injectable } from "@nestjs/common";
+import { Effect } from "effect";
 import z from "zod/v4";
 
 import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
 
+import type { RuntimeInvalid } from "../../../../core/runtime.errors";
 import {
     deploymentStorageBindingSchema,
     type DeploymentStorageBinding,
@@ -29,26 +30,38 @@ const localStorageConfigSchema = z
     })
     .loose();
 
-@Injectable()
-export class LocalStorageProviderService implements DeploymentStorageProvider {
-    readonly storageType = "local" as const;
+function resolveLocalPath(candidate: string | undefined, fallback: string): string {
+    if (!candidate) {
+        return fallback;
+    }
+
+    const normalized = candidate.trim();
+    if (!normalized || normalized.includes("\u0000")) {
+        return fallback;
+    }
+
+    return normalized;
+}
+
+export const localStorageProvider: DeploymentStorageProvider = {
+    storageType: "local",
 
     resolveStorageBinding(
         input: DeploymentTriggerInput,
         serviceStorageConfig?: DeploymentStoragePolicy,
-    ): Promise<DeploymentStorageBinding | null> {
+    ): Effect.Effect<DeploymentStorageBinding | null, RuntimeInvalid> {
         const storageConfig = extractStorageConfig(input, serviceStorageConfig);
         const parsed = localStorageConfigSchema.safeParse(storageConfig ?? {});
 
         if (!parsed.success) {
-            return Promise.resolve(null);
+            return Effect.succeed(null);
         }
 
         const autoRedeployOnUpdate = resolveAutoRedeployOnUpdate(storageConfig);
-        const rootPath = this.resolveLocalPath(parsed.data.local?.rootPath, "./storage/local");
-        const watchPath = this.resolveLocalPath(parsed.data.local?.watchPath, rootPath);
+        const rootPath = resolveLocalPath(parsed.data.local?.rootPath, "./storage/local");
+        const watchPath = resolveLocalPath(parsed.data.local?.watchPath, rootPath);
 
-        return Promise.resolve(
+        return Effect.sync(() =>
             deploymentStorageBindingSchema.parse({
                 storageType: "local",
                 autoRedeployOnUpdate,
@@ -61,17 +74,4 @@ export class LocalStorageProviderService implements DeploymentStorageProvider {
             }),
         );
     }
-
-    private resolveLocalPath(candidate: string | undefined, fallback: string): string {
-        if (!candidate) {
-            return fallback;
-        }
-
-        const normalized = candidate.trim();
-        if (!normalized || normalized.includes("\u0000")) {
-            return fallback;
-        }
-
-        return normalized;
-    }
-}
+};

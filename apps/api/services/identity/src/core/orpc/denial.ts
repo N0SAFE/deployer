@@ -1,5 +1,5 @@
 import type { DomainError } from "@deployer/effect-core";
-import { createServe, type RequestContextInput } from "@deployer/effect-orpc";
+import type { RequestContextInput } from "@deployer/effect-orpc";
 
 
 /** One refusal, as the audit trail records it (`SEC-068`). */
@@ -43,7 +43,7 @@ const header = (context: RequestContextInput, name: string): string | undefined 
 	return typeof value === "string" ? value : value?.[0];
 };
 
-const reportDenial = (context: RequestContextInput, error: DomainError, correlationId: string): void => {
+export const reportDenial = (context: RequestContextInput, error: DomainError, correlationId: string): void => {
 	if (denialSink === undefined || !AUDITED_KINDS.has(error.kind)) return;
 
 	const actorId = context.auth?.user?.id;
@@ -62,19 +62,3 @@ const reportDenial = (context: RequestContextInput, error: DomainError, correlat
 		},
 	});
 };
-
-/**
- * The identity service's request boundary; see `createServe`.
- *
- * One instance per request on purpose: the refusal hook needs the request's identity (who was refused), and `createServe`
- * takes its options once.
- */
-export const serve = (context: RequestContextInput) =>
-	createServe({
-		service: "svc-identity",
-		onDomainFailure: (error, correlationId) => {
-			reportDenial(context, error, correlationId);
-		},
-	}).serve(context);
-
-export const { serveAnonymous } = createServe({ service: "svc-identity" });

@@ -11,10 +11,9 @@
  * The opened handle is also provided under the two connection tokens consumers query through
  * (`LOCAL_DATABASE_CONNECTION` for Drizzle, `LOCAL_DATABASE_CLIENT` for the raw driver).
  */
-import { Inject, Injectable, Logger, type OnApplicationShutdown, type OnModuleInit } from "@nestjs/common";
 import { Cause, Effect, Exit, Scope } from "effect";
 
-import { createGlobalModule } from "@deployer/nest-effect";
+import { createGlobalModule, EffectHost, effectHostProvider, ServiceLifecycleRunner, type EffectHostShape, type ServiceLifecycleShape } from "@deployer/nest-effect";
 import { LOCAL_MIGRATIONS_DIR } from "@deployer/nest-schema/migrations";
 import {
 	LocalDatabase,
@@ -37,31 +36,29 @@ const runUnwrapped = <A, E>(effect: Effect.Effect<A, E>): A => {
 };
 
 /**
- * Ties the Effect `LocalDatabase` to this Nest context: each context opens its OWN handle (the API
- * runs several contexts in one process), so each closes the one it opened. The connection is opened at
- * construction so providers can inject the Drizzle handle; the schema is migrated at `onModuleInit`,
- * after the graph resolves and before any consumer's own init hook, and closed at shutdown, after the
- * container is disposed, so no repository can still be using it.
+ * Ties the Effect `LocalDatabase` to this Nest context: each context opens its OWN handle (the API runs several contexts in
+ * one process), so each closes the one it opened. The connection is opened when the host is built so providers can inject
+ * the Drizzle handle; the schema is migrated at `onStart`, after the graph resolves and before any consumer's own init hook,
+ * and closed at `onStop`, so no repository can still be using it.
  */
-@Injectable()
-class LocalDatabaseLifecycle implements OnModuleInit, OnApplicationShutdown {
-	private readonly logger = new Logger(LocalDatabaseLifecycle.name);
-	private readonly scope = Effect.runSync(Scope.make());
-	readonly database: LocalDatabaseShape;
+export type LocalDatabaseHost = ServiceLifecycleShape & { readonly database: LocalDatabaseShape };
 
-	constructor(@Inject(LOCAL_DATABASE_OPTIONS) private readonly options: LocalDatabaseOptions) {
-		this.database = runUnwrapped(openLocalDatabase(options).pipe(Scope.provide(this.scope)));
-	}
+export function makeLocalDatabaseHost(options: LocalDatabaseOptions): LocalDatabaseHost {
+	const scope = Effect.runSync(Scope.make());
+	const database = runUnwrapped(openLocalDatabase(options).pipe(Scope.provide(scope)));
 
-	onModuleInit(): void {
-		runUnwrapped(migrateLocalDatabase(this.database, this.options.migrationsDir));
-	}
-
-	onApplicationShutdown(): void {
-		const exit = Effect.runSyncExit(Scope.close(this.scope, Exit.void));
-		if (Exit.isFailure(exit)) this.logger.warn(`Local SQLite close failed: ${Cause.pretty(exit.cause)}`);
-	}
+	return {
+		database,
+		onStart: () => migrateLocalDatabase(database, options.migrationsDir),
+		onStop: () =>
+			Scope.close(scope, Exit.void).pipe(
+				Effect.catchCause((cause) => Effect.logWarning(`Local SQLite close failed: ${Cause.pretty(cause)}`)),
+			),
+	};
 }
+
+/** The host, as a provider token: the connection tokens below read it, and its lifecycle runner drives migrate/close. */
+const LOCAL_DATABASE_HOST = Symbol.for("shared/LocalDatabaseHost");
 
 export const LocalDatabaseModule = createGlobalModule({
 	imports: [EnvModule],
@@ -74,10 +71,16 @@ export const LocalDatabaseModule = createGlobalModule({
 			}),
 			inject: [EnvService],
 		},
-		LocalDatabaseLifecycle,
-		{ provide: LocalDatabase, useFactory: (host: LocalDatabaseLifecycle) => host.database, inject: [LocalDatabaseLifecycle] },
-		{ provide: LOCAL_DATABASE_CLIENT, useFactory: (host: LocalDatabaseLifecycle) => host.database.client, inject: [LocalDatabaseLifecycle] },
-		{ provide: LOCAL_DATABASE_CONNECTION, useFactory: (host: LocalDatabaseLifecycle) => host.database.db, inject: [LocalDatabaseLifecycle] },
+		effectHostProvider(),
+		{ provide: LOCAL_DATABASE_HOST, useFactory: (options: LocalDatabaseOptions) => makeLocalDatabaseHost(options), inject: [LOCAL_DATABASE_OPTIONS] },
+		{
+			provide: Symbol.for("shared/LocalDatabaseLifecycle"),
+			useFactory: (host: LocalDatabaseHost, effectHost: EffectHostShape) => new ServiceLifecycleRunner("LocalDatabase", host, effectHost),
+			inject: [LOCAL_DATABASE_HOST, EffectHost],
+		},
+		{ provide: LocalDatabase, useFactory: (host: LocalDatabaseHost) => host.database, inject: [LOCAL_DATABASE_HOST] },
+		{ provide: LOCAL_DATABASE_CLIENT, useFactory: (host: LocalDatabaseHost) => host.database.client, inject: [LOCAL_DATABASE_HOST] },
+		{ provide: LOCAL_DATABASE_CONNECTION, useFactory: (host: LocalDatabaseHost) => host.database.db, inject: [LOCAL_DATABASE_HOST] },
 	],
 	exports: [LocalDatabase, LOCAL_DATABASE_CLIENT, LOCAL_DATABASE_CONNECTION],
 });

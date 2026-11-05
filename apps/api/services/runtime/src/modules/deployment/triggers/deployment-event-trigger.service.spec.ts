@@ -4,19 +4,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Actor, CurrentActor } from "@deployer/effect-core";
 
 import { DeploymentEventTriggerService } from "./deployment-event-trigger.service";
-import { SystemDeploymentsPort, TriggerRegistryPort } from "./deployment-trigger.ports";
+import { DeploymentTriggerRegistry, type TriggerSourceServices } from "./deployment-trigger-registry.service";
+import { SystemDeploymentsPort, TriggerServiceLinkPort } from "./deployment-trigger.ports";
 
 const event = { provider: "github", eventName: "push", payload: {} };
 
 /** Run as the system component the claim named, rejecting with the ORIGINAL failure. */
 async function run<A, E>(
-    effect: Effect.Effect<A, E, CurrentActor | TriggerRegistryPort | SystemDeploymentsPort>,
+    effect: Effect.Effect<A, E, CurrentActor | DeploymentTriggerRegistry | TriggerSourceServices | SystemDeploymentsPort>,
     ports: { registry: unknown; deploymentService: unknown },
 ): Promise<A> {
     const exit = await Effect.runPromiseExit(
         effect.pipe(
             Effect.provideService(CurrentActor, Actor.system("github-push")),
-            Effect.provideService(TriggerRegistryPort, ports.registry as never),
+            Effect.provideService(DeploymentTriggerRegistry, ports.registry as never),
+            Effect.provideService(TriggerServiceLinkPort, {} as never),
             Effect.provideService(SystemDeploymentsPort, ports.deploymentService as never),
         ),
     );
@@ -28,7 +30,7 @@ describe("DeploymentEventTriggerService", () => {
     const registry = { toTriggerInput: vi.fn() };
     const deploymentService = { triggerDeploymentAsSystem: vi.fn() };
     const service = new DeploymentEventTriggerService.live();
-    const runWith = <A, E>(effect: Effect.Effect<A, E, CurrentActor | TriggerRegistryPort | SystemDeploymentsPort>) =>
+    const runWith = <A, E>(effect: Effect.Effect<A, E, CurrentActor | DeploymentTriggerRegistry | TriggerSourceServices | SystemDeploymentsPort>) =>
         run(effect, { registry, deploymentService });
 
     beforeEach(() => {
@@ -37,8 +39,8 @@ describe("DeploymentEventTriggerService", () => {
 
     it("queues the deployment the matched source produced, as the system", async () => {
         const input = { serviceId: "svc-1", environment: "production" };
-        registry.toTriggerInput.mockResolvedValue({ sourceId: "github-push", input });
-        deploymentService.triggerDeploymentAsSystem.mockResolvedValue({ id: "dep-1" });
+        registry.toTriggerInput.mockReturnValue(Effect.succeed({ sourceId: "github-push", input }));
+        deploymentService.triggerDeploymentAsSystem.mockReturnValue(Effect.succeed({ id: "dep-1" }));
 
         const result = await runWith(service.trigger(event, "d-1"));
 
@@ -47,7 +49,7 @@ describe("DeploymentEventTriggerService", () => {
     });
 
     it("reports no source as a normal outcome, not an error", async () => {
-        registry.toTriggerInput.mockResolvedValue(null);
+        registry.toTriggerInput.mockReturnValue(Effect.succeed(null));
 
         const result = await runWith(service.trigger(event, "d-1"));
 
@@ -56,7 +58,7 @@ describe("DeploymentEventTriggerService", () => {
     });
 
     it("reports a matched source that declined to produce input", async () => {
-        registry.toTriggerInput.mockResolvedValue({ sourceId: "github-push", input: null });
+        registry.toTriggerInput.mockReturnValue(Effect.succeed({ sourceId: "github-push", input: null }));
 
         const result = await runWith(service.trigger(event, "d-1"));
 
@@ -65,8 +67,8 @@ describe("DeploymentEventTriggerService", () => {
     });
 
     it("lets a deployment failure propagate, unchanged", async () => {
-        registry.toTriggerInput.mockResolvedValue({ sourceId: "api", input: { serviceId: "svc-1" } });
-        deploymentService.triggerDeploymentAsSystem.mockRejectedValue(new Error("boom"));
+        registry.toTriggerInput.mockReturnValue(Effect.succeed({ sourceId: "api", input: { serviceId: "svc-1" } }));
+        deploymentService.triggerDeploymentAsSystem.mockReturnValue(Effect.fail(new Error("boom")));
 
         await expect(runWith(service.trigger(event, null))).rejects.toThrow("boom");
     });

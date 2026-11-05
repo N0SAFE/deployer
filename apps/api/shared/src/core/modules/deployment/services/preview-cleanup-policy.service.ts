@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Context } from "effect";
 
 import type { PreviewTemplateConfig } from "@deployer/contracts-entities";
 
@@ -9,9 +9,23 @@ export type PreviewCleanupDecision = {
     reason: string;
 }
 
-@Injectable()
-export class PreviewCleanupPolicyService {
-    shouldCleanup(
+export type PreviewCleanupPolicyShape = {
+    readonly shouldCleanup: (
+        trigger: PreviewCleanupTrigger,
+        config: Pick<PreviewTemplateConfig, "autoDeleteOnMerge" | "autoDeleteOnClose" | "ttlHours">,
+    ) => PreviewCleanupDecision;
+    readonly computeExpiryDate: (createdAt: Date, ttlHours: number) => Date;
+    readonly isTtlExpired: (createdAt: Date, ttlHours: number, now?: Date) => boolean;
+};
+
+/** Pure and total: no ports, no failure. */
+export function makePreviewCleanupPolicy(): PreviewCleanupPolicyShape {
+    const computeExpiryDate: PreviewCleanupPolicyShape["computeExpiryDate"] = (createdAt, ttlHours) =>
+        new Date(createdAt.getTime() + ttlHours * 60 * 60 * 1000);
+    return {
+        computeExpiryDate,
+        isTtlExpired: (createdAt, ttlHours, now = new Date()) => now >= computeExpiryDate(createdAt, ttlHours),
+        shouldCleanup(
         trigger: PreviewCleanupTrigger,
         config: Pick<PreviewTemplateConfig, "autoDeleteOnMerge" | "autoDeleteOnClose" | "ttlHours">,
     ): PreviewCleanupDecision {
@@ -30,12 +44,11 @@ export class PreviewCleanupPolicyService {
                 return { cleanup: true, reason: `ttl_expired_after_${String(config.ttlHours)}h` };
         }
     }
+    };
+}
 
-    computeExpiryDate(createdAt: Date, ttlHours: number): Date {
-        return new Date(createdAt.getTime() + ttlHours * 60 * 60 * 1000);
-    }
-
-    isTtlExpired(createdAt: Date, ttlHours: number, now: Date = new Date()): boolean {
-        return now >= this.computeExpiryDate(createdAt, ttlHours);
-    }
+export class PreviewCleanupPolicyService extends Context.Service<PreviewCleanupPolicyService, PreviewCleanupPolicyShape>()(
+    "shared/PreviewCleanupPolicyService",
+) {
+    static readonly live: PreviewCleanupPolicyShape = makePreviewCleanupPolicy();
 }

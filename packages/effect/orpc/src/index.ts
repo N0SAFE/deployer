@@ -8,4 +8,3 @@ export {
 	type RequestContextInput,
 } from "./request-context";
 export { domainErrorInterceptor } from "./domain-error-interceptor";
-export { createServe, type ServeOptions } from "./serve";

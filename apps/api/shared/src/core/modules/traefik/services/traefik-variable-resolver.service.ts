@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Context } from 'effect';
 
 import { type ServiceContext, ContextUtils } from '../../context/types';
 import { TraefikConfigBuilder } from '../config-builder/builders';
@@ -127,8 +127,7 @@ export type VariableResolutionContext = {
 /**
  * Service for resolving variables in Traefik configurations
  */
-@Injectable()
-export class TraefikVariableResolverService {
+class TraefikVariableResolverImpl {
   /**
    * Get all available variables as an object
    */
@@ -375,4 +374,28 @@ export class TraefikVariableResolverService {
   ): TraefikConfigBuilder {
     return this.resolveBuilder(builder, ContextUtils.toTraefikVariableContext(serviceContext));
   }
+}
+
+/** Pure and stateless: no ports, no failure, every method is synchronous. */
+export type TraefikVariableResolverShape = Pick<
+  TraefikVariableResolverImpl,
+  | 'getAvailableVariables'
+  | 'getVariableNames'
+  | 'buildVariableMap'
+  | 'resolveString'
+  | 'resolveConfig'
+  | 'resolveBuilder'
+  | 'hasVariables'
+  | 'extractVariables'
+  | 'validateContext'
+  | 'buildVariableMapFromServiceContext'
+  | 'resolveStringFromServiceContext'
+  | 'resolveConfigFromServiceContext'
+  | 'resolveBuilderFromServiceContext'
+>;
+
+export class TraefikVariableResolverService extends Context.Service<TraefikVariableResolverService, TraefikVariableResolverShape>()(
+  'shared/TraefikVariableResolverService',
+) {
+  static readonly live: TraefikVariableResolverShape = new TraefikVariableResolverImpl();
 }

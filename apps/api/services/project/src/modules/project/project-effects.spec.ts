@@ -71,14 +71,14 @@ describe("attempt and Nest exceptions", () => {
 
 describe("toFailure and the shared domain errors", () => {
 	it("maps each family to its kind, keeping the shared message", () => {
-		const missing = toFailure(new ProjectDomainNotFoundError("d1"));
+		const missing = toFailure(new ProjectDomainNotFoundError({ identifier: "d1" }));
 		expect(missing).toBeInstanceOf(ResourceMissing);
 		expect((missing as ResourceMissing).publicMessage()).toContain("d1");
-		expect(toFailure(new DomainAlreadyExistsError("p1", "a.test"))).toBeInstanceOf(ProjectConflict);
-		expect(toFailure(new SubdomainNotAllowedError("www", ["blog"]))).toBeInstanceOf(ProjectInvalid);
+		expect(toFailure(new DomainAlreadyExistsError({ projectId: "p1", domain: "a.test" }))).toBeInstanceOf(ProjectConflict);
+		expect(toFailure(new SubdomainNotAllowedError({ subdomain: "www", allowedSubdomains: ["blog"] }))).toBeInstanceOf(ProjectInvalid);
 	});
 
 	it("leaves a shared internal failure as infrastructure, not a client refusal", () => {
-		expect(toFailure(new ServiceDomainMappingDeletionError("m1"))).toBeInstanceOf(ProjectInfraFailure);
+		expect(toFailure(new ServiceDomainMappingDeletionError({ mappingId: "m1" }))).toBeInstanceOf(ProjectInfraFailure);
 	});
 });

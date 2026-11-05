@@ -1,19 +1,11 @@
+import { Effect } from "effect";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppLifecyclePhase, type AppLifecycleShape } from "@deployer/lifecycle";
 
-import { LocalEventOutboxDispatcherService } from "./local-event-outbox-dispatcher.service";
+import { makeLocalEventOutboxDispatcherService } from "./local-event-outbox-dispatcher.service";
 
-import type { LocalEventOutboxRepository } from "./local-event-outbox.repository";
-import type { GlobalDatabaseService } from "../../database/global/global-database.service";
-
-/**
- * The dispatcher takes a `GlobalDatabaseService`, but these tests only exercise the
- * outbox flow and never issue a query. Passing a bare `{}` failed at all six
- * construction sites ("missing logger, _db, init, isInitialized, and 2 more"), so the
- * placeholder is declared once, typed, and named for what it is.
- */
-const NO_DATABASE = {} as unknown as GlobalDatabaseService;
+import type { LocalEventOutboxRepositoryShape } from "./local-event-outbox.repository";
 
 function createLifecycleMock(phase: AppLifecyclePhase = AppLifecyclePhase.READY) {
     return { stateNow: () => ({ phase }) } as unknown as AppLifecycleShape;
@@ -46,40 +38,40 @@ function createOutboxRepositoryMock() {
             // Claimable = still pending. Claiming REMOVES it, as the real claim does.
             const claimed = rows.filter((r) => r.state === "pending").slice(0, limit);
             for (const row of claimed) row.state = "dispatching";
-            return Promise.resolve(claimed);
+            return Effect.succeed(claimed);
         }),
-        findById: vi.fn((id: string) => Promise.resolve(rows.find((row) => row.id === id) ?? null)),
-        hasSentDuplicateEventId: vi.fn(() => Promise.resolve(false)),
+        findById: vi.fn((id: string) => Effect.succeed(rows.find((row) => row.id === id) ?? null)),
+        hasSentDuplicateEventId: vi.fn(() => Effect.succeed(false)),
         markSent: vi.fn((id: string) => {
             updates.push({ id, state: "sent" });
             dispatched.push(id);
             const row = rows.find((r) => r.id === id);
             if (row) row.state = "sent";
-            return Promise.resolve();
+            return Effect.void;
         }),
         scheduleRetry: vi.fn((id: string, retryCount: number, maxRetries: number) => {
             const nextRetryCount = retryCount + 1;
             if (nextRetryCount >= maxRetries) {
                 updates.push({ id, state: "dead_letter", retryCount: nextRetryCount });
-                return Promise.resolve("dead_letter" as const);
+                return Effect.succeed("dead_letter" as const);
             }
             updates.push({ id, state: "pending", retryCount: nextRetryCount });
             const row = rows.find((r) => r.id === id);
             if (row) row.state = "pending";
-            return Promise.resolve("retry" as const);
+            return Effect.succeed("retry" as const);
         }),
         markDeadLetter: vi.fn((id: string, retryCount: number) => {
             updates.push({ id, state: "dead_letter", retryCount });
             const row = rows.find((r) => r.id === id);
             if (row) row.state = "dead_letter";
-            return Promise.resolve();
+            return Effect.void;
         }),
-        enqueue: vi.fn(() => Promise.resolve(undefined)),
-        findByTopic: vi.fn(() => Promise.resolve([])),
+        enqueue: vi.fn(() => Effect.void),
+        findByTopic: vi.fn(() => Effect.succeed([])),
     };
 
     return {
-        repository: repository as unknown as LocalEventOutboxRepository,
+        repository: repository as unknown as LocalEventOutboxRepositoryShape,
         repositoryMock: repository,
         rows,
         updates,
@@ -94,11 +86,7 @@ describe("LocalEventOutboxDispatcherService", () => {
 
     it("marks invalid envelopes as dead-letter", async () => {
         const mock = createOutboxRepositoryMock();
-        const service = new LocalEventOutboxDispatcherService(
-            NO_DATABASE,
-            mock.repository,
-            createLifecycleMock(),
-        );
+        const service = makeLocalEventOutboxDispatcherService({ outbox: mock.repository, lifecycle: createLifecycleMock() });
 
         mock.rows.push({
             id: "outbox-1",
@@ -108,18 +96,14 @@ describe("LocalEventOutboxDispatcherService", () => {
             createdAt: new Date(),
         });
 
-        await service.dispatchPending(10);
+        await Effect.runPromise(service.dispatchPending(10));
 
         expect(mock.updates.some((set) => set.state === "dead_letter")).toBe(true);
     });
 
     it("marks duplicate sent event envelopes as sent without re-dispatch", async () => {
         const mock = createOutboxRepositoryMock();
-        const service = new LocalEventOutboxDispatcherService(
-            NO_DATABASE,
-            mock.repository,
-            createLifecycleMock(),
-        );
+        const service = makeLocalEventOutboxDispatcherService({ outbox: mock.repository, lifecycle: createLifecycleMock() });
 
         const payload = {
             eventId: "11111111-1111-4111-8111-111111111111",
@@ -139,20 +123,16 @@ describe("LocalEventOutboxDispatcherService", () => {
             payload,
             createdAt: new Date(),
         });
-        (mock.repositoryMock.hasSentDuplicateEventId as ReturnType<typeof vi.fn>).mockResolvedValueOnce(true);
+        (mock.repositoryMock.hasSentDuplicateEventId as ReturnType<typeof vi.fn>).mockReturnValueOnce(Effect.succeed(true));
 
-        await service.dispatchPending(10);
+        await Effect.runPromise(service.dispatchPending(10));
 
         expect(mock.updates.some((set) => set.state === "sent")).toBe(true);
     });
 
     it("schedules retry when dispatch update fails", async () => {
         const mock = createOutboxRepositoryMock();
-        const service = new LocalEventOutboxDispatcherService(
-            NO_DATABASE,
-            mock.repository,
-            createLifecycleMock(),
-        );
+        const service = makeLocalEventOutboxDispatcherService({ outbox: mock.repository, lifecycle: createLifecycleMock() });
 
         const payload = {
             eventId: "22222222-2222-4222-8222-222222222222",
@@ -177,11 +157,11 @@ describe("LocalEventOutboxDispatcherService", () => {
         vi.mocked(mock.repositoryMock.markSent).mockImplementation(() => {
             markSentCalls += 1;
             return markSentCalls === 1
-                ? Promise.reject(new Error("forced-update-failure"))
-                : Promise.resolve();
+                ? Effect.fail(new Error("forced-update-failure"))
+                : Effect.void;
         });
 
-        await service.dispatchPending(10);
+        await Effect.runPromise(service.dispatchPending(10));
 
         const retryUpdate = mock.updates.find((set) => set.state === "pending" && set.retryCount === 1);
         expect(retryUpdate).toBeDefined();
@@ -203,16 +183,8 @@ describe("LocalEventOutboxDispatcherService", () => {
      */
     it("dispatches each event exactly once when two dispatchers run concurrently", async () => {
         const mock = createOutboxRepositoryMock();
-        const first = new LocalEventOutboxDispatcherService(
-            NO_DATABASE,
-            mock.repository,
-            createLifecycleMock(),
-        );
-        const second = new LocalEventOutboxDispatcherService(
-            NO_DATABASE,
-            mock.repository,
-            createLifecycleMock(),
-        );
+        const first = makeLocalEventOutboxDispatcherService({ outbox: mock.repository, lifecycle: createLifecycleMock() });
+        const second = makeLocalEventOutboxDispatcherService({ outbox: mock.repository, lifecycle: createLifecycleMock() });
 
         const EVENTS = 20;
         for (let i = 0; i < EVENTS; i += 1) {
@@ -236,7 +208,7 @@ describe("LocalEventOutboxDispatcherService", () => {
 
         // Both claim the whole backlog at once, so without a claim they would each
         // see all 20 and deliver 40.
-        await Promise.all([first.dispatchPending(EVENTS), second.dispatchPending(EVENTS)]);
+        await Promise.all([Effect.runPromise(first.dispatchPending(EVENTS)), Effect.runPromise(second.dispatchPending(EVENTS))]);
 
         const distinct = new Set(mock.dispatched);
         expect(mock.dispatched).toHaveLength(EVENTS);
@@ -245,11 +217,7 @@ describe("LocalEventOutboxDispatcherService", () => {
 
     it("does not re-dispatch a row that is already claimed by another dispatcher", async () => {
         const mock = createOutboxRepositoryMock();
-        const service = new LocalEventOutboxDispatcherService(
-            NO_DATABASE,
-            mock.repository,
-            createLifecycleMock(),
-        );
+        const service = makeLocalEventOutboxDispatcherService({ outbox: mock.repository, lifecycle: createLifecycleMock() });
 
         mock.rows.push({
             id: "outbox-taken",
@@ -268,7 +236,7 @@ describe("LocalEventOutboxDispatcherService", () => {
             createdAt: new Date(),
         });
 
-        await service.dispatchPending(10);
+        await Effect.runPromise(service.dispatchPending(10));
 
         // A row mid-dispatch belongs to someone else: it must not be claimed.
         expect(mock.dispatched).toHaveLength(0);

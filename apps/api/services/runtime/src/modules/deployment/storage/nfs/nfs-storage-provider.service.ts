@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Effect } from "effect";
 import z from "zod/v4";
 
 import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
@@ -29,27 +29,26 @@ const nfsStorageConfigSchema = z
     })
     .loose();
 
-@Injectable()
-export class NfsStorageProviderService implements DeploymentStorageProvider {
-    readonly storageType = "nfs" as const;
+export const nfsStorageProvider: DeploymentStorageProvider = {
+    storageType: "nfs",
 
     resolveStorageBinding(
         input: DeploymentTriggerInput,
         serviceStorageConfig?: DeploymentStoragePolicy,
-    ): Promise<DeploymentStorageBinding | null> {
+    ): Effect.Effect<DeploymentStorageBinding | null, RuntimeInvalid> {
         const storageConfig = extractStorageConfig(input, serviceStorageConfig);
         const parsed = nfsStorageConfigSchema.safeParse(storageConfig);
 
         if (!parsed.success) {
             if (storageConfig?.type === "nfs") {
-                throw new RuntimeInvalid({ reason: "NFS storage requires storage.nfs.server and storage.nfs.exportPath in sourceConfig.customData" });
+                return Effect.fail(new RuntimeInvalid({ reason: "NFS storage requires storage.nfs.server and storage.nfs.exportPath in sourceConfig.customData" }));
             }
-            return Promise.resolve(null);
+            return Effect.succeed(null);
         }
 
         const autoRedeployOnUpdate = resolveAutoRedeployOnUpdate(storageConfig);
 
-        return Promise.resolve(
+        return Effect.sync(() =>
             deploymentStorageBindingSchema.parse({
                 storageType: "nfs",
                 autoRedeployOnUpdate,
@@ -63,4 +62,4 @@ export class NfsStorageProviderService implements DeploymentStorageProvider {
             }),
         );
     }
-}
+};

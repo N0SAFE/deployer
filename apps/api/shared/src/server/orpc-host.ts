@@ -1,5 +1,4 @@
 import { Logger } from "@nestjs/common";
-import { REQUEST } from "@nestjs/core";
 import { SmartCoercionHandlerPlugin } from "@orpc/json-schema";
 import { ORPCModule } from "@orpc/nest";
 import {
@@ -16,16 +15,17 @@ import {
 	type DecisionEvent,
 	type PermissionStore,
 } from "@deployer/nest-effect/authz";
+import { configureBoundary, type BoundaryOptions } from "@deployer/nest-effect";
 
 import { permissionsOfRole } from "../core/authz/role-catalog";
-import { InternalErrorInsightService } from "../core/middlewares/internal-error/internal-error-insight.service";
+import { makeInternalErrorInsightService } from "../core/middlewares/internal-error/internal-error-insight.service";
 import {
 	logOrpcErrors,
-	transformNestJSErrorToOrpcError,
+	transformDomainErrorToOrpcError,
 } from "../core/modules/auth/orpc/index";
 import { AuthPlugin } from "../core/modules/auth/orpc/plugins/auth.plugin";
 import { SessionResolver, type SessionResolverShape } from "../core/modules/auth/orpc/session-resolver";
-import { AuthCoreService } from "../core/modules/auth/services/auth-core.service";
+import { AuthCoreService, type AuthCoreServiceShape } from "../core/modules/auth/services/auth-core.service";
 
 import type { ORPCGlobalContext } from "../core/modules/auth/orpc/orpc-context";
 import type { DynamicModule, ExecutionContext } from "@nestjs/common";
@@ -148,6 +148,11 @@ export type CreateOrpcModuleOptions<ExtraD extends ExtraTokens = []> = {
 	 * parameters — no cast at the call site.
 	 */
 	extraContext?: ExtraContext<ExtraD>;
+	/**
+	 * The request boundary of this app's `.effect()` handlers: defect log prefix, whether non-domain typed failures reach
+	 * the host's interceptors, and where refusals are reported. Controllers wrap nothing themselves.
+	 */
+	boundary?: BoundaryOptions;
 }
 
 export function createOrpcModule<ExtraD extends ExtraTokens = []>(
@@ -159,16 +164,16 @@ export function createOrpcModule<ExtraD extends ExtraTokens = []>(
 	// without a controller remembering to apply it. `shadow` evaluates and logs without refusing (the rollout mode from
 	// PERMISSIONS-ROADMAP.md); `enforce` refuses; unset/`off` installs nothing and leaves the app byte-identical.
 	configureAuthz(authzFromEnv());
+	if (options.boundary !== undefined) configureBoundary(options.boundary);
 
 	return ORPCModule.forRootAsync({
 		useFactory: (
-			request: Request,
-			authCoreService: AuthCoreService,
+			authCoreService: AuthCoreServiceShape,
 			sessions: SessionResolverShape,
 			...deps: ExtraInstances<ExtraD>
 		) => {
 			const emptyAuthUtils = authCoreService.createEmptyAuthUtils();
-			const internalErrorInsightService = new InternalErrorInsightService();
+			const internalErrorInsightService = makeInternalErrorInsightService();
 
 			/**
 			 * The app owns the extra keys (e.g. `effect/context`); shared cannot
@@ -182,6 +187,8 @@ export function createOrpcModule<ExtraD extends ExtraTokens = []>(
 			 * every provider existed.
 			 */
 			const context = async (executionContext: ExecutionContext): Promise<DefaultInitialContext> => {
+				// The live request, read from the call itself: nothing here is request-scoped, so the host is a singleton.
+				const request = executionContext.switchToHttp().getRequest<Request>();
 				const resolved = extra ? await extra.resolve(executionContext, ...deps) : {};
 				const effectContext = (resolved as { readonly "effect/context"?: Context.Context<unknown> })["effect/context"];
 
@@ -206,7 +213,7 @@ export function createOrpcModule<ExtraD extends ExtraTokens = []>(
 
 			return {
 				interceptors: [
-					transformNestJSErrorToOrpcError(),
+					transformDomainErrorToOrpcError(),
 					logOrpcErrors(new Logger("ORPC Errors"), internalErrorInsightService),
 					// Innermost, so a thrown `DomainError` (Promise-based services) is already its oRPC error
 					// by kind when the translation and logging interceptors above see it.
@@ -263,7 +270,7 @@ export function createOrpcModule<ExtraD extends ExtraTokens = []>(
 				context,
 			};
 		},
-		inject: [REQUEST, AuthCoreService, SessionResolver, ...(extra?.inject ?? [])],
+		inject: [AuthCoreService, SessionResolver, ...(extra?.inject ?? [])],
 	});
 }
 

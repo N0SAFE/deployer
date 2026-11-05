@@ -1,13 +1,11 @@
-import { Injectable } from "@nestjs/common";
+import { Context, Effect } from "effect";
 import z from "zod/v4";
 
-import type { DeploymentSourceCheckoutContext } from "@deployer/contracts-entities";
 import { gitlabSourceCheckoutContextSchema } from "@deployer/contracts-entities";
-import type { DeploymentTriggerInput } from "@deployer/runtime-contracts/modules/deployment/crud";
-import { GitService } from "@deployer/shared/core/modules/git/index";
 
 import { RuntimeInvalid } from "../../../../../core/runtime.errors";
-import { CodeProvider } from "../../shared/code-provider.interface";
+import { SourceGitPort } from "../../../providers.ports";
+import { matchesSourceType, type CodeProviderShape } from "../../shared/code-provider.interface";
 
 const gitlabSourceContextSchema = z.object({
     repositoryUrl: z.string().min(1),
@@ -16,51 +14,48 @@ const gitlabSourceContextSchema = z.object({
     mergeRequestIid: z.number().int().positive().optional(),
 });
 
-@Injectable()
-export class GitlabSourceProviderService extends CodeProvider {
-    readonly sourceType = "gitlab";
+export class GitlabSourceProvider extends Context.Service<GitlabSourceProvider, CodeProviderShape>()(
+    "runtime/GitlabSourceProvider",
+) {}
 
-    constructor(private readonly gitService: GitService) {
-        super();
-    }
+/** The gitlab provider over its git port. */
+export function makeGitlabSourceProvider(ports: { readonly git: SourceGitPort["Service"] }): CodeProviderShape {
+    const sourceType = "gitlab";
+    return {
+        sourceType,
+        resolveSourceCheckout: (input) =>
+            Effect.gen(function* () {
+                if (!matchesSourceType(sourceType, input) || input.source.sourceType !== "gitlab") {
+                    return null;
+                }
 
-    async resolveSourceCheckout(
-        input: DeploymentTriggerInput,
-    ): Promise<DeploymentSourceCheckoutContext | null> {
-        if (!this.matchesSourceType(input)) {
-            return null;
-        }
+                const parsed = gitlabSourceContextSchema.safeParse({
+                    repositoryUrl: input.source.repositoryUrl,
+                    branch: input.source.branch,
+                    commitSha: input.source.commitSha,
+                    mergeRequestIid: input.source.mergeRequestIid,
+                });
+                if (!parsed.success) {
+                    return yield* new RuntimeInvalid({ reason: "GitLab source requires source.repositoryUrl" });
+                }
 
-        if (input.source.sourceType !== "gitlab") {
-            return null;
-        }
+                const { repositoryUrl, branch, commitSha, mergeRequestIid } = parsed.data;
+                // GitLab merge-request pipelines target `refs/merge-requests/<iid>/head`.
+                const resolvedBranch =
+                    branch ?? (mergeRequestIid ? `refs/merge-requests/${mergeRequestIid}/head` : "main");
 
-        const parsed = gitlabSourceContextSchema.safeParse({
-            repositoryUrl: input.source.repositoryUrl,
-            branch: input.source.branch,
-            commitSha: input.source.commitSha,
-            mergeRequestIid: input.source.mergeRequestIid,
-        });
-        if (!parsed.success) {
-            throw new RuntimeInvalid({ reason: "GitLab source requires source.repositoryUrl" });
-        }
+                const isValidRepository = yield* ports.git.validateRepository(repositoryUrl);
+                if (!isValidRepository) {
+                    return yield* new RuntimeInvalid({ reason: `GitLab repository '${repositoryUrl}' is not accessible` });
+                }
 
-        const { repositoryUrl, branch, commitSha, mergeRequestIid } = parsed.data;
-        // GitLab merge-request pipelines target `refs/merge-requests/<iid>/head`.
-        const resolvedBranch =
-            branch ?? (mergeRequestIid ? `refs/merge-requests/${mergeRequestIid}/head` : "main");
-
-        const isValidRepository = await this.gitService.validateRepository(repositoryUrl);
-        if (!isValidRepository) {
-            throw new RuntimeInvalid({ reason: `GitLab repository '${repositoryUrl}' is not accessible` });
-        }
-
-        return gitlabSourceCheckoutContextSchema.parse({
-            provider: "gitlab",
-            repositoryUrl,
-            branch: resolvedBranch,
-            ...(commitSha ? { commitSha } : {}),
-            ...(mergeRequestIid ? { mergeRequestIid } : {}),
-        });
-    }
+                return gitlabSourceCheckoutContextSchema.parse({
+                    provider: "gitlab",
+                    repositoryUrl,
+                    branch: resolvedBranch,
+                    ...(commitSha ? { commitSha } : {}),
+                    ...(mergeRequestIid ? { mergeRequestIid } : {}),
+                });
+            }),
+    };
 }

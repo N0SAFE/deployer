@@ -1,18 +1,13 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 
-import { Injectable, Inject } from "@nestjs/common";
+import { Effect } from "effect";
 
-import { DockerEngine, type DockerEngineShape } from "@deployer/docker";
-import { runPromiseUnwrapped } from "@deployer/effect-core";
+import type { DockerEngineShape } from "@deployer/docker";
 
 import { RuntimeInvalid } from "../../../../core/runtime.errors";
 
-import type {
-    BuilderStrategy,
-    BuilderStrategyContext,
-    BuilderStrategyResult,
-} from "../base/builder-strategy.interface";
+import type { BuilderStrategy } from "../base/builder-strategy.interface";
 
 /** Compose files Docker itself accepts, in Docker's own precedence order. */
 const COMPOSE_CANDIDATES = ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"] as const;
@@ -27,44 +22,34 @@ const COMPOSE_CANDIDATES = ["docker-compose.yml", "docker-compose.yaml", "compos
  * ── KNOWN GAP, STATED HERE SO IT IS NOT MISTAKEN FOR WORKING ──────────────
  * Building is real (`docker compose build`). RUNNING is not: the compose runtime
  * runner delegates to the single-container runner, which falls back to `nginx:alpine`
- * when it has no image. `SwarmComposeRealizerService` — the real compose→swarm
+ * when it has no image. `SwarmComposeRealizer` — the real compose→swarm
  * pipeline — is implemented and called by nothing. So a compose service currently
  * builds correctly and then runs the wrong artifact.
  */
-@Injectable()
-export class DockerComposeBuilderStrategy implements BuilderStrategy {
-    readonly builderType = "docker_compose";
+export function makeDockerComposeBuilderStrategy(engine: DockerEngineShape): BuilderStrategy {
+    return {
+        builderType: "docker_compose",
+        isAvailable: () => true,
+        unavailableReason: () => "",
+        build: (context) =>
+            Effect.gen(function* () {
+                if (context.dockerfileName !== null) {
+                    return yield* new RuntimeInvalid({ reason: "Custom build/run commands cannot be combined with builder 'docker_compose' — the compose file already declares how each service is built" });
+                }
 
-    constructor(@Inject(DockerEngine) private readonly dockerEngine: DockerEngineShape) {}
+                const composeFile = COMPOSE_CANDIDATES.find((candidate) =>
+                    existsSync(path.join(context.buildContextPath, candidate)),
+                );
+                if (composeFile === undefined) {
+                    return yield* new RuntimeInvalid({ reason: "Builder 'docker_compose' requires a compose file in the source context" });
+                }
 
-    isAvailable(): boolean {
-        return true;
-    }
+                yield* engine.build.compose(context.buildContextPath, {
+                    composeFileName: composeFile,
+                    projectName: `deployer-${context.deploymentId.slice(0, 12)}`,
+                });
 
-    unavailableReason(): string {
-        return "";
-    }
-
-    async build(context: BuilderStrategyContext): Promise<BuilderStrategyResult> {
-        if (context.dockerfileName !== null) {
-            throw new RuntimeInvalid({ reason: "Custom build/run commands cannot be combined with builder 'docker_compose' — the compose file already declares how each service is built" });
-        }
-
-        const composeFile = COMPOSE_CANDIDATES.find((candidate) =>
-            existsSync(path.join(context.buildContextPath, candidate)),
-        );
-        if (composeFile === undefined) {
-            throw new RuntimeInvalid({ reason: "Builder 'docker_compose' requires a compose file in the source context" });
-        }
-
-        await runPromiseUnwrapped(
-            this.dockerEngine.build.compose(context.buildContextPath, {
-                composeFileName: composeFile,
-                projectName: `deployer-${context.deploymentId.slice(0, 12)}`,
+                return { image: null };
             }),
-            { signal: context.signal },
-        );
-
-        return { image: null };
-    }
+    };
 }

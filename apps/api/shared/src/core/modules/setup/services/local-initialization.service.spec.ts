@@ -10,7 +10,7 @@ import type { SwarmClusterShape } from "@deployer/swarm"
 
 import { SetupStepTracker } from "../utils/setup-runner.utils";
 
-import { LocalInitializationService } from "./local-initialization.service";
+import { makeLocalInitializationService, type LocalInitializationSteps } from "./local-initialization.service";
 
 import type { EnvService } from "../../../../config/env/env.module";
 import type { EmitEvent } from "../utils/setup-runner.utils";
@@ -47,21 +47,21 @@ function makeMocks() {
 	return { nodeConfigRepository, postgresProvisioner, dockerService, env, upsert };
 }
 
-function makeService(mocks: ReturnType<typeof makeMocks>): LocalInitializationService {
-	const service = new LocalInitializationService(
-		mocks.postgresProvisioner,
-		mocks.dockerService,
-		mocks.env,
-		mocks.nodeConfigRepository,
+function makeService(mocks: ReturnType<typeof makeMocks>, steps: Partial<LocalInitializationSteps> = {}) {
+	return makeLocalInitializationService({
+		postgresProvisioner: mocks.postgresProvisioner,
+		dockerEngine: mocks.dockerService,
+		env: mocks.env,
+		nodeConfigRepository: mocks.nodeConfigRepository,
 		// The flow founds the swarm before provisioning (a locally-managed
 		// Postgres is a swarm service). These specs exercise the marker
 		// persistence, not convergence, so a silent no-op + inactive snapshot
 		// keeps them deterministic.
-		{ converge: vi.fn(() => Effect.void) } as unknown as SwarmBootstrapShape,
+		swarmBootstrap: { converge: vi.fn(() => Effect.void) } as unknown as SwarmBootstrapShape,
 		// "active" is REQUIRED for the local path: the swarm step correctly
 		// throws when the cluster never comes up, because a locally-managed
 		// Postgres is a swarm service that cannot be provisioned otherwise.
-		{
+		swarmCluster: {
 			getLocalClusterSnapshot: vi.fn(() => Effect.succeed({
 				localNodeState: "active",
 				nodeCount: 1,
@@ -74,17 +74,17 @@ function makeService(mocks: ReturnType<typeof makeMocks>): LocalInitializationSe
 		// before the DSN is used so the overlay attach is not left to the
 		// supervisor's 30s cadence. These specs assert marker persistence, not
 		// network wiring, so a resolved no-op keeps them deterministic.
-		{ convergeNow: vi.fn(() => Effect.succeed(null)) } as unknown as SupervisorOrchestratorShape,
-	);
+		supervisors: { convergeNow: vi.fn(() => Effect.succeed(null)) } as unknown as SupervisorOrchestratorShape,
+		// Short-circuit the DB-heavy steps. The provision step sets the URL; the migrate/seed steps must be no-ops for a
+		// deterministic run.
+		steps: {
+			ensureDatabaseEmpty: () => Promise.resolve([]),
+			runMigrations: () => Promise.resolve(),
+			seedInitialData: () => Promise.resolve({ userId: "u1" }),
+			...steps,
+		},
+	});
 
-	// Short-circuit the DB-heavy steps. The provision step sets the URL; the
-	// migrate/seed steps must be no-ops for a deterministic run.
-	(service as unknown as { ensureDatabaseEmpty(): Promise<string[]> }).ensureDatabaseEmpty =
-		() => Promise.resolve([]);
-	(service as unknown as { runMigrations(): Promise<void> }).runMigrations = () => Promise.resolve();
-	(service as unknown as { seedInitialData(): Promise<{ userId: string }> }).seedInitialData =
-		() => Promise.resolve({ userId: "u1" });
-	return service;
 }
 
 const noopEmit: EmitEvent = () => undefined;
@@ -96,12 +96,10 @@ describe("LocalInitializationService — databaseProvisioning marker", () => {
 
 	it('persists databaseProvisioning="local" when the API provisions its own Postgres container', async () => {
 		const mocks = makeMocks();
-		const service = makeService(mocks);
 		// No existingDatabaseUrl → provisionDockerDatabase path (locally managed).
-		(service as unknown as { provisionDockerDatabase(): Promise<string> }).provisionDockerDatabase =
-			() => Promise.resolve(LOCAL_URL);
+		const service = makeService(mocks, { provisionDockerDatabase: () => Promise.resolve(LOCAL_URL) });
 
-		await service.initialize(
+		await Effect.runPromise(service.initialize(
 			{
 				strategy: "local",
 				name: "Admin",
@@ -111,7 +109,7 @@ describe("LocalInitializationService — databaseProvisioning marker", () => {
 			},
 			new SetupStepTracker(),
 			noopEmit,
-		);
+		));
 
 		expect(mocks.upsert).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -123,12 +121,10 @@ describe("LocalInitializationService — databaseProvisioning marker", () => {
 
 	it('persists databaseProvisioning="external" when an existing database URL is supplied', async () => {
 		const mocks = makeMocks();
-		const service = makeService(mocks);
 		// existingDatabaseUrl → probeExistingDatabase path (externally managed).
-		(service as unknown as { probeExistingDatabase(): Promise<string> }).probeExistingDatabase =
-			() => Promise.resolve(EXTERNAL_URL);
+		const service = makeService(mocks, { probeExistingDatabase: () => Promise.resolve(EXTERNAL_URL) });
 
-		await service.initialize(
+		await Effect.runPromise(service.initialize(
 			{
 				strategy: "local",
 				name: "Admin",
@@ -139,7 +135,7 @@ describe("LocalInitializationService — databaseProvisioning marker", () => {
 			},
 			new SetupStepTracker(),
 			noopEmit,
-		);
+		));
 
 		expect(mocks.upsert).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -163,15 +159,11 @@ describe("LocalInitializationService — databaseProvisioning marker", () => {
 			updatedAt: "2026-01-01T00:00:00.000Z",
 		}) as never);
 
-		const service = makeService(mocks);
-		const probeSpy = vi.fn(() => Promise.resolve(EXTERNAL_URL));
-		(service as unknown as { probeExistingDatabase(): Promise<string> }).probeExistingDatabase = probeSpy;
-		const provisionSpy = vi.fn(() =>
-			Promise.reject(new Error("must not provision a container when a DB is provided")),
-		);
-		(service as unknown as { provisionDockerDatabase(): Promise<string> }).provisionDockerDatabase = provisionSpy;
+		const probeSpy = vi.fn((_url: string, _log: (message: string) => void) => Promise.resolve(EXTERNAL_URL));
+		const provisionSpy = vi.fn(() => Promise.reject(new Error("must not provision a container when a DB is provided")));
+		const service = makeService(mocks, { probeExistingDatabase: probeSpy, provisionDockerDatabase: provisionSpy });
 
-		await service.initialize(
+		await Effect.runPromise(service.initialize(
 			{
 				strategy: "local",
 				name: "Admin",
@@ -181,7 +173,7 @@ describe("LocalInitializationService — databaseProvisioning marker", () => {
 			},
 			new SetupStepTracker(),
 			noopEmit,
-		);
+		));
 
 		expect(provisionSpy).not.toHaveBeenCalled();
 		expect(probeSpy).toHaveBeenCalledWith(EXTERNAL_URL, expect.any(Function));

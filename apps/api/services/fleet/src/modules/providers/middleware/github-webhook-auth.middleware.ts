@@ -23,8 +23,8 @@
  *
  * Usage (controllers):
  * ```ts
- * .effect(function* ({ input, context }) {
- *   const webhook = yield* serveAnonymous(context)(guardGithubWebhook(input));
+ * .effect(function* ({ input }) {
+ *   const webhook = yield* guardGithubWebhook(input);
  *   ...
  * });
  * ```

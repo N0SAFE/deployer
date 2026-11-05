@@ -1,15 +1,16 @@
+import { writeFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { Logger, type INestApplication } from '@nestjs/common'
-import { REQUEST } from '@nestjs/core'
 import { Test, type TestingModule } from '@nestjs/testing'
 import { PostgreSqlContainer } from '@testcontainers/postgresql'
 import Dockerode from 'dockerode'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { migrate } from 'drizzle-orm/node-postgres/migrator'
+import { Effect } from 'effect'
 import { Pool } from 'pg'
 import { Wait } from 'testcontainers'
 
@@ -21,10 +22,9 @@ import {
     GLOBAL_DATABASE_CONNECTION,
     GLOBAL_DATABASE_POOL,
 } from "../../core/modules/database/database-connection"
-import { GlobalDatabaseService } from '../../core/modules/database/global/global-database.service'
-import { TraefikFileSystemService } from '../../core/modules/traefik/services/traefik-file-system.service'
+import { GlobalDatabaseService, type GlobalDatabaseServiceShape } from '../../core/modules/database/global/global-database.service'
+import { TraefikFileSystemService, type TraefikFileSystemShape } from '../../core/modules/traefik/services/traefik-file-system.service'
 
-import { defaultRequestOverride, sharedRequestOverride } from './request-override'
 import {
     DEFAULT_SHARED_RUNTIME_KEY,
     SHARED_POSTGRES_CONNECTION_URI_ENV,
@@ -41,6 +41,8 @@ import type { AddressInfo } from 'node:net'
 import { containerHttpEdge, mountHttpEdge } from "../../server/http-edge"
 
 const SHARED_RUNTIME_LOG_ENV = 'E2E_SHARED_RUNTIME_LOGS'
+/** When set, a compile timeout writes the whole provider graph here (JSON), to find a cycle or a stuck factory offline. */
+const PROVIDER_GRAPH_DUMP_ENV = 'E2E_PROVIDER_GRAPH_DUMP'
 
 class ExternalSharedPostgresContainerHandle
     implements SharedPostgresContainerHandle
@@ -108,7 +110,8 @@ function describeActiveHandles(): string {
 async function withWatchdog<T>(
     stepLabel: string,
     timeoutMs: number,
-    action: () => Promise<T>
+    action: () => Promise<T>,
+    describePending?: () => string
 ): Promise<T> {
     const startedAt = Date.now()
 
@@ -134,7 +137,7 @@ async function withWatchdog<T>(
                 raceTimeout = setTimeout(() => {
                     reject(
                         new Error(
-                            `${stepLabel} exceeded ${String(timeoutMs)}ms (active handles: ${describeActiveHandles()})`
+                            `${stepLabel} exceeded ${String(timeoutMs)}ms (active handles: ${describeActiveHandles()})${describePending === undefined ? '' : ` | ${describePending()}`}`
                         )
                     )
                 }, timeoutMs)
@@ -147,6 +150,56 @@ async function withWatchdog<T>(
             clearTimeout(raceTimeout)
         }
     }
+}
+
+/**
+ * The providers Nest has not finished instantiating: when `compile()` hangs, this names the one it is waiting on (a
+ * factory that never settles, a cycle between factories) instead of leaving a bare timeout.
+ */
+function describeUnresolvedProviders(builder: unknown): string {
+    type Wrapper = {
+        isResolved?: boolean
+        inject?: unknown[] | null
+        metatype?: unknown
+        name?: unknown
+        getInstanceByContextId?: (context: { id: number }) => { isResolved?: boolean, isPending?: boolean } | undefined
+    }
+    type ModuleLike = {
+        metatype?: { name?: string }
+        providers: Map<unknown, Wrapper>
+        controllers: Map<unknown, Wrapper>
+        injectables: Map<unknown, Wrapper>
+    }
+    const tokenName = (token: unknown): string => {
+        const entry = (token as { token?: unknown } | undefined)?.token ?? token
+        return typeof entry === 'function' ? entry.name : String(entry)
+    }
+    const container = (builder as { container?: { getModules?: () => Map<string, ModuleLike> } } | null)?.container
+    const modules = container?.getModules?.()
+    if (modules === undefined) return 'unresolved providers: unavailable'
+    const graph: Record<string, string[]> = {}
+    let unresolved = 0
+    let total = 0
+    for (const module of modules.values()) {
+        for (const [kind, wrappers] of [['provider', module.providers], ['controller', module.controllers], ['injectable', module.injectables]] as const) {
+            for (const [token, wrapper] of wrappers) {
+                total += 1
+                const resolved = wrapper.getInstanceByContextId?.({ id: 1 })?.isResolved
+                if (resolved === false) unresolved += 1
+                let deps: unknown[] = wrapper.inject ?? []
+                if (wrapper.inject === null || wrapper.inject === undefined) {
+                    const target = wrapper.metatype as object | undefined
+                    const types: unknown[] = typeof target === 'function' ? ((Reflect.getMetadata('design:paramtypes', target) as unknown[] | undefined) ?? []) : []
+                    const selfs = typeof target === 'function' ? ((Reflect.getMetadata('self:paramtypes', target) as { index: number, param: unknown }[] | undefined) ?? []) : []
+                    deps = types.map((type, index) => selfs.find((self) => self.index === index)?.param ?? type)
+                }
+                graph[`${module.metatype?.name ?? 'module'}:${kind}:${tokenName(token)}${resolved === false ? '[unresolved]' : ''}`] = deps.map(tokenName)
+            }
+        }
+    }
+    const dump = process.env[PROVIDER_GRAPH_DUMP_ENV]
+    if (dump !== undefined && dump !== '') writeFileSync(dump, JSON.stringify(graph, null, 1))
+    return `unresolved (${String(unresolved)} of ${String(total)} across ${String(modules.size)} modules)${dump === undefined ? '' : `; graph written to ${dump}`}`
 }
 
 function normalizeError(error: unknown): Error {
@@ -289,8 +342,8 @@ async function assertRuntimeDatabaseBinding(
     moduleRef: TestingModule,
     expectedDatabaseUrl: string
 ): Promise<void> {
-    const databaseService = moduleRef.get(GlobalDatabaseService)
-    if (!(await databaseService.probe())) {
+    const databaseService = moduleRef.get<typeof GlobalDatabaseService, GlobalDatabaseServiceShape>(GlobalDatabaseService)
+    if (!(await Effect.runPromise(databaseService.probe()))) {
         throw new Error('GlobalDatabaseService is not connected after app bootstrap')
     }
 
@@ -370,39 +423,7 @@ async function configureTraefikPathsForE2E(
         fs.writeFile(join(backupPath, '.e2e-writable-check'), ''),
     ])
 
-    const mutableService = traefikFileSystemService as {
-        paths?: {
-            basePath: string
-            dynamicPath: string
-            staticPath: string
-            projectsPath: string
-            standalonePath: string
-            sslPath: string
-            certsPath: string
-            middlewarePath: string
-            pluginsPath: string
-            backupPath: string
-        }
-    }
-
-    if (!mutableService.paths) {
-        return
-    }
-
-    mutableService.paths.basePath = basePath
-    mutableService.paths.dynamicPath = join(basePath, 'dynamic')
-    mutableService.paths.staticPath = join(basePath, 'static')
-    mutableService.paths.projectsPath = join(basePath, 'dynamic', 'projects')
-    mutableService.paths.standalonePath = join(
-        basePath,
-        'dynamic',
-        'standalone'
-    )
-    mutableService.paths.sslPath = join(basePath, 'ssl')
-    mutableService.paths.certsPath = join(basePath, 'certs')
-    mutableService.paths.middlewarePath = join(basePath, 'middleware')
-    mutableService.paths.pluginsPath = join(basePath, 'plugins')
-    mutableService.paths.backupPath = backupPath
+    ;(traefikFileSystemService as TraefikFileSystemShape).setBasePaths({ basePath, backupPath })
 }
 
 function resolveDefaultRuntimeKey(): string {
@@ -855,6 +876,7 @@ export class SharedApiRuntimeManager {
         let moduleBuilder: ReturnType<typeof Test.createTestingModule> | null =
             null
         let moduleRef: TestingModule | null = null
+        let compilePhase = 'not started'
         let app: INestApplication | null = null
         let runtimeEnvSnapshot: Map<string, string | undefined> | null = null
 
@@ -965,6 +987,7 @@ export class SharedApiRuntimeManager {
                 `Nest testing module compile (${instanceKey})`,
                 60_000,
                 async () => {
+                    compilePhase = 'pool'
                     runtimePool = new Pool({
                         connectionString: databaseUrl,
                     })
@@ -975,8 +998,6 @@ export class SharedApiRuntimeManager {
                     moduleBuilder = Test.createTestingModule({
                         imports: [AppModule],
                     })
-                        .overrideProvider(REQUEST)
-                        .useValue(sharedRequestOverride)
                         .overrideProvider(GLOBAL_DATABASE_POOL)
                         .useValue(runtimePool)
                         .overrideProvider(GLOBAL_DATABASE_CONNECTION)
@@ -986,7 +1007,9 @@ export class SharedApiRuntimeManager {
                         ...databaseContext,
                         moduleBuilder,
                     }
+                    compilePhase = 'options.onModuleBuilder'
                     await options.nest?.onModuleBuilder?.(moduleBuilderContext)
+                    compilePhase = 'plugins.onModuleBuilder'
                     await this.runPluginHook(
                         plugins,
                         'onModuleBuilder',
@@ -997,14 +1020,18 @@ export class SharedApiRuntimeManager {
                         moduleBuilder.setLogger(new Logger())
                     }
 
+                    compilePhase = 'moduleBuilder.compile()'
                     const compiled = await moduleBuilder.compile()
+                    compilePhase = 'compiled'
 
                     const moduleCompiledContext = {
                         ...databaseContext,
                         moduleBuilder,
                         moduleRef: compiled,
                     }
+                    compilePhase = 'options.onModuleCompiled'
                     await options.nest?.onModuleCompiled?.(moduleCompiledContext)
+                    compilePhase = 'plugins.onModuleCompiled'
                     await this.runPluginHook(
                         plugins,
                         'onModuleCompiled',
@@ -1012,7 +1039,8 @@ export class SharedApiRuntimeManager {
                     )
 
                     return compiled
-                }
+                },
+                () => `phase=${compilePhase} | ${describeUnresolvedProviders(moduleBuilder)}`
             )
 
             await withWatchdog(
@@ -1035,26 +1063,6 @@ export class SharedApiRuntimeManager {
                 logger: isSharedRuntimeLoggingEnabled()
                     ? undefined
                     : ['error'],
-            })
-
-            // ── WHY THIS MIDDLEWARE ─────────────────────────────────────────────
-            // `overrideProvider(REQUEST)` replaces Nest's per-request provider with one
-            // static object for the whole module, so a middleware that reads a header
-            // off `context.request` (oRPC's context IS that value) would always see the
-            // synthetic bootstrap request and never the caller's headers — a
-            // token-authenticated route then 401s while the same call made directly on
-            // the service works. Copying the live request's headers onto the override
-            // before each call restores what a real HTTP request would provide.
-            //
-            // The set is REPLACED, not merged: the override outlives the request, so
-            // merging would carry the previous caller's token into the next one — a
-            // "rejects a missing token" case would then succeed with the stale token.
-            app.use((req: { headers?: Record<string, unknown> }, _res: unknown, next: () => void) => {
-                sharedRequestOverride.headers = {
-                    ...defaultRequestOverride.headers,
-                    ...((req.headers ?? {}) as Record<string, string | string[]>),
-                }
-                next()
             })
 
             // The HTTP edge, as `createApiServerApp` mounts it: what the container holds (Better Auth's routes, body parsing),

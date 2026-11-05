@@ -22,10 +22,10 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { Injectable, Logger } from "@nestjs/common";
+import { Context, Effect } from "effect";
 import z from "zod/v4";
 
-import { AppError } from "@deployer/errors";
+import { domainError } from "@deployer/effect-core";
 import { GLOBAL_MIGRATIONS_DIR } from "@deployer/nest-schema";
 
 /**
@@ -74,76 +74,65 @@ export type MigrationJournal = z.infer<typeof migrationJournalSchema>;
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
-@Injectable()
-export class MigrationJournalService {
-  private readonly logger = new Logger(MigrationJournalService.name);
-  private journal: MigrationJournal | null = null;
-
-  /**
-   * Load the journal from disk. Results are cached after first read.
-   */
-  load(): MigrationJournal {
-    if (this.journal) return this.journal;
-
-    try {
-      const raw = readFileSync(JOURNAL_PATH, "utf-8");
-      const parsed = migrationJournalSchema.safeParse(JSON.parse(raw));
-      if (!parsed.success) {
-        throw new AppError(`Invalid migration journal: ${parsed.error.message}`, "INTERNAL_ERROR");
-      }
-
-      this.journal = parsed.data;
-      this.logger.log(
-        `📖 Loaded migration journal: ${parsed.data.entries.length} migration(s), schema version ${parsed.data.version}`,
-      );
-      return parsed.data;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(`❌ Failed to load migration journal: ${message}`);
-      throw new AppError(
-        `Migration journal missing or corrupted at ${JOURNAL_PATH}: ${message}`,
-"INTERNAL_ERROR");
-    }
-  }
-
-  /**
-   * Get the list of all migration tags from the journal.
-   * Tags are like "0000_brave_steve_rogers", "0011_cynical_goliath", etc.
-   */
-  getMigrationTags(): string[] {
-    return this.load().entries.map((e) => e.tag);
-  }
-
-  /**
-   * Get the latest migration tag (the highest idx).
-   */
-  getLatestMigrationTag(): string | null {
-    const entries = this.load().entries;
-    if (entries.length === 0) return null;
-    const sorted = [...entries].sort((a, b) => b.idx - a.idx);
-    return sorted[0]!.tag;
-  }
-
-  /**
-   * Get the latest migration index.
-   */
-  getLatestMigrationIdx(): number {
-    const entries = this.load().entries;
-    if (entries.length === 0) return -1;
-    return Math.max(...entries.map((e) => e.idx));
-  }
-
-  /**
-   * Check if a specific migration tag exists in the journal.
-   */
-  hasMigration(tag: string): boolean {
-    return this.load().entries.some((e) => e.tag === tag);
-  }
-
-  /**
-   * Count how many migrations exist in the journal.
-   */
-  getMigrationCount(): number {
-    return this.load().entries.length;
-  }
+/** The journal is missing, unreadable or does not match drizzle-kit's format: an install problem, not a caller's. */
+export class MigrationJournalUnavailable extends domainError("MigrationJournalUnavailable", "dependency_missing")<{
+  readonly path: string;
+  readonly reason: string;
+}>() {
+  override publicMessage() { return "The migration journal is missing or corrupted."; }
 }
+
+export type MigrationJournalServiceShape = {
+  /** Load the journal from disk. Cached after the first successful read. */
+  readonly load: () => Effect.Effect<MigrationJournal, MigrationJournalUnavailable>;
+  /** Every migration tag of the journal ("0000_brave_steve_rogers", …). */
+  readonly getMigrationTags: () => Effect.Effect<string[], MigrationJournalUnavailable>;
+  /** The tag with the highest idx, or null for an empty journal. */
+  readonly getLatestMigrationTag: () => Effect.Effect<string | null, MigrationJournalUnavailable>;
+  /** The highest idx, or -1 for an empty journal. */
+  readonly getLatestMigrationIdx: () => Effect.Effect<number, MigrationJournalUnavailable>;
+  readonly hasMigration: (tag: string) => Effect.Effect<boolean, MigrationJournalUnavailable>;
+  readonly getMigrationCount: () => Effect.Effect<number, MigrationJournalUnavailable>;
+};
+
+export function makeMigrationJournalService(path: string = JOURNAL_PATH): MigrationJournalServiceShape {
+  let journal: MigrationJournal | null = null;
+
+  const load: MigrationJournalServiceShape["load"] = () =>
+    Effect.suspend(() => {
+      if (journal) return Effect.succeed(journal);
+      return Effect.try({
+        try: () => {
+          const parsed = migrationJournalSchema.safeParse(JSON.parse(readFileSync(path, "utf-8")));
+          if (!parsed.success) throw new Error(`Invalid migration journal: ${parsed.error.message}`);
+          return parsed.data;
+        },
+        catch: (error) => new MigrationJournalUnavailable({ path, reason: error instanceof Error ? error.message : String(error), cause: error }),
+      }).pipe(
+        Effect.tap((loaded) =>
+          Effect.logInfo(`📖 Loaded migration journal: ${String(loaded.entries.length)} migration(s), schema version ${loaded.version}`).pipe(
+            Effect.andThen(
+              Effect.sync(() => {
+                journal = loaded;
+              }),
+            ),
+          ),
+        ),
+        Effect.tapError((failure) => Effect.logError(`❌ Failed to load migration journal at ${failure.path}: ${failure.reason}`)),
+      );
+    });
+
+  return {
+    load,
+    getMigrationTags: () => Effect.map(load(), (loaded) => loaded.entries.map((e) => e.tag)),
+    getLatestMigrationTag: () =>
+      Effect.map(load(), (loaded) => [...loaded.entries].sort((a, b) => b.idx - a.idx)[0]?.tag ?? null),
+    getLatestMigrationIdx: () => Effect.map(load(), (loaded) => (loaded.entries.length === 0 ? -1 : Math.max(...loaded.entries.map((e) => e.idx)))),
+    hasMigration: (tag) => Effect.map(load(), (loaded) => loaded.entries.some((e) => e.tag === tag)),
+    getMigrationCount: () => Effect.map(load(), (loaded) => loaded.entries.length),
+  };
+}
+
+export class MigrationJournalService extends Context.Service<MigrationJournalService, MigrationJournalServiceShape>()(
+  "shared/MigrationJournalService",
+) {}

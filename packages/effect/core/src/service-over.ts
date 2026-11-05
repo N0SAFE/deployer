@@ -32,6 +32,9 @@ export function serviceOver<S extends object, P, R>(
 ): Over<S, R> {
 	return new Proxy({} as S, {
 		get(_target, key) {
+			// A constant service is handed to Nest as a provider value, and Nest `await`s whatever a factory returns (an
+			// alias, `useExisting`). A method answering `then` makes it a thenable that never settles and hangs the boot.
+			if (key === "then") return undefined;
 			return (...args: unknown[]) =>
 				Effect.flatMap(deps, (resolved) => {
 					const method: unknown = Reflect.get(make(resolved), key);

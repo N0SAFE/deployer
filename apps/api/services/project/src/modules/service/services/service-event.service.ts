@@ -3,7 +3,7 @@ import * as z from "zod";
 
 import { contractBuilder } from "@deployer/events";
 import { BasePooledEventService } from "@deployer/shared/core/modules/events/base/index";
-import { CoreEventStreamPoolService } from "@deployer/shared/core/modules/events/base/index";
+import { type CoreEventStreamPoolServiceShape } from "@deployer/shared/core/modules/events/base/index";
 
 export const serviceEventContracts = {
     serviceCreated: contractBuilder()
@@ -82,7 +82,7 @@ export const serviceEventContracts = {
 export type ServiceEventContracts = typeof serviceEventContracts;
 
 export class ServiceEventServiceImpl extends BasePooledEventService<ServiceEventContracts, "service"> {
-	constructor(streamPool: CoreEventStreamPoolService) {
+	constructor(streamPool: CoreEventStreamPoolServiceShape) {
 		super("service", serviceEventContracts, streamPool);
 	}
 }

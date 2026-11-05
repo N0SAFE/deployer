@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { projects } from '@deployer/nest-schema/global/project/deployment'
 import { localEventOutbox } from '@deployer/nest-schema/global/runtime/runtime'
-import { GlobalDatabaseService } from '@deployer/shared/core/modules/database/services/global-database.service'
+import { GlobalDatabaseService, type GlobalDatabaseServiceShape } from '@deployer/shared/core/modules/database/services/global-database.service'
 import { createAuthenticatedSession } from '@deployer/shared/e2e-harness/authenticated-session'
 
 import { getSharedApiRuntimeContext } from '@/e2e/runtime'
@@ -32,7 +32,7 @@ type Pool = {
 }
 
 describe('ProjectDb e2e: transactions and cancellation', () => {
-    let db: GlobalDatabaseService['db']
+    let db: GlobalDatabaseServiceShape['db']
     let pool: Pool
     let ownerId: string
     const probe = `tx_probe_${randomUUID().replaceAll('-', '')}`
@@ -50,7 +50,7 @@ describe('ProjectDb e2e: transactions and cancellation', () => {
 
     beforeAll(async () => {
         const context = await getSharedApiRuntimeContext()
-        db = context.serviceMapper.get(GlobalDatabaseService).db
+        db = (context.serviceMapper.get(GlobalDatabaseService) as unknown as GlobalDatabaseServiceShape).db
         pool = (db as unknown as { $client: Pool }).$client
         const admin = await createAuthenticatedSession(context, {
             role: 'admin',

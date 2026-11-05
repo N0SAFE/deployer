@@ -5,7 +5,6 @@ import { procedure } from "@deployer/nest-effect";
 import { domainContract } from "@deployer/project-contracts";
 import { requireAuth } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
-import { serve } from "@project/core/orpc/serve";
 import { actorFromContext } from "@project/core/utils/actor.utils";
 
 import { DomainProjectService } from "../services/domain-project.service";
@@ -15,7 +14,7 @@ import { DomainProjectService } from "../services/domain-project.service";
  *
  * Each method binds a contract procedure, takes the actor from the context and
  * delegates to `DomainProjectService` resolved from the module's Effect
- * context. Rules live in the service; `serve` is the request boundary that maps failures.
+ * context. Rules live in the service; the `.effect()` boundary is the request boundary that maps failures.
  */
 @Controller()
 export class ProjectDomainController {
@@ -23,11 +22,10 @@ export class ProjectDomainController {
 	listProjectDomains() {
 		return procedure(domainContract.listProjectDomains)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const domains = yield* DomainProjectService;
 				return yield* domains
-					.listProjectDomains(input.params)
-					.pipe(serve(context));
+					.listProjectDomains(input.params);
 			});
 	}
 
@@ -35,11 +33,10 @@ export class ProjectDomainController {
 	getAvailableDomains() {
 		return procedure(domainContract.getAvailableDomains)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const domains = yield* DomainProjectService;
 				return yield* domains
-					.getAvailableDomains(input.params)
-					.pipe(serve(context));
+					.getAvailableDomains(input.params);
 			});
 	}
 
@@ -47,14 +44,13 @@ export class ProjectDomainController {
 	getAvailableDomainsForService() {
 		return procedure(domainContract.getAvailableDomainsForService)
 			.use(requireAuth())
-			.effect(function* ({ input, context }) {
+			.effect(function* ({ input }) {
 				const domains = yield* DomainProjectService;
 				return yield* domains
 					.getAvailableDomainsForService({
 						...input.params,
 						serviceId: undefined,
-					})
-					.pipe(serve(context));
+					});
 			});
 	}
 
@@ -68,8 +64,7 @@ export class ProjectDomainController {
 					.addProjectDomain(
 						{ ...input.params, ...input.body },
 						actorFromContext(context).userId,
-					)
-					.pipe(serve(context));
+					);
 			});
 	}
 
@@ -83,8 +78,7 @@ export class ProjectDomainController {
 					.updateProjectDomain(
 						{ ...input.params, ...input.body },
 						actorFromContext(context).userId,
-					)
-					.pipe(serve(context));
+					);
 			});
 	}
 
@@ -98,8 +92,7 @@ export class ProjectDomainController {
 					.removeProjectDomain({
 						...input.params,
 						requesterId: actorFromContext(context).userId,
-					})
-					.pipe(serve(context));
+					});
 			});
 	}
 
@@ -113,8 +106,7 @@ export class ProjectDomainController {
 					.verifyProjectDomain({
 						...input.params,
 						requesterId: actorFromContext(context).userId,
-					})
-					.pipe(serve(context));
+					});
 			});
 	}
 }

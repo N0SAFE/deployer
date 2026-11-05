@@ -2,7 +2,7 @@ import { Context, Effect } from "effect";
 
 import { EffectHost, type EffectHostShape } from "./effect-host";
 
-import type { OnModuleDestroy, OnModuleInit, Provider, Type } from "@nestjs/common";
+import type { OnApplicationBootstrap, OnModuleDestroy, OnModuleInit, Provider, Type } from "@nestjs/common";
 
 /**
  * The lifecycle a service declares **in its shape**.
@@ -32,6 +32,12 @@ import type { OnModuleDestroy, OnModuleInit, Provider, Type } from "@nestjs/comm
 export type ServiceLifecycleShape = {
 	/** Runs once, before the app serves. A failure fails the boot — this is initialisation, not a background task. */
 	readonly onStart?: () => Effect.Effect<void, unknown>;
+	/**
+	 * Runs once when EVERY module has finished initialising (Nest's `onApplicationBootstrap`), after all `onStart`s. Use it for
+	 * what must see the other modules' start-up work (a drift control that converges what the modules registered). A failure
+	 * fails the boot, like `onStart`.
+	 */
+	readonly onReady?: () => Effect.Effect<void, unknown>;
 	/** Forked after `onStart`, expected to run until interrupted. The runner owns the fiber and interrupts it on stop. */
 	readonly run?: () => Effect.Effect<void, unknown>;
 	/** Runs once, after `run` is interrupted. Never fails the shutdown: a failure is logged. */
@@ -45,7 +51,9 @@ type DeclaresLifecycle<S> = "onStart" extends keyof S
 		? true
 		: "onStop" extends keyof S
 			? true
-			: false;
+			: "onReady" extends keyof S
+				? true
+				: false;
 
 /** The compile error `serviceLifecycle` produces for a shape with no lifecycle in it. */
 type NoLifecycleInShape = {
@@ -59,11 +67,12 @@ const lifecycleToken = (key: string): symbol => Symbol.for(`effect-lifecycle:${k
  * Runs one service's lifecycle from Nest's.
  *
  * `onModuleInit`: `onStart`, then fork `run`.
+ * `onApplicationBootstrap`: `onReady`.
  * `onModuleDestroy`: interrupt `run`, then `onStop`.
  *
  * That order is the whole point: nothing stops while the work that uses it may still be running.
  */
-export class ServiceLifecycleRunner implements OnModuleInit, OnModuleDestroy {
+export class ServiceLifecycleRunner implements OnModuleInit, OnApplicationBootstrap, OnModuleDestroy {
 	private stopProgram: (() => Promise<void>) | undefined;
 
 	constructor(
@@ -78,6 +87,12 @@ export class ServiceLifecycleRunner implements OnModuleInit, OnModuleDestroy {
 		}
 		if (this.service.run !== undefined) {
 			this.stopProgram = this.host.fork(this.label, this.service.run());
+		}
+	}
+
+	async onApplicationBootstrap(): Promise<void> {
+		if (this.service.onReady !== undefined) {
+			await this.host.runUnwrapped(this.service.onReady());
 		}
 	}
 

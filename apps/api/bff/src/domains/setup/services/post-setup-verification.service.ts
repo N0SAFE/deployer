@@ -1,12 +1,13 @@
 import { request as httpRequest } from "node:http";
 
-import { Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Effect } from "effect";
 
 import type { SetupPostSetupVerification, SetupVerificationTarget } from "@deployer/contracts-entities";
 
 import { EnvService } from "@/config/env/env.module";
 import { HostnameService } from "@/core/modules/platform-ingress/services/hostname.service";
-import { PlatformConfigService } from "@/core/modules/platform-ingress/services/platform-config.service";
+import { PlatformConfigService, type PlatformConfigServiceShape } from "@/core/modules/platform-ingress/services/platform-config.service";
 import { platformTraefikContainerName } from "@/core/modules/platform-ingress/services/platform-names";
 
 /** One answer from an ingress for one request, before it is judged. */
@@ -85,11 +86,11 @@ export class PostSetupVerificationService {
 	constructor(
 		private readonly env: EnvService,
 		private readonly hostnames: HostnameService,
-		private readonly platformConfig: PlatformConfigService,
+		@Inject(PlatformConfigService) private readonly platformConfig: PlatformConfigServiceShape,
 	) {}
 
 	async verify(): Promise<SetupPostSetupVerification> {
-		const webExpected = await this.platformConfig.isManagedWebAppEnabled();
+		const webExpected = await Effect.runPromise(this.platformConfig.isManagedWebAppEnabled());
 		const webOrigin = webExpected ? await this.webOrigin() : null;
 
 		const [api, web] = await Promise.all([
@@ -113,7 +114,7 @@ export class PostSetupVerificationService {
 
 	/** The dashboard's browser-facing origin: an operator-set origin wins over the generated hostname. */
 	private async webOrigin(): Promise<string> {
-		const configured = (await this.platformConfig.getManagedWebOrigin().catch(() => null))?.trim() ?? "";
+		const configured = (await Effect.runPromise(this.platformConfig.getManagedWebOrigin()))?.trim() ?? "";
 		if (configured.length === 0) return this.hostnames.webOrigin();
 		return /^https?:\/\//i.test(configured) ? configured : `http://${configured}`;
 	}

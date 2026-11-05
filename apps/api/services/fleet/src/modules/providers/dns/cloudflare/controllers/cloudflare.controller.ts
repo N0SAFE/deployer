@@ -14,7 +14,6 @@ import { procedure } from "@deployer/nest-effect";
 import { requireAuth, requirePlatformRole } from "@deployer/shared/core/modules/auth/orpc/middlewares";
 
 import { attempt } from "@/core/effects";
-import { serve } from "@/core/orpc/serve";
 import { TunnelEdge } from "@/core/ports/tunnel-edge.port";
 
 import { CloudflareAppService } from "../services/cloudflare-app.service";
@@ -44,18 +43,17 @@ export class CloudflareController {
     listZones() {
         return procedure(providersContract.dns.cloudflare.listZones)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const dns = yield* CloudflareDnsProviderService;
-                return yield* serve(context)(
-                    dns.listZones({ providerId: input.params.providerId, providerType: "cloudflare" }).pipe(
+                return yield* dns.listZones({ providerId: input.params.providerId, providerType: "cloudflare" }).pipe(
                         Effect.map((zones) => ({ zones, error: null as string | null })),
                         Effect.catch((err) =>
                             Effect.logWarning(`cloudflareListZones failed for provider ${input.params.providerId}: ${describe(err)}`).pipe(
                                 Effect.as({ zones: [], error: err instanceof Error ? err.message : "Unknown Cloudflare error" }),
                             ),
                         ),
-                    ),
-                );
+                    )
+                ;
             });
     }
 
@@ -63,12 +61,11 @@ export class CloudflareController {
     listRecords() {
         return procedure(providersContract.dns.cloudflare.listRecords)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const dns = yield* CloudflareDnsProviderService;
                 const { params } = input;
                 const query = input.query ?? {};
-                return yield* serve(context)(
-                    dns
+                return yield* dns
                         .listRecordsFiltered({ providerId: params.providerId, providerType: "cloudflare" }, params.zoneId, {
                             type: query.type,
                             name: query.name,
@@ -101,8 +98,8 @@ export class CloudflareController {
                                     }),
                                 ),
                             ),
-                        ),
-                );
+                        )
+                ;
             });
     }
 
@@ -110,12 +107,11 @@ export class CloudflareController {
     checkRecord() {
         return procedure(providersContract.dns.cloudflare.checkRecord)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const apps = yield* CloudflareAppService;
                 const { params } = input;
                 const query = input.query ?? {};
-                return yield* serve(context)(
-                    Effect.gen(function* () {
+                return yield* Effect.gen(function* () {
                         const client = yield* apps.buildClient(params.providerId);
                         const page = yield* attempt(() =>
                             client.dns.records.list({
@@ -158,8 +154,8 @@ export class CloudflareController {
                                 }),
                             ),
                         ),
-                    ),
-                );
+                    )
+                ;
             });
     }
 
@@ -168,11 +164,10 @@ export class CloudflareController {
         return procedure(providersContract.dns.cloudflare.createRecord)
             .use(requireAuth())
             .use(requirePlatformRole(DNS_OPERATOR_ROLES))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const dns = yield* CloudflareDnsProviderService;
                 const { params, body } = input;
-                const record = yield* serve(context)(
-                    dns.createRecord(
+                const record = yield* dns.createRecord(
                         { providerId: params.providerId, providerType: "cloudflare" },
                         {
                             zoneId: params.zoneId,
@@ -182,8 +177,8 @@ export class CloudflareController {
                             ttl: body.ttl,
                             proxied: body.proxied,
                         },
-                    ),
-                );
+                    )
+                ;
                 return {
                     id: record.id,
                     type: record.type,
@@ -200,15 +195,14 @@ export class CloudflareController {
         return procedure(providersContract.dns.cloudflare.deleteRecord)
             .use(requireAuth())
             .use(requirePlatformRole(DNS_OPERATOR_ROLES))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const dns = yield* CloudflareDnsProviderService;
-                yield* serve(context)(
-                    dns.deleteRecord(
+                yield* dns.deleteRecord(
                         { providerId: input.params.providerId, providerType: "cloudflare" },
                         input.params.zoneId,
                         input.params.id,
-                    ),
-                );
+                    )
+                ;
                 return { success: true };
             });
     }
@@ -219,9 +213,9 @@ export class CloudflareController {
     listTunnels() {
         return procedure(providersContract.dns.cloudflare.listTunnels)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const tunnels = yield* CloudflareTunnelService;
-                return yield* serve(context)(tunnels.listTunnels(input.params.providerId));
+                return yield* tunnels.listTunnels(input.params.providerId);
             });
     }
 
@@ -229,9 +223,9 @@ export class CloudflareController {
     getTunnel() {
         return procedure(providersContract.dns.cloudflare.getTunnel)
             .use(requireAuth())
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const tunnels = yield* CloudflareTunnelService;
-                return yield* serve(context)(tunnels.getTunnel(input.params.providerId, input.params.id));
+                return yield* tunnels.getTunnel(input.params.providerId, input.params.id);
             });
     }
 
@@ -240,9 +234,9 @@ export class CloudflareController {
         return procedure(providersContract.dns.cloudflare.createTunnel)
             .use(requireAuth())
             .use(requirePlatformRole(DNS_OPERATOR_ROLES))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const tunnels = yield* CloudflareTunnelService;
-                return yield* serve(context)(tunnels.createTunnel(input.params.providerId, input.body));
+                return yield* tunnels.createTunnel(input.params.providerId, input.body);
             });
     }
 
@@ -251,12 +245,11 @@ export class CloudflareController {
         return procedure(providersContract.dns.cloudflare.deleteTunnel)
             .use(requireAuth())
             .use(requirePlatformRole(DNS_OPERATOR_ROLES))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const tunnels = yield* CloudflareTunnelService;
                 const tunnelEdge = yield* TunnelEdge;
                 const { providerId, id } = input.params;
-                return yield* serve(context)(
-                    Effect.gen(function* () {
+                return yield* Effect.gen(function* () {
                         // When this is the STACK's tunnel, remove its wildcard CNAME too, and
                         // make the edge forget it so no dead tunnel id keeps claiming the
                         // public lane (the Ingress page then shows it as not provisioned).
@@ -273,8 +266,8 @@ export class CloudflareController {
                             );
                         }
                         return { success };
-                    }),
-                );
+                    })
+                ;
             });
     }
 
@@ -283,9 +276,9 @@ export class CloudflareController {
         return procedure(providersContract.dns.cloudflare.getTunnelToken)
             .use(requireAuth())
             .use(requirePlatformRole(DNS_OPERATOR_ROLES))
-            .effect(function* ({ input, context }) {
+            .effect(function* ({ input }) {
                 const tunnels = yield* CloudflareTunnelService;
-                return yield* serve(context)(tunnels.getTunnelToken(input.params.providerId, input.params.id));
+                return yield* tunnels.getTunnelToken(input.params.providerId, input.params.id);
             });
     }
 }

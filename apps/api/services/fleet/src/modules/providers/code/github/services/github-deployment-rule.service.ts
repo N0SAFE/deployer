@@ -151,7 +151,7 @@ function makeGithubDeploymentRuleService(rulesRepository: GithubDeploymentRulesS
         resolveAction: Effect.fn("GithubDeploymentRuleService.resolveAction")(function* (
             input: GithubRuleEvaluationInput,
         ) {
-            const rules = yield* attempt(() => rulesRepository.findActiveByProjectId(input.projectId));
+            const rules = yield* rulesRepository.findActiveByProjectId(input.projectId);
 
             for (const rule of rules) {
                 if (!matchesEvent(rule, input)) {

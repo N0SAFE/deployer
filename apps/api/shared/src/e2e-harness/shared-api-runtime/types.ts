@@ -134,12 +134,6 @@ export type SharedApiRuntimeOptions = {
     plugins?: SharedRuntimePlugin[]
 }
 
-export type SharedRuntimeRequestOverride = {
-    headers: Record<string, string | string[]>
-    method: string
-    url: string
-}
-
 export type SharedRuntimeOrpcClientOptions = {
     headers?: Record<string, string>
     tracker?: SharedOrpcResponseTracker

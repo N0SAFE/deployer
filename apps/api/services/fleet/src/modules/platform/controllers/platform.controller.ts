@@ -9,7 +9,8 @@
  * The HTML management console lives in PlatformConsoleController.
  */
 
-import { Controller, Logger } from "@nestjs/common";
+import { Controller, Inject } from "@nestjs/common";
+import { Effect } from "effect";
 import { Implement } from "@orpc/nest";
 
 import { heartbeatAppInstanceContract, listAppInstancesContract, registerAppInstanceContract, revokeAppInstanceContract } from "@deployer/fleet-contracts";
@@ -21,6 +22,7 @@ import { AuthCoreService } from "@deployer/shared/core/modules/auth/services/aut
 import {
 	AppInstanceService,
 	STALE_AFTER_MS,
+	type AppInstanceServiceShape,
 } from "@deployer/shared/core/modules/platform-ingress/services/app-instance.service";
 
 import { requireAppInstance } from "../orpc/middlewares";
@@ -31,8 +33,7 @@ const REGISTER_RATE_LIMIT = { windowMs: 60 * 60 * 1000, max: 5 } as const;
 @Controller()
 export class PlatformController {
 	constructor(
-		private readonly appInstances: AppInstanceService,
-		private readonly authCoreService: AuthCoreService,
+		@Inject(AppInstanceService) private readonly appInstances: AppInstanceServiceShape,
 	) {}
 	@Implement(registerAppInstanceContract)
 	register() {
@@ -41,33 +42,31 @@ export class PlatformController {
 				...REGISTER_RATE_LIMIT,
 				message: "Too many registration attempts — try again later",
 			}))
-			.handler(async ({ input, errors }) => {
+			.effect(function* ({ input, errors }) {
+				const appInstances = yield* AppInstanceService;
+				const authCore = yield* AuthCoreService;
 				// Verify the account exists on THIS API — the anti-abuse boundary:
 				// only legitimate account holders can introduce web instances.
-				try {
-					await this.authCoreService.api.signInEmail({
-						body: { email: input.email, password: input.password },
-					});
-				} catch (error) {
-					// Log the underlying cause (request-id correlated) — never
-					// swallow infrastructure failures as "bad credentials".
-					const detail =
-						error instanceof Error ? error.message : String(error);
-					new Logger(PlatformController.name).error(
-						`credential verification failed: ${detail}`,
-					);
-					throw errors.UNAUTHORIZED(
-						standardErrorOptions("unauthorized", "Invalid account credentials"),
-					);
-				}
+				yield* Effect.tryPromise(() =>
+					authCore.api.signInEmail({ body: { email: input.email, password: input.password } }),
+				).pipe(
+					Effect.catch((error) =>
+						// Log the underlying cause (request-id correlated) — never swallow infrastructure failures as
+						// "bad credentials".
+						Effect.logError(
+							`credential verification failed: ${error.cause instanceof Error ? error.cause.message : String(error.cause)}`,
+						).pipe(
+							Effect.andThen(
+								Effect.fail(errors.UNAUTHORIZED(standardErrorOptions("unauthorized", "Invalid account credentials"))),
+							),
+						),
+					),
+				);
 
-				const minted = await this.appInstances.create({
-					label: input.instanceLabel,
-					kind: "external",
-				});
+				const minted = yield* appInstances.create({ label: input.instanceLabel, kind: "external" });
 
 				return {
-					status: 201,
+					status: 201 as const,
 					body: {
 						instanceId: minted.instanceId,
 						appToken: minted.appToken,
@@ -95,9 +94,10 @@ export class PlatformController {
 	list() {
 		return procedure(listAppInstancesContract)
 			.use(requireAuth())
-			.handler(async () => {
-				await this.appInstances.sweepStale();
-				const instances = await this.appInstances.list();
+			.effect(function* () {
+				const appInstances = yield* AppInstanceService;
+				yield* appInstances.sweepStale();
+				const instances = yield* appInstances.list();
 				return {
 					instances: instances.map((row) => ({
 						id: row.id,
@@ -115,9 +115,10 @@ export class PlatformController {
 	revoke() {
 		return procedure(revokeAppInstanceContract)
 			.use(requireAuth())
-			.handler(async ({ input }) => {
+			.effect(function* ({ input }) {
+				const appInstances = yield* AppInstanceService;
 				// Delete verbs envelope the input: body + default params.
-				return { revoked: await this.appInstances.revoke(input.body.instanceId) };
+				return { revoked: yield* appInstances.revoke(input.body.instanceId) };
 			});
 	}
 }

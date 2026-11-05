@@ -1,62 +1,55 @@
-import { createGlobalModule } from '@deployer/nest-effect';
+import type { Context } from "effect";
 
-import { DatabaseModule } from '../database/database.module';
-import { TraefikCoreModule } from '../traefik/traefik.module';
+import { createGlobalModule, effectHostProvider, serviceLifecycle } from "@deployer/nest-effect";
 
-// Services
-import { ProjectDomainRepository } from './repositories/project-domain.repository';
-import { ServiceDomainMappingRepository } from './repositories/service-domain-mapping.repository';
-import { DomainConflictService } from './services/domain-conflict.service';
-import { DomainRoutingService } from './services/domain-routing.service';
-import { DomainVerificationService } from './services/domain-verification.service';
-import { ServiceDomainMappingService } from './services/service-domain-mapping.service';
+import { DatabaseModule } from "../database/database.module";
+import { DatabasePort } from "../database/storage";
+import { TraefikCoreModule } from "../traefik/traefik.module";
 
-// Repositories
+import { makeProjectDomainRepository, ProjectDomainRepository } from "./repositories/project-domain.repository";
+import { ServiceDomainMappingRepository } from "./repositories/service-domain-mapping.repository";
+import { DomainConflictService } from "./services/domain-conflict.service";
+import { DomainRoutingService } from "./services/domain-routing.service";
+import { DomainVerificationService, makeDomainVerificationService } from "./services/domain-verification.service";
+import { ServiceDomainMappingService } from "./services/service-domain-mapping.service";
 
 /**
  * CORE MODULE: Domain Infrastructure
- * 
- * Provides ONLY domain services and repositories. NO controllers.
- * 
- * Core modules should ONLY provide services (no controllers, no processors).
- * Feature modules contain controllers, processors, and application logic.
- * 
- * Services provided:
- * - DomainVerificationService: Domain verification (DNS, TXT records)
- * - DomainConflictService: Subdomain conflict detection
- * - ServiceDomainMappingService: Service-to-domain mappings
- * 
- * Repositories provided:
- * - ProjectDomainRepository: Project domain data access
- * - ServiceDomainMappingRepository: Service domain mapping data access
- * 
- * Controllers have been moved to DomainControllerModule (feature module).
+ *
+ * Provides ONLY domain services and repositories. NO controllers (they live in the feature module).
+ *
+ * Services: DomainVerificationService (DNS ownership, hourly sweep), DomainConflictService (subdomain conflicts),
+ * ServiceDomainMappingService (service ↔ domain mappings), DomainRoutingService (mappings → Traefik routes).
+ * Repositories: ProjectDomainRepository, ServiceDomainMappingRepository.
+ *
+ * The stateless ones are constants (`X.live`) that read their ports per call; the verification service owns a timer,
+ * so it is built once and declares its lifetime (`serviceLifecycle`).
  */
 export const CoreDomainModule = createGlobalModule({
-  imports: [
-    DatabaseModule,
-    TraefikCoreModule,
-  ],
-  controllers: [],  // NO CONTROLLERS - moved to DomainControllerModule (feature)
+  imports: [DatabaseModule, TraefikCoreModule],
+  controllers: [],
   providers: [
-    // Services
-    DomainVerificationService,
-    DomainConflictService,
-    ServiceDomainMappingService,
-    DomainRoutingService,
-    
+    effectHostProvider(),
     // Repositories
-    ProjectDomainRepository,
-    ServiceDomainMappingRepository,
+    { provide: ProjectDomainRepository, useValue: ProjectDomainRepository.live },
+    { provide: ServiceDomainMappingRepository, useValue: ServiceDomainMappingRepository.live },
+    // Services
+    { provide: ServiceDomainMappingService, useValue: ServiceDomainMappingService.live },
+    { provide: DomainConflictService, useValue: DomainConflictService.live },
+    { provide: DomainRoutingService, useValue: DomainRoutingService.live },
+    {
+      provide: DomainVerificationService,
+      useFactory: (database: Context.Service.Shape<typeof DatabasePort>) =>
+        makeDomainVerificationService(makeProjectDomainRepository({ database })),
+      inject: [DatabasePort],
+    },
+    serviceLifecycle(DomainVerificationService),
   ],
   exports: [
-    // Export services for use in other modules (e.g., ServiceContext, Deployment)
     DomainVerificationService,
     DomainConflictService,
     ServiceDomainMappingService,
     DomainRoutingService,
-    
-    // Export repositories for use in other modules
     ProjectDomainRepository,
     ServiceDomainMappingRepository,
   ],

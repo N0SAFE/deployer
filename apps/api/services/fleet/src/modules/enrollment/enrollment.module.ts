@@ -4,7 +4,7 @@ import { createModuleContext } from "@deployer/nest-effect";
 import { NodeConfigRepository, type NodeConfigRepositoryShape } from "@deployer/node-state";
 import { EnvModule, EnvService } from "@deployer/shared/config/env/env.module";
 import { MeshCoreModule } from "@deployer/shared/core/modules/mesh/mesh-core.module";
-import { SystemMeshClusterRepository } from "@deployer/shared/core/modules/mesh/repositories/system-mesh-cluster.repository";
+import { SystemMeshClusterRepository, type SystemMeshClusterRepositoryShape } from "@deployer/shared/core/modules/mesh/repositories/system-mesh-cluster.repository";
 import { SwarmCoreModule } from "@deployer/shared/core/modules/swarm/swarm.module";
 import { DEPLOYER_VERSION } from "@deployer/shared/core/utils/deployer-version";
 import { SwarmJoinGrant, type SwarmJoinGrantShape } from "@deployer/swarm";
@@ -21,7 +21,7 @@ export class EnrollmentModule extends createModuleContext({
     {
       provide: EnrollmentService,
       useFactory: (
-        clusters: SystemMeshClusterRepository,
+        clusters: SystemMeshClusterRepositoryShape,
         nodeConfig: NodeConfigRepositoryShape,
         grants: SwarmJoinGrantShape,
         env: EnvService,
@@ -33,7 +33,7 @@ export class EnrollmentModule extends createModuleContext({
           swarmGrant: (policy) => runPromiseUnwrapped(grants.buildGrant(policy)),
           databaseUrl: async () => (await runPromiseUnwrapped(nodeConfig.find()))?.databaseUrl?.trim() ?? null,
           register: async (input) => {
-            const registered = await clusters.registerOrUpdateNode({ ...input, metadata: { enrolledVia: "join_token" } });
+            const registered = await runPromiseUnwrapped(clusters.registerOrUpdateNode({ ...input, metadata: { enrolledVia: "join_token" } }));
             return { nodeId: registered.nodeId, enrolledAt: registered.enrolledAt };
           },
         }),

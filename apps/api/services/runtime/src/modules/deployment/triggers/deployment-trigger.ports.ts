@@ -1,19 +1,19 @@
-import { Context } from 'effect'
+import { Context } from "effect";
 
-import type { DeploymentTriggerRegistryService } from './deployment-trigger-registry.service'
-import type { DeploymentService } from '../services/deployment.service'
+import type { DeploymentRepository } from "../repositories/deployment.repository";
+import type { DeploymentServiceShape } from "../services/deployment.service";
 
 /**
- * What event-triggered deployments depend on, as Effect ports over Promise-based Nest providers
- * (registered in the deployment module with `useExisting`). The registry and the trigger sources
- * are plugins with their own lifecycle logging, so they stay Nest providers; the deployment service
- * is the 2,500-line queue writer that has not moved yet.
+ * What the trigger sources and event-triggered deployments depend on, as Effect ports over
+ * Promise-based Nest providers (registered in the deployment module with `useExisting`): the
+ * repository that links a repository URL to a service, and the 2,500-line queue writer that has
+ * not moved yet.
  */
-export class TriggerRegistryPort extends Context.Service<
-    TriggerRegistryPort,
-    DeploymentTriggerRegistryService
->()('runtime/TriggerRegistryPort') {}
+export class TriggerServiceLinkPort extends Context.Service<
+    TriggerServiceLinkPort,
+    Pick<DeploymentRepository, "findServiceBySourceUrl">
+>()("runtime/TriggerServiceLinkPort") {}
 export class SystemDeploymentsPort extends Context.Service<
     SystemDeploymentsPort,
-    DeploymentService
->()('runtime/SystemDeploymentsPort') {}
+    Pick<DeploymentServiceShape, "triggerDeploymentAsSystem">
+>()("runtime/SystemDeploymentsPort") {}

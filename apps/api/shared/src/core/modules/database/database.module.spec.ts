@@ -1,7 +1,10 @@
+import { Global, Module } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-import { LocalDatabase } from "@deployer/node-state"
+import { AppLifecycle } from "@deployer/lifecycle"
+import { EffectRuntime } from "@deployer/nest-effect"
+import { LocalDatabase, NodeConfigRepository } from "@deployer/node-state"
 
 import { GLOBAL_DATABASE_CONNECTION, LOCAL_DATABASE_CONNECTION } from "./database-connection"
 import { DatabaseModule } from './database.module';
@@ -51,21 +54,36 @@ vi.mock('../lifecycle', () => ({
 }));
 vi.mock('./services/database-startup-guard.service', () => ({
   DatabaseStartupGuard: class {},
+  makeDatabaseStartupGuard: () => ({}),
 }));
 vi.mock('./services/database-probe.service', () => ({
   DatabaseProbeService: class {},
+  makeDatabaseProbeService: () => ({}),
 }));
 vi.mock('./services/database-failure-tracker.service', () => ({
   DatabaseFailureTracker: class {},
+  makeDatabaseFailureTracker: () => ({}),
 }));
 
+
+/** What the real lifecycle module and the node-state module would provide to the factories below. */
+@Global()
+@Module({
+  providers: [
+    { provide: AppLifecycle, useValue: {} },
+    { provide: NodeConfigRepository, useValue: {} },
+    { provide: EffectRuntime, useValue: {} },
+  ],
+  exports: [AppLifecycle, NodeConfigRepository, EffectRuntime],
+})
+class CollaboratorsStub {}
 
 describe('DatabaseModule', () => {
   let module: TestingModule;
 
   beforeEach(async () => {
     module = await Test.createTestingModule({
-      imports: [DatabaseModule],
+      imports: [CollaboratorsStub, DatabaseModule],
     })
     .overrideProvider(GLOBAL_DATABASE_CONNECTION)
     .useValue({ execute: vi.fn() })

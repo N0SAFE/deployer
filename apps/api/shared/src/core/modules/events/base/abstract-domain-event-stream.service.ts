@@ -6,7 +6,7 @@ import {
 } from "./core-event-stream-pool.service";
 
 import type {
-  CoreEventStreamPoolService} from "./core-event-stream-pool.service";
+  CoreEventStreamPoolServiceShape} from "./core-event-stream-pool.service";
 import type { Observable } from "rxjs";
 
 export const BASE_DOMAIN_STREAM_SERVICE_SYMBOL = Symbol.for("core.events.domain-stream-service");
@@ -33,7 +33,7 @@ export abstract class AbstractDomainEventStreamService {
   protected abstract readonly streamDomain: string;
   readonly [BASE_DOMAIN_STREAM_SERVICE_SYMBOL] = true as const;
 
-  constructor(protected readonly streamPool: CoreEventStreamPoolService) {
+  constructor(protected readonly streamPool: CoreEventStreamPoolServiceShape) {
     AbstractDomainEventStreamService.registerInstance(this);
   }
 

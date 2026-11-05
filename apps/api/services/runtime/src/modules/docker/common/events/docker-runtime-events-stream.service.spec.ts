@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import { Subject } from "rxjs";
 import { describe, expect, it, vi } from "vitest";
 
@@ -6,22 +7,22 @@ import { dockerContainerRuntimeEventSchema } from "@deployer/contracts-entities"
 import { DockerRuntimeEventsStreamService } from "./docker-runtime-events-stream.service";
 
 describe("DockerRuntimeEventsStreamService", () => {
-  it("subscribes to relay on module init and forwards runtime events", async () => {
+  it("subscribes to the relay once on start and forwards runtime events", async () => {
     const relayEvents$ = new Subject<ReturnType<typeof dockerContainerRuntimeEventSchema.parse>>();
 
     const dockerRuntimeMeshRelayService = {
       observeRuntimeEvents: vi.fn(() => relayEvents$),
     };
 
-    const service = new DockerRuntimeEventsStreamService(dockerRuntimeMeshRelayService as never);
+    const service = DockerRuntimeEventsStreamService.make(dockerRuntimeMeshRelayService);
 
     const received: ReturnType<typeof dockerContainerRuntimeEventSchema.parse>[] = [];
     const subscription = service.observeEvents().subscribe((event) => {
       received.push(event as ReturnType<typeof dockerContainerRuntimeEventSchema.parse>);
     });
 
-    service.onModuleInit();
-    service.onModuleInit();
+    await Effect.runPromise(service.onStart());
+    await Effect.runPromise(service.onStart());
 
     relayEvents$.next(dockerContainerRuntimeEventSchema.parse({
       type: "docker_event",
@@ -53,7 +54,7 @@ describe("DockerRuntimeEventsStreamService", () => {
     expect(received).toHaveLength(1);
     expect(received[0]?.action).toBe("create");
 
-    service.onModuleDestroy();
+    await Effect.runPromise(service.onStop());
     subscription.unsubscribe();
     relayEvents$.complete();
   });

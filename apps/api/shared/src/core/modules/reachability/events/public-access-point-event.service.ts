@@ -10,11 +10,10 @@
  * The contract output is a ZOD DISCRIMINATED UNION on `kind` — one perfectly
  * structured schema for the whole flow.
  */
-import { Injectable } from "@nestjs/common";
 import { Observable } from "rxjs";
 
 import { BasePooledEventService } from "../../events/base/index";
-import { CoreEventStreamPoolService } from "../../events/base/index";
+import { type CoreEventStreamPoolServiceShape } from "../../events/base/index";
 
 import {
     publicAccessPointEventContracts,
@@ -24,9 +23,8 @@ import {
 
 export const ACCESS_POINT_EVENT_SCOPE = "node";
 
-@Injectable()
 export class PublicAccessPointEventService extends BasePooledEventService<PublicAccessPointEventContracts> {
-    constructor(streamPool?: CoreEventStreamPoolService) {
+    constructor(streamPool?: CoreEventStreamPoolServiceShape) {
         super("public-access-point", publicAccessPointEventContracts, streamPool);
     }
 

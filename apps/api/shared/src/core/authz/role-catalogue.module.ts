@@ -1,8 +1,8 @@
-import { Inject, Injectable, Logger, Module, type OnApplicationBootstrap, type OnModuleDestroy } from "@nestjs/common";
+import { Context, Effect } from "effect";
 
-import { declareModule } from "@deployer/nest-effect";
+import { createModuleContext, effectHostProvider, serviceLifecycle, type ServiceLifecycleShape } from "@deployer/nest-effect";
 
-import { GlobalDatabaseService } from "../modules/database/services/global-database.service";
+import { DatabasePort, storage } from "../modules/database/storage";
 
 import { installRoleSnapshot } from "./role-catalog";
 import { loadRoleCatalogue } from "./role-catalogue.loader";
@@ -10,47 +10,44 @@ import { loadRoleCatalogue } from "./role-catalogue.loader";
 /** How stale a permission snapshot may be before it is reloaded (`SEC-055`, ≤30 s). */
 const REFRESH_INTERVAL_MS = 30_000;
 
+export type RoleCatalogueRefresherShape = ServiceLifecycleShape & {
+	/** Read the catalogue now — the write path calls this so an edit is visible before the next tick. Never fails. */
+	readonly refresh: () => Effect.Effect<void>;
+};
+
 /**
  * Keeps this process's authorization snapshot in step with the `roles` table.
  *
- * Loaded once at boot — after the seed, in module order — then every 30 s. A write that changes the catalogue also
- * refreshes directly in the service that owns it (see identity's `RoleService`), so a single replica sees an edit
+ * Loaded once at boot — after the seed, in module order (`onReady`) — then every 30 s. A write that changes the catalogue
+ * also refreshes directly in the service that owns it (see identity's `RoleService`), so a single replica sees an edit
  * immediately; the interval is what makes a SECOND replica catch up, and what bounds staleness if a `NOTIFY`-style push
  * is added later.
  *
  * A failed read keeps the previous snapshot: a database blip must not turn every permission check into a denial.
  */
-@Injectable()
-export class RoleCatalogueRefresher implements OnApplicationBootstrap, OnModuleDestroy {
-	private readonly logger = new Logger(RoleCatalogueRefresher.name);
-	private timer: ReturnType<typeof setInterval> | undefined;
+export function makeRoleCatalogueRefresher(
+	database: Context.Service.Shape<typeof DatabasePort>,
+	options: { readonly refreshIntervalMs: number } = { refreshIntervalMs: REFRESH_INTERVAL_MS },
+): RoleCatalogueRefresherShape {
+	const refresh: RoleCatalogueRefresherShape["refresh"] = () =>
+		storage(database, (db) => loadRoleCatalogue(db)).pipe(
+			Effect.map((catalogue) => {
+				installRoleSnapshot(catalogue.epoch, catalogue.roles);
+			}),
+			Effect.catch((error) => Effect.logWarning(`role catalogue refresh failed, keeping the previous snapshot: ${error.cause instanceof Error ? error.cause.message : error.message}`)),
+		);
 
-	constructor(@Inject(GlobalDatabaseService) private readonly database: GlobalDatabaseService) {}
-
-	async onApplicationBootstrap(): Promise<void> {
-		await this.refresh();
-		this.timer = setInterval(() => {
-			void this.refresh();
-		}, REFRESH_INTERVAL_MS);
-		// Never keep the process alive for a refresh.
-		this.timer.unref();
-	}
-
-	onModuleDestroy(): void {
-		if (this.timer !== undefined) clearInterval(this.timer);
-		this.timer = undefined;
-	}
-
-	/** Read the catalogue now — the write path calls this so an edit is visible before the next tick. */
-	async refresh(): Promise<void> {
-		try {
-			const catalogue = await loadRoleCatalogue(this.database.db);
-			installRoleSnapshot(catalogue.epoch, catalogue.roles);
-		} catch (error) {
-			this.logger.warn(`role catalogue refresh failed, keeping the previous snapshot: ${String(error)}`);
-		}
-	}
+	return {
+		refresh,
+		onReady: () => refresh(),
+		// The runner owns the fiber and interrupts it at shutdown: a refresh never keeps the process alive.
+		run: () => Effect.forever(Effect.sleep(options.refreshIntervalMs).pipe(Effect.andThen(refresh()))),
+	};
 }
+
+export class RoleCatalogueRefresher extends Context.Service<RoleCatalogueRefresher, RoleCatalogueRefresherShape>()(
+	"shared/RoleCatalogueRefresher",
+) {}
 
 /**
  * The catalogue refresher, registered once per process.
@@ -59,14 +56,15 @@ export class RoleCatalogueRefresher implements OnApplicationBootstrap, OnModuleD
  * it would answer from the code table and refuse every CUSTOM role. The database is a global module, so importing this
  * one only adds the provider.
  */
-@Module({
-	providers: [RoleCatalogueRefresher],
+export class RoleCatalogueModule extends createModuleContext({
+	providers: [
+		effectHostProvider(),
+		{
+			provide: RoleCatalogueRefresher,
+			useFactory: (database: Context.Service.Shape<typeof DatabasePort>) => makeRoleCatalogueRefresher(database),
+			inject: [DatabasePort],
+		},
+		serviceLifecycle(RoleCatalogueRefresher),
+	],
 	exports: [RoleCatalogueRefresher],
-})
-class RoleCatalogue {}
-
-/**
- * Declared: the refresher is a Nest lifecycle provider, not an Effect service, so the module exports nothing to the
- * Effect context — and `declareModule` is the annotation that says that on purpose instead of by omission.
- */
-export const RoleCatalogueModule = declareModule(RoleCatalogue, { exports: [] });
+}) {}

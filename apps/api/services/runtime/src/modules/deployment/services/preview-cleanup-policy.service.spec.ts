@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 
-import { PreviewCleanupPolicyService } from "@deployer/shared/core/modules/deployment/services/preview-cleanup-policy.service";
+import { PreviewCleanupPolicyService, type PreviewCleanupPolicyShape } from "@deployer/shared/core/modules/deployment/services/preview-cleanup-policy.service";
 
 const defaultConfig = {
     autoDeleteOnMerge: true,
@@ -9,10 +9,10 @@ const defaultConfig = {
 };
 
 describe("PreviewCleanupPolicyService", () => {
-    let service: PreviewCleanupPolicyService;
+    let service: PreviewCleanupPolicyShape;
 
     beforeEach(() => {
-        service = new PreviewCleanupPolicyService();
+        service = PreviewCleanupPolicyService.live;
     });
 
     describe("shouldCleanup: merge trigger", () => {

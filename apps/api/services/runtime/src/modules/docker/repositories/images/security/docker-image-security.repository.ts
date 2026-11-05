@@ -1,8 +1,6 @@
-import { Injectable } from "@nestjs/common";
+import type { DockerRepository } from "../../facade/docker.repository";
 
-import { DockerRepository } from "../../facade/docker.repository";
-
-@Injectable()
+/** Built by a factory in `DockerRepositoriesModule`. */
 export class DockerImageSecurityRepository {
   constructor(private readonly dockerRepository: DockerRepository) {}
 

@@ -11,11 +11,9 @@
  * per-node declarations (`node_network_config.publicAddress`).
  */
 
-import { Injectable } from "@nestjs/common";
+import { Context } from "effect";
 
 import type { EdgeProviderDescriptor, EdgeStatus, PublicJoinPath, PublicLane } from "@deployer/contracts-entities/entities/ingress/index";
-
-import { EdgeProviderRegistry } from "../edge-provider.registry";
 
 import type { EdgeContext, EdgeDnsRecord, EdgeIngressPlan, EdgeProvider } from "../edge-provider";
 
@@ -53,13 +51,10 @@ function publicIps(ctx: EdgeContext): string[] {
 	].sort();
 }
 
-@Injectable()
-export class DirectEdgeProvider implements EdgeProvider {
-	readonly descriptor = DESCRIPTOR;
-
-	constructor(registry: EdgeProviderRegistry) {
-		registry.register(this);
-	}
+/** The built-in provider: a plain object (no state, no collaborators). The module registers it at boot. */
+export function makeDirectEdgeProvider(): EdgeProvider {
+	return {
+		descriptor: DESCRIPTOR,
 
 	ingress(lane: PublicLane): EdgeIngressPlan {
 		return usesTls(lane)
@@ -71,27 +66,27 @@ export class DirectEdgeProvider implements EdgeProvider {
 					tls: "acme",
 				}
 			: { publishedPorts: [{ published: 80, entrypoint: "public" }], tls: "none" };
-	}
+	},
 
 	/** Nothing to create: the nodes ARE the edge (the Traefik supervisor publishes `ingress()`'s ports). */
 	provision(): Promise<void> {
 		return Promise.resolve();
-	}
+	},
 
 	/** Nothing to remove: no provider-side resource, no state. */
 	teardown(): Promise<void> {
 		return Promise.resolve();
-	}
+	},
 
 	connector(): Promise<null> {
 		return Promise.resolve(null);
-	}
+	},
 
 	dnsRecords(ctx: EdgeContext): Promise<EdgeDnsRecord[]> {
 		const addresses = publicIps(ctx);
 		if (addresses.length === 0) return Promise.resolve([]);
 		return Promise.resolve([{ name: `*.${ctx.lane.domain}`, type: "A", contents: addresses, proxied: false, preferredAccountId: null }]);
-	}
+	},
 
 	status(ctx: EdgeContext): Promise<EdgeStatus> {
 		const addresses = publicIps(ctx);
@@ -111,7 +106,7 @@ export class DirectEdgeProvider implements EdgeProvider {
 			],
 			resources: [],
 		});
-	}
+	},
 
 	joinPath(ctx: EdgeContext, status: EdgeStatus): PublicJoinPath {
 		const addresses = publicIps(ctx);
@@ -125,5 +120,10 @@ export class DirectEdgeProvider implements EdgeProvider {
 				? `A node anywhere dials api.${ctx.lane.domain}, which resolves to ${String(addresses.length)} declared address${addresses.length === 1 ? "" : "es"}. Requires the inbound ports open on those nodes.`
 				: (status.detail ?? "No public address is declared."),
 		};
-	}
+	},
+	};
+}
+
+export class DirectEdgeProvider extends Context.Service<DirectEdgeProvider, EdgeProvider>()("shared/DirectEdgeProvider") {
+	static readonly live: EdgeProvider = makeDirectEdgeProvider();
 }

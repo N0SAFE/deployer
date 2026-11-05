@@ -11,6 +11,7 @@
  * The generic sliding-window `rateLimit(options)` middleware lives in `@deployer/rate-limit`.
  */
 
+import { Effect } from "effect";
 import { os } from "@orpc/server";
 
 import {
@@ -20,7 +21,7 @@ import {
     STANDARD_DOMAIN_ERROR_DEFS,
 } from "@deployer/orpc-utils";
 import { readHeader, type RequestContext } from "@deployer/rate-limit";
-import type { AppInstanceService } from "@deployer/shared/core/modules/platform-ingress/services/app-instance.service";
+import type { AppInstanceServiceShape } from "@deployer/shared/core/modules/platform-ingress/services/app-instance.service";
 
 /** Context extension produced by `requireAppInstance()`. */
 export type AppInstanceContext = {
@@ -37,7 +38,7 @@ export type AppInstanceContext = {
  * token does not resolve — after this middleware runs, `context.appInstance`
  * is guaranteed present, so handlers never null-check it.
  */
-export function requireAppInstance(appInstances: AppInstanceService) {
+export function requireAppInstance(appInstances: AppInstanceServiceShape) {
 	return os
 		.$context<RequestContext>()
 		.errors(STANDARD_DOMAIN_ERROR_DEFS)
@@ -52,7 +53,7 @@ export function requireAppInstance(appInstances: AppInstanceService) {
 					standardErrorOptions("unauthorized", "Missing X-App-Instance-Token header"),
 				);
 			}
-			const instance = await appInstances.verifyByToken(rawToken);
+			const instance = await Effect.runPromise(appInstances.verifyByToken(rawToken));
 			if (instance === null) {
 				throw errors.UNAUTHORIZED(
 					standardErrorOptions(

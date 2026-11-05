@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Context } from "effect";
 import z from "zod/v4";
 
 export const deploymentProviderKindSchema = z.enum(["github", "gitlab", "upload", "custom"]);
@@ -189,8 +189,13 @@ export type PreviewTransitionResolution = {
     violations: DeploymentExecutionStateMachineViolation[];
 }
 
-@Injectable()
-export class DeploymentProviderBuilderRunnerStateMachineService {
+/** Pure policy evaluation: no ports, no state. Input is parsed with zod (a bad input is a programming error and throws). */
+export type DeploymentStateMachineShape = Pick<
+    DeploymentStateMachineImpl,
+    "evaluate" | "evaluateRollbackTransition" | "evaluatePreviewTransition" | "resolvePolicy"
+>;
+
+class DeploymentStateMachineImpl {
     evaluate(
         input: DeploymentExecutionStateMachineInput,
         scopeConfig?: DeploymentStateMachineScopeConfigInput,
@@ -430,4 +435,11 @@ export class DeploymentProviderBuilderRunnerStateMachineService {
 
         return currentPolicy;
     }
+}
+
+export class DeploymentProviderBuilderRunnerStateMachineService extends Context.Service<
+    DeploymentProviderBuilderRunnerStateMachineService,
+    DeploymentStateMachineShape
+>()("shared/DeploymentProviderBuilderRunnerStateMachineService") {
+    static readonly live: DeploymentStateMachineShape = new DeploymentStateMachineImpl();
 }

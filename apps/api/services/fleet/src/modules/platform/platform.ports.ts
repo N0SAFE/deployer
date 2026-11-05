@@ -2,8 +2,8 @@ import { Context } from 'effect'
 
 import type { EnvService } from '@deployer/shared/config/env/env.module'
 import type { HostnameService } from '@deployer/shared/core/modules/platform-ingress/services/hostname.service'
-import type { PlatformConfigService } from '@deployer/shared/core/modules/platform-ingress/services/platform-config.service'
-import type { TraefikConfigRefresher } from '@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service'
+import type { PlatformConfigServiceShape } from '@deployer/shared/core/modules/platform-ingress/services/platform-config.service'
+import type { TraefikConfigRefresherShape } from '@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service'
 import type { SupervisorOrchestratorShape } from "@deployer/supervision";
 
 
@@ -21,7 +21,7 @@ export class PlatformHostnamesPort extends Context.Service<
 >()('fleet/PlatformHostnamesPort') {}
 export class PlatformConfigPort extends Context.Service<
     PlatformConfigPort,
-    PlatformConfigService
+    PlatformConfigServiceShape
 >()('fleet/PlatformConfigPort') {}
 export class SupervisorsPort extends Context.Service<
     SupervisorsPort,
@@ -29,5 +29,5 @@ export class SupervisorsPort extends Context.Service<
 >()('fleet/SupervisorsPort') {}
 export class PlatformRefresherPort extends Context.Service<
     PlatformRefresherPort,
-    TraefikConfigRefresher
+    TraefikConfigRefresherShape
 >()('fleet/PlatformRefresherPort') {}

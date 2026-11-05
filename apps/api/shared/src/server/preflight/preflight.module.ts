@@ -1,19 +1,19 @@
 import { Module } from "@nestjs/common";
 
+import { Effect } from "effect";
+
 import { declareModule } from "@deployer/nest-effect";
 
+import { GLOBAL_DATABASE_POOL } from "../../core/modules/database/database-connection";
 
-import { SERVICE_READINESS } from "../service-health";
 
-import {
-	PREFLIGHT_DEPENDENCIES,
-	PREFLIGHT_POLICY,
-	PreflightService,
-} from "./preflight.service";
+import { SERVICE_READINESS, type ServiceReadinessPort } from "../service-health";
+
+import { makePreflightService, PreflightService, type PreflightServiceShape } from "./preflight.service";
 import { WAIT_FOR_DEPENDENCIES, type PreflightPolicy } from "./runner";
 
 import type { PreflightDependency } from "./types";
-import type { DynamicModule } from "@nestjs/common";
+import type { Pool } from "pg";
 
 /**
  * Wires dependency preflight for one app.
@@ -68,13 +68,24 @@ export class PreflightModule {
 			// ONE instance, so the route and the boot gate read the same verdict.
 			global: true,
 			providers: [
-				{ provide: PREFLIGHT_DEPENDENCIES, useValue: options.dependencies },
-				{ provide: PREFLIGHT_POLICY, useValue: options.policy ?? WAIT_FOR_DEPENDENCIES },
-				PreflightService,
+				{
+					provide: PreflightService,
+					// The pool is optional: an app that declares a database dependency without binding one gets a clear report.
+					useFactory: (pool: Pool | undefined) =>
+						makePreflightService({ dependencies: options.dependencies, policy: options.policy ?? WAIT_FOR_DEPENDENCIES, pool }),
+					inject: [{ token: GLOBAL_DATABASE_POOL, optional: true }],
+				},
 				// The readiness port IS the preflight verdict. `useExisting` keeps ONE
 				// instance, so `/health/ready` cannot report a stale answer from a
 				// second copy that never ran the checks.
-				{ provide: SERVICE_READINESS, useExisting: PreflightService },
+				{
+					provide: SERVICE_READINESS,
+					// The health controller is a Promise edge; the answer needs no services, so it runs bare.
+					useFactory: (preflight: PreflightServiceShape): ServiceReadinessPort => ({
+						isReady: () => Effect.runPromise(preflight.isReady()),
+					}),
+					inject: [PreflightService],
+				},
 			],
 			exports: [PreflightService, SERVICE_READINESS],
 			},

@@ -6,9 +6,19 @@
  */
 import { createGlobalModule } from "@deployer/nest-effect";
 
-import { AppConfigService } from "./app-config.service";
+import { DatabasePort } from "../database/storage";
+
+import { AppConfigService, makeAppConfigService } from "./app-config.service";
+
+import type { Context } from "effect";
 
 export const AppConfigModule = createGlobalModule({
-  providers: [AppConfigService],
+  providers: [
+    {
+      provide: AppConfigService,
+      useFactory: (database: Context.Service.Shape<typeof DatabasePort>) => makeAppConfigService(database),
+      inject: [DatabasePort],
+    },
+  ],
   exports: [AppConfigService],
 });

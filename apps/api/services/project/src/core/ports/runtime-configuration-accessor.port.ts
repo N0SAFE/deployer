@@ -1,10 +1,10 @@
 import { Context } from "effect";
 
-import type { RuntimeConfigurationAccessorService } from "@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service";
+import type { RuntimeConfigurationAccessorServiceShape as AccessorServiceShape } from "@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service";
 
 /** Effect view of the platform's effective-configuration reads. */
 export type RuntimeConfigurationAccessorShape = Pick<
-	RuntimeConfigurationAccessorService,
+	AccessorServiceShape,
 	"resolveStrict" | "projectConfigFromSettings" | "serviceConfigFromRecord"
 >;
 

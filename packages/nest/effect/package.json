@@ -3,6 +3,7 @@
 		"@deployer/auth": "*",
 		"@deployer/contracts-entities": "*",
 		"@deployer/effect-core": "*",
+		"@deployer/effect-orpc": "*",
 		"@deployer/errors": "*",
 		"@deployer/type-guards": "*",
 		"@nestjs/common": "catalog:api:nest",

@@ -1,5 +1,3 @@
-import { Injectable } from "@nestjs/common";
-
 import { AppLogger } from "@deployer/logger";
 import type {
   DockerContainerInspectStreamQueryInput,
@@ -8,12 +6,11 @@ import type { DockerImageInspectStreamQueryInput } from "@deployer/runtime-contr
 import type { DockerRuntimeActivityStreamInput } from "@deployer/runtime-contracts/modules/docker/runtime/activity-stream";
 import type { DockerRuntimeEventsStreamQueryInput } from "@deployer/runtime-contracts/modules/docker/runtime/shared";
 
-import { DockerRuntimeStreamOrchestratorService } from "../../../common/runtime/docker-runtime-stream-orchestrator.service";
+import type { DockerRuntimeStreamOrchestratorService } from "../../../common/runtime/docker-runtime-stream-orchestrator.service";
 
-import { DockerRuntimeActivityDomainService } from "./docker-runtime-activity-domain.service";
+import type { DockerRuntimeActivityDomainService } from "./docker-runtime-activity-domain.service";
 
-
-@Injectable()
+/** Built by a factory in `DockerRuntimeModule`. */
 export class DockerRuntimeOrchestratorService {
   private readonly apiLogger = new AppLogger("api").scope(DockerRuntimeOrchestratorService.name);
   private readonly scopedLogger = this.apiLogger.log;

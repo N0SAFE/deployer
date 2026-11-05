@@ -1,17 +1,11 @@
-import { Logger } from '@nestjs/common';
-
 import { createModuleContext } from "@deployer/nest-effect";
-import { NodeConfigRepository } from "@deployer/node-state"
-import { GLOBAL_DATABASE_CONNECTION } from "@deployer/shared/core/modules/database/database-connection"
 
-import { createBetterAuth } from '@/config/auth/auth';
 import { EnvModule } from "@/config/env/env.module";
-import { EnvService } from "@/config/env/env.module";
 import { AuthModule } from '@/core/modules/auth/auth.module';
 import { DatabaseModule } from "@/core/modules/database/database.module";
 import { LocalDatabaseModule } from "@/core/modules/database/local/local-database.module"
 import { NodeStateModule } from '@/core/modules/node-state/node-state.module';
-import { MigrationJournalService } from '@/core/utils/migration-journal.service';
+import { MigrationJournalService, makeMigrationJournalService } from '@/core/utils/migration-journal.service';
 
 import { CreateDefaultAdminCommand } from './commands/create-default-admin.command';
 import { MigrateCommand } from './commands/migrate.command';
@@ -48,13 +42,7 @@ export class CLIModule extends createModuleContext({
     // CLI runs as its OWN Nest context, so the node-state owner is imported
     // explicitly (one declaration per repository — SC8 guard).
     NodeStateModule,
-    AuthModule.forRootAsync({
-      imports: [EnvModule],
-      useFactory: createBetterAuth,
-      inject: [GLOBAL_DATABASE_CONNECTION, EnvService],
-      disableBodyParser: true,
-      disableTrustedOriginsCors: true,
-    }),
+    AuthModule,
   ],
   providers: [
     // ── CLI Commands ────────────────────────────────────────────────────
@@ -66,6 +54,6 @@ export class CLIModule extends createModuleContext({
     CreateDefaultAdminCommand,
     NodeStartupCheckCommand,
     ResealSecretsCommand,
-    MigrationJournalService,
+    { provide: MigrationJournalService, useFactory: () => makeMigrationJournalService() },
   ],
 }) {}

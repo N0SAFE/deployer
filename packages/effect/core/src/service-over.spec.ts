@@ -25,4 +25,11 @@ describe("serviceOver", () => {
 		const exit = await Effect.runPromiseExit(service.fail().pipe(Effect.provideService(Greeting, { word: "x" })));
 		expect(exit._tag).toBe("Failure");
 	});
+
+	it("is not a thenable: awaiting it (Nest awaits what a provider factory returns) resolves to the service itself", async () => {
+		const service = serviceOver(Effect.succeed({ word: "hi" }), make);
+
+		expect((service as unknown as { then?: unknown }).then).toBeUndefined();
+		await expect(Promise.resolve(service)).resolves.toBe(service);
+	});
 });
