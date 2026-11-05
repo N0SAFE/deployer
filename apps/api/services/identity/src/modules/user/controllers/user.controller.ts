@@ -73,7 +73,10 @@ export class UserController {
     deleteSelf() {
         return procedure(userContract.deleteSelf)
             .use(requireAuth())
-            .use(accessSelf('the caller deletes their own account (last-superAdmin guard in the service)'))
+            .use(accessSelf(
+                    'the caller deletes their own account (last-superAdmin guard in the service)',
+                    ({ context }) => context.auth.user.id
+                ))
             .effect(function* () {
                 const users = yield* UserService
                 yield* users.deleteSelf()
@@ -91,7 +94,7 @@ export class UserController {
     exportSelf() {
         return procedure(userContract.exportSelf)
             .use(requireAuth())
-            .use(accessSelf('the caller exports their own account'))
+            .use(accessSelf('the caller exports their own account', ({ context }) => context.auth.user.id))
             .effect(function* () {
                 const users = yield* UserService
                 return yield* users.exportSelf()

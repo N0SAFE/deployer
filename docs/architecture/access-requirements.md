@@ -75,7 +75,7 @@ procedure(serviceContract.deploy)
 | `.notAbove()` | the subset rule (section 6.3): the target's effective permissions must be a strict subset of the caller's. |
 | `.requiring(freshTotp("5m"))` | a guardrail: extra proof for the action. |
 | `.loaded()` | keep the row the plugin loaded in `context.access.<name>.row`. |
-| `accessSelf(reason)` | the route takes no id (`deleteSelf`, `exportSelf`): there is nothing to tamper with, and `context.access.self.id` is the one id the handler may act on, the session's own. |
+| `accessSelf(reason, on)` | the id the caller must own, always stated: `({ input }) => input.params.id` for a route that names a record, `({ context }) => context.auth.user.id` for one that names none (`deleteSelf`, `exportSelf`). There is no default to the input's id. `context.access.self.id` is the one id the handler may act on. |
 | `accessSelf<ContractInput<typeof contract.revoke>>(reason, ({ input }) => input.params.id)` | the input names a record: **checked**, 403 unless that id is the caller's, in every `AUTHZ_MODE` (whose record it is is an identity fact, not a rollout). |
 | `accessPublic(reason)` | the only anonymous form; the reason is mandatory and listed in the generated public surface. |
 | `accessDeferred(reason)` | the decision is made in the handler (section 5). |

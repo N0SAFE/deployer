@@ -257,7 +257,7 @@ describe('the other forms', () => {
 
     it('accessSelf and accessDeferred need an actor', async () => {
         const self = procedure<typeof list, Ctx>(list)
-            .use(accessSelf('their own sessions'))
+            .use(accessSelf('their own sessions', ({ context }) => context.auth.user.id))
             .effect(function* () {
                 yield* Effect.void
                 return 'ok' as const
@@ -273,7 +273,7 @@ describe('the other forms', () => {
             kind: 'required',
             requirements: [{ permission: 'service:read', scope: 'service', key: 'serviceId' }],
         })
-        expect(accessDescriptorOf(accessSelf('x'))).toMatchObject({ kind: 'self' })
+        expect(accessDescriptorOf(accessSelf('x', ({ context }) => context.auth.user.id))).toMatchObject({ kind: 'self' })
         expect(accessDescriptorOf(accessPublic('x'))).toMatchObject({ kind: 'public' })
         expect(accessDescriptorOf(accessDeferred('x'))).toMatchObject({ kind: 'deferred' })
         expect(accessDescriptorOf(() => 1)).toBeUndefined()
@@ -454,7 +454,7 @@ describe('types', () => {
 describe('accessSelf is checked, not assumed', () => {
     const exportSelf = () =>
         procedure<typeof list, Ctx>(list)
-            .use(accessSelf('the caller exports their own account'))
+            .use(accessSelf('the caller exports their own account', ({ context }) => context.auth.user.id))
             .effect(function* ({ context }) {
                 yield* Effect.void
                 return context.access.self.id
@@ -486,6 +486,11 @@ describe('accessSelf is checked, not assumed', () => {
         await expect(
             call(deleteOwnSession(), { params: { id: 'u1' }, body: { role: 'x' } }, { context: caller('u1') })
         ).resolves.toBe('u1')
+    })
+
+    it('has no default: the id to compare is always stated', () => {
+        // @ts-expect-error `on` is mandatory
+        procedure<typeof list, Ctx>(list).use(accessSelf('x'))
     })
 
     it('requires the input to carry the checked field', () => {

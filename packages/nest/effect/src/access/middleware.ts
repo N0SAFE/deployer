@@ -271,14 +271,15 @@ export function accessRequired(...args: readonly unknown[]): unknown {
 /**
  * The caller acts on their own record. Unlike a permission, this is CHECKED, not assumed:
  *
- * - `accessSelf(reason)`: the procedure takes no id at all (`deleteSelf`, `exportSelf`). There is nothing to tamper with, and
- *   the proof carries `context.access.self.id`, the one id the handler may act on: the session's own.
- * - `accessSelf(reason, ({ input }) => input.params.id)`: the input names a record; the middleware refuses with 403 unless that
- *   id is the caller's. It does not depend on the rollout mode: whose record it is is an identity fact, not a rollout.
+ * `on` is mandatory and never defaults to the id in the input: the caller states WHICH id must be theirs, so a reader sees what
+ * is compared. `accessSelf(reason, ({ input }) => input.params.id)` refuses with 403 unless that id is the caller's;
+ * a procedure with no id in its input names the session's own (`({ context }) => context.auth.user.id`), which is the explicit
+ * way to say "nothing here can name another record". It does not depend on the rollout mode: whose record it is is an identity
+ * fact, not a rollout. The proof carries `context.access.self.id`, the one id the handler may act on.
  */
 export function accessSelf<I extends object = object>(
     reason: string,
-    on?: (args: AccessArgs<I>) => string
+    on: (args: AccessArgs<I>) => string
 ) {
     const middleware = effectMiddleware<
         never,
@@ -287,7 +288,7 @@ export function accessSelf<I extends object = object>(
         AuthenticatedContext
     >(function* ({ context, next }, input) {
         const caller = yield* callerOf
-        if (on !== undefined && on({ input, context }) !== caller.id) {
+        if (on({ input, context }) !== caller.id) {
             return yield* new Forbidden({ reason: 'You can only act on your own record' })
         }
         return yield* next({ context: { access: { self: { reason, id: caller.id } } } })
