@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { SWARM_APP_WIRING_SUPERVISOR_ID } from "../supervisors/platform/swarm-app-wiring.supervisor";
 
-import { BootstrapOrchestratorService } from "./bootstrap-orchestrator.service";
+import { makeBootstrapOrchestratorService } from "./bootstrap-orchestrator.service";
 
 /**
  * The API tier boots BEHIND setup. Until the operator's decision has been executed (`setup_done`), the boot pipeline
@@ -12,20 +12,22 @@ import { BootstrapOrchestratorService } from "./bootstrap-orchestrator.service";
  */
 function makeOrchestrator(config: { databaseUrl?: string | null; setupState?: string } | null) {
     const convergeNow = vi.fn((_id: string) => Effect.succeed(null));
-    const ensureDatabaseAvailable = vi.fn(() => Promise.resolve());
-    const acquire = vi.fn(() => Promise.resolve(false));
+    const ensureDatabaseAvailable = vi.fn(() => Effect.void);
+    const acquire = vi.fn(() => Effect.succeed(false));
     const lifecycle = { transitionNow: vi.fn(), markReadyNow: vi.fn(), markErrorNow: vi.fn() };
 
-    const service = new BootstrapOrchestratorService(
-        {} as never,
-        {} as never,
-        { find: () => Effect.succeed(config) } as never,
-        lifecycle as never,
-        { ensureDatabaseAvailable } as never,
-        { acquire, release: vi.fn() } as never,
-        { convergeNow } as never,
-    );
-    return { service, convergeNow, ensureDatabaseAvailable, acquire, lifecycle };
+    const service = makeBootstrapOrchestratorService({
+        pool: {} as never,
+        db: {} as never,
+        nodeConfigRepository: { find: () => Effect.succeed(config) } as never,
+        lifecycle: lifecycle as never,
+        startupGuard: { ensureDatabaseAvailable },
+        bootstrapLock: { acquire, release: vi.fn(() => Effect.void) },
+        orchestrator: { convergeNow } as never,
+    });
+    /** The boot pipeline is the service's `onReady` lifecycle step: it runs once every module has initialised. */
+    const boot = () => Effect.runPromise(service.onReady?.() ?? Effect.void);
+    return { boot, convergeNow, ensureDatabaseAvailable, acquire, lifecycle };
 }
 
 describe("BootstrapOrchestratorService: nothing starts before the setup decision is executed", () => {
@@ -37,7 +39,7 @@ describe("BootstrapOrchestratorService: nothing starts before the setup decision
     ])("%s: converges no supervisor, probes no database, takes no lock, and never reports READY", async (_name, config) => {
         const node = makeOrchestrator(config);
 
-        await node.service.onApplicationBootstrap();
+        await node.boot();
 
         expect(node.convergeNow).not.toHaveBeenCalled();
         expect(node.ensureDatabaseAvailable).not.toHaveBeenCalled();
@@ -51,7 +53,7 @@ describe("BootstrapOrchestratorService: nothing starts before the setup decision
 
         // The lock is not acquired (a peer replica "holds" it), which ends the run right after the probe — enough to
         // prove the pipeline left the gate without needing a real database to migrate.
-        await node.service.onApplicationBootstrap();
+        await node.boot();
 
         expect(node.convergeNow.mock.calls.map(([id]) => id)).toEqual([SWARM_APP_WIRING_SUPERVISOR_ID, "global-db-postgres"]);
         expect(node.ensureDatabaseAvailable).toHaveBeenCalledTimes(1);

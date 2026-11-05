@@ -2,6 +2,7 @@ import { Effect } from "effect";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 import type { PostgresProvisionerShape } from "@deployer/docker";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import type { DockerEngineShape } from "@deployer/docker";
 import type { NodeConfigRepositoryShape } from "@deployer/node-state";
 import type { SupervisorOrchestratorShape } from "@deployer/supervision";
@@ -88,6 +89,9 @@ function makeService(mocks: ReturnType<typeof makeMocks>, steps: Partial<LocalIn
 }
 
 const noopEmit: EmitEvent = () => undefined;
+
+/** The flow is an Effect failing with a tagged refusal; the matrix asserts on the refusal's message, so run it unwrapped. */
+const run = <A, E>(effect: Effect.Effect<A, E>) => runPromiseUnwrapped(effect);
 
 describe("LocalInitializationService — databaseProvisioning marker", () => {
 	beforeEach(() => {
@@ -212,24 +216,26 @@ function makeMatrixService(options: { source: Source; owner: Owner; snapshotStat
 	} as unknown as NodeConfigRepositoryShape;
 	const flags: Record<string, string> = options.owner === "deployment owns everything" ? OWNED_ENV : {};
 	const env = { get: (key: string) => (key === "DEPLOYER_PREFIX" ? "" : key === "DB_DATABASE" ? "deployer" : flags[key]) } as unknown as EnvService;
-	const service = new LocalInitializationService(
-		{ ensure: vi.fn(() => Effect.succeed({ name: "pg" })) } as unknown as PostgresProvisionerShape,
-		{ swarmServices: { logs: vi.fn(() => Effect.succeed("")) } } as unknown as DockerEngineShape,
+	const service = makeLocalInitializationService({
+		postgresProvisioner: { ensure: vi.fn(() => Effect.succeed({ name: "pg" })) } as unknown as PostgresProvisionerShape,
+		dockerEngine: { swarmServices: { logs: vi.fn(() => Effect.succeed("")) } } as unknown as DockerEngineShape,
 		env,
-		repo,
-		{ converge: () => (timeline.push("swarm:converge"), Effect.void) } as unknown as SwarmBootstrapShape,
-		{
+		nodeConfigRepository: repo,
+		swarmBootstrap: { converge: () => (timeline.push("swarm:converge"), Effect.void) } as unknown as SwarmBootstrapShape,
+		swarmCluster: {
 			getLocalClusterSnapshot: () =>
 				Effect.succeed({ localNodeState: options.snapshotState ?? "active", nodeCount: 1, managerCount: 1, localNode: { swarmRole: "manager" }, master: { nodeId: "self" } }) as never,
 		} as unknown as SwarmClusterShape,
-		{ convergeNow: () => Effect.succeed(null) } as unknown as SupervisorOrchestratorShape,
-	);
-	const patch = service as unknown as Record<string, unknown>;
-	patch.provisionDockerDatabase = () => (timeline.push("database:provision"), Promise.resolve(LOCAL_URL));
-	patch.probeExistingDatabase = () => (timeline.push("database:probe"), Promise.resolve(EXTERNAL_URL));
-	patch.ensureDatabaseEmpty = () => Promise.resolve([]);
-	patch.runMigrations = () => (timeline.push("database:migrate"), options.migrationsFail === true ? Promise.reject(new Error("migration failed")) : Promise.resolve());
-	patch.seedInitialData = () => (timeline.push("database:seed"), Promise.resolve({ userId: "u1" }));
+		supervisors: { convergeNow: () => Effect.succeed(null) } as unknown as SupervisorOrchestratorShape,
+		// The DB-heavy steps are the factory's overridable ports: each records its place on the timeline.
+		steps: {
+			provisionDockerDatabase: () => (timeline.push("database:provision"), Promise.resolve(LOCAL_URL)),
+			probeExistingDatabase: () => (timeline.push("database:probe"), Promise.resolve(EXTERNAL_URL)),
+			ensureDatabaseEmpty: () => Promise.resolve([]),
+			runMigrations: () => (timeline.push("database:migrate"), options.migrationsFail === true ? Promise.reject(new Error("migration failed")) : Promise.resolve()),
+			seedInitialData: () => (timeline.push("database:seed"), Promise.resolve({ userId: "u1" })),
+		},
+	});
 	return { service, timeline, rows };
 }
 
@@ -246,7 +252,7 @@ describe.each(sources.flatMap((source) => owners.flatMap((owner) => policies.map
 
 		it("founds the swarm only when it must, always before the database, and ends setup_done with the right marker", async () => {
 			const { service, timeline, rows } = makeMatrixService({ source, owner });
-			await service.initialize(input, new SetupStepTracker(), noopEmit);
+			await run(service.initialize(input, new SetupStepTracker(), noopEmit));
 
 			expect(timeline.includes("swarm:converge")).toBe(foundsSwarm);
 			if (foundsSwarm) {
@@ -265,14 +271,14 @@ describe.each(sources.flatMap((source) => owners.flatMap((owner) => policies.map
 
 		it("a failing migration never produces setup_done", async () => {
 			const { service, rows } = makeMatrixService({ source, owner, migrationsFail: true });
-			await expect(service.initialize(input, new SetupStepTracker(), noopEmit)).rejects.toThrow();
+			await expect(run(service.initialize(input, new SetupStepTracker(), noopEmit))).rejects.toThrow();
 			expect(rows.some((row) => row.setupState === "setup_done")).toBe(false);
 		});
 
 		if (foundsSwarm) {
 			it("a swarm that never becomes active stops the run: no database, no setup_done", async () => {
 				const { service, timeline, rows } = makeMatrixService({ source, owner, snapshotState: "inactive" });
-				await expect(service.initialize(input, new SetupStepTracker(), noopEmit)).rejects.toThrow(/did not become active/);
+				await expect(run(service.initialize(input, new SetupStepTracker(), noopEmit))).rejects.toThrow(/did not become active/);
 				expect(timeline).not.toContain("database:provision");
 				expect(rows.some((row) => row.setupState === "setup_done")).toBe(false);
 			});

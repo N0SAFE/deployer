@@ -2,13 +2,14 @@ import { Effect } from "effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { MeshSwarmJoinGrant } from "@deployer/contracts-entities";
+import { runPromiseUnwrapped } from "@deployer/effect-core";
 import type { NodeDoorClient } from "@deployer/mesh-client";
 import type { NodeConfigRepositoryShape } from "@deployer/node-state";
 import type { SwarmBootstrapShape, SwarmClusterShape } from "@deployer/swarm";
 
 import { DEPLOYER_VERSION } from "../../../utils/deployer-version";
 
-import { RemoteInitializationService } from "./remote-initialization.service";
+import { makeRemoteInitializationService } from "./remote-initialization.service";
 import { SetupStepTracker } from "./setup-step-tracker";
 
 import type { EnvService } from "../../../../config/env/env.module";
@@ -114,16 +115,18 @@ function makeJoiner(timeline: Timeline, fleet: ReturnType<typeof makeFleet>, opt
     } as unknown as SwarmClusterShape;
     const env = { get: (key: string) => (key === "APP_URL" ? "https://joiner.example.com" : undefined) } as unknown as EnvService;
 
-    class Joiner extends RemoteInitializationService {
-        protected override nodeDoor(): NodeDoorClient {
-            return door;
-        }
-        protected override agentLink(): ClientLink<ClientContext> {
-            // Non-undefined so the fleet is "reachable"; the mocked `serviceLink` ignores it and routes to the fleet node.
-            return { call: () => Promise.reject(new Error("agent link is not used directly")) };
-        }
-    }
-    return { service: new Joiner(repository, env, swarmBootstrap, swarmCluster), persisted, nodeId };
+    const shape = makeRemoteInitializationService({
+        nodeConfigRepository: repository,
+        envService: env,
+        swarmBootstrap,
+        swarmCluster,
+        nodeDoor: () => door,
+        // Non-undefined so the fleet is "reachable"; the mocked `serviceLink` ignores it and routes to the fleet node.
+        agentLink: () => ({ call: () => Promise.reject(new Error("agent link is not used directly")) }),
+    });
+    /** The flow is an Effect failing with a tagged refusal; the matrix asserts on the refusal's message, so run it unwrapped. */
+    const service = { initialize: (...args: Parameters<typeof shape.initialize>) => runPromiseUnwrapped(shape.initialize(...args)) };
+    return { service, persisted, nodeId };
 }
 
 /** The ordered ids of the setup steps the operator would watch. */
