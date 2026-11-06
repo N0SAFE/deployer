@@ -15,8 +15,7 @@
  * connector) and never reaches a client.
  */
 
-import { Inject, Injectable, Logger } from '@nestjs/common'
-import { Effect } from 'effect'
+import { Context, Effect } from 'effect'
 import z from 'zod/v4'
 
 import type {
@@ -25,8 +24,8 @@ import type {
     PublicJoinPath,
     PublicLane,
 } from '@deployer/contracts-entities/entities/ingress/index'
-import { EffectHost, type EffectHostShape } from '@deployer/nest-effect'
-import { EnvService } from '@deployer/shared/config/env/env.module'
+import { serviceOver, type Over } from '@deployer/effect-core'
+import type { EffectHostShape } from '@deployer/nest-effect'
 import type {
     EdgeConnectorSpec,
     EdgeContext,
@@ -34,20 +33,12 @@ import type {
     EdgeIngressPlan,
     EdgeProvider,
 } from '@deployer/shared/core/modules/edge/edge-provider'
-import {
-    EdgeProviderRegistry,
-    type EdgeProviderRegistryShape,
-} from '@deployer/shared/core/modules/edge/edge-provider.registry'
-import {
-    EdgeStateStore,
-    type EdgeStateStoreShape,
-} from '@deployer/shared/core/modules/edge/edge-state.store'
+import { EdgeStateStore } from '@deployer/shared/core/modules/edge/edge-state.store'
 
 import { FleetInvalid } from '../../../../core/fleet.errors'
-import {
-    CloudflareTunnelService,
-    type CloudflareTunnelServiceShape,
-} from '../../dns/cloudflare/services/cloudflare-tunnel.service'
+import { CloudflareTunnelService } from '../../dns/cloudflare/services/cloudflare-tunnel.service'
+
+import { CloudflaredSettings } from './cloudflare-tunnel.edge-ports'
 
 export const CLOUDFLARE_TUNNEL_EDGE_ID = 'cloudflare-tunnel'
 
@@ -88,245 +79,290 @@ const stateSchema = z.object({
 })
 type TunnelState = z.output<typeof stateSchema>
 
-function accountOf(lane: PublicLane): string {
-    const value = lane.options[ACCOUNT_OPTION]
-    if (typeof value !== 'string' || value === '')
-        throw new FleetInvalid({
-            reason: 'Cloudflare Tunnel needs a Cloudflare account',
-        })
-    return value
-}
-
-@Injectable()
-export class CloudflareTunnelEdgeProvider implements EdgeProvider {
-    readonly descriptor = DESCRIPTOR
-    private readonly logger = new Logger(CloudflareTunnelEdgeProvider.name)
-
-    constructor(
-        @Inject(EdgeProviderRegistry) registry: EdgeProviderRegistryShape,
-        @Inject(EffectHost) private readonly host: EffectHostShape,
-        @Inject(EdgeStateStore) private readonly store: EdgeStateStoreShape,
-        private readonly env: EnvService
-    ) {
-        Effect.runSync(registry.register(this)) // duplicate ids are a wiring mistake at boot
-    }
-
-    /**
-     * Run a tunnel operation at this class's Promise edge: the edge provider contract is Promise-based
-     * (it belongs to `shared`), the tunnel service is an Effect service, and a failure rejects with the
-     * original error.
-     */
-    private tunnels<A, E, R>(
-        use: (tunnels: CloudflareTunnelServiceShape) => Effect.Effect<A, E, R>
-    ): Promise<A> {
-        return this.host.runUnwrapped(
-            Effect.gen(function* () {
-                return yield* use(yield* CloudflareTunnelService)
+/** The Cloudflare account the lane names: a lane without one cannot have a tunnel. */
+const accountOf = (lane: PublicLane) =>
+    Effect.gen(function* () {
+        const value = lane.options[ACCOUNT_OPTION]
+        if (typeof value !== 'string' || value === '') {
+            return yield* new FleetInvalid({
+                reason: 'Cloudflare Tunnel needs a Cloudflare account',
             })
-        )
-    }
+        }
+        return value
+    })
 
-    ingress(): EdgeIngressPlan {
-        // Connectors reach Traefik over the overlay; Cloudflare serves HTTPS.
-        return { publishedPorts: [], tls: 'edge' }
-    }
+/** Static: connectors reach Traefik over the overlay, and Cloudflare serves HTTPS. */
+const ingressPlan = (): EdgeIngressPlan => ({ publishedPorts: [], tls: 'edge' })
 
-    private state(): Promise<TunnelState | null> {
-        return this.host.runUnwrapped(
-            this.store.read(CLOUDFLARE_TUNNEL_EDGE_ID, stateSchema)
-        )
-    }
+/** Whether, and how, a node that is not a member yet can join through this edge. Pure. */
+const joinPathOf = (ctx: EdgeContext, status: EdgeStatus): PublicJoinPath => ({
+    via: DESCRIPTOR.label,
+    available: status.provisioned,
+    target: `https://api.${ctx.lane.domain}`,
+    hostHeader: null,
+    sources: status.provisioned
+        ? Number(
+              status.facts.find((fact) => fact.label === 'Connections')?.value ??
+                  0
+          )
+        : 0,
+    detail: status.provisioned
+        ? 'A node anywhere dials the public domain; a connector carries it in. No node opens a port and the joiner needs no public address.'
+        : (status.detail ?? 'The tunnel is not created yet.'),
+})
+
+/**
+ * The stack tunnel, as an Effect service over the tunnel API, the edge state store and the connector settings.
+ *
+ * Every method is an Effect that fails with its own typed errors (a lane without an account, a state that cannot be stored, the
+ * tunnel service's own failures); nothing here is a Promise, a Nest provider or a hook.
+ */
+const makeCloudflareTunnelEdge = ({
+    tunnels,
+    store,
+    settings,
+}: {
+    readonly tunnels: Context.Service.Shape<typeof CloudflareTunnelService>
+    readonly store: Context.Service.Shape<typeof EdgeStateStore>
+    readonly settings: Context.Service.Shape<typeof CloudflaredSettings>
+}) => {
+    const state = () => store.read(CLOUDFLARE_TUNNEL_EDGE_ID, stateSchema)
 
     /** The state, but only when it belongs to the account the lane names. */
-    private async stateFor(lane: PublicLane): Promise<TunnelState | null> {
-        const state = await this.state()
-        return state !== null && state.accountId === accountOf(lane)
-            ? state
-            : null
-    }
+    const stateFor = (lane: PublicLane) =>
+        Effect.gen(function* () {
+            const account = yield* accountOf(lane)
+            const current = yield* state()
+            return current !== null && current.accountId === account
+                ? current
+                : null
+        })
 
-    async provision(ctx: EdgeContext): Promise<void> {
-        const accountId = accountOf(ctx.lane)
-        const wildcard = `*.${ctx.lane.domain}`
-        let state = await this.state()
+    const teardown = Effect.fn('CloudflareTunnelEdge.teardown')(function* () {
+        const current = yield* state()
+        if (current === null) return
+        // Provider first: forgetting the id first would orphan a tunnel nobody can name.
+        yield* tunnels.deleteTunnel(current.accountId, current.tunnelId)
+        yield* store.clear(CLOUDFLARE_TUNNEL_EDGE_ID)
+        yield* Effect.logInfo(
+            `Deleted stack tunnel ${current.tunnelId} (account ${current.accountId})`
+        )
+    })
 
-        // Moving to another account: the old tunnel would keep its connectors' token
-        // valid and route nothing — remove it first.
-        if (state !== null && state.accountId !== accountId)
-            await this.teardown()
-        state = await this.state()
+    return {
+        /** Make the provider side exist and route `*.<domain>` to the ingress target. Idempotent. */
+        provision: Effect.fn('CloudflareTunnelEdge.provision')(function* (
+            ctx: EdgeContext
+        ) {
+            const accountId = yield* accountOf(ctx.lane)
+            const wildcard = `*.${ctx.lane.domain}`
+            let current: TunnelState | null = yield* state()
 
-        if (state === null) {
-            this.logger.log(
-                `Creating the stack tunnel on Cloudflare account ${accountId}`
-            )
-            // `createTunnel` adopts a tunnel this account already owns under the same
-            // name, so a retry after a partial failure does not create a second one.
-            const created = await this.tunnels((tunnels) =>
-                tunnels.createTunnel(accountId, { name: ctx.resourceName })
-            )
-            state = {
-                accountId,
-                tunnelId: created.tunnel.id,
-                token: created.token,
-                wildcard,
+            // Moving to another account: the old tunnel would keep its connectors' token valid and route nothing, so remove
+            // it first.
+            if (current !== null && current.accountId !== accountId)
+                yield* teardown()
+            current = yield* state()
+
+            if (current === null) {
+                yield* Effect.logInfo(
+                    `Creating the stack tunnel on Cloudflare account ${accountId}`
+                )
+                // `createTunnel` adopts a tunnel this account already owns under the same name, so a retry after a partial
+                // failure does not create a second one.
+                const created = yield* tunnels.createTunnel(accountId, {
+                    name: ctx.resourceName,
+                })
+                current = {
+                    accountId,
+                    tunnelId: created.tunnel.id,
+                    token: created.token,
+                    wildcard,
+                }
             }
-        }
-        await this.host.runUnwrapped(
-            this.store.write(CLOUDFLARE_TUNNEL_EDGE_ID, stateSchema, {
-                ...state,
+            yield* store.write(CLOUDFLARE_TUNNEL_EDGE_ID, stateSchema, {
+                ...current,
                 wildcard,
             })
-        )
-        // ONE wildcard rule. No DNS here — that is the DNS plane's job (`dnsRecords`).
-        await this.tunnels((tunnels) =>
-            tunnels.configureIngress(
+            // ONE wildcard rule. No DNS here: that is the DNS plane's job (`dnsRecords`).
+            yield* tunnels.configureIngress(
                 accountId,
-                state.tunnelId,
+                current.tunnelId,
                 wildcard,
                 ctx.ingressTarget
             )
-        )
-    }
+        }),
 
-    async teardown(): Promise<void> {
-        const state = await this.state()
-        if (state === null) return
-        // Provider first: forgetting the id first would orphan a tunnel nobody can name.
-        await this.tunnels((tunnels) =>
-            tunnels.deleteTunnel(state.accountId, state.tunnelId)
-        )
-        await this.host.runUnwrapped(
-            this.store.clear(CLOUDFLARE_TUNNEL_EDGE_ID)
-        )
-        this.logger.log(
-            `Deleted stack tunnel ${state.tunnelId} (account ${state.accountId})`
-        )
-    }
+        /** Remove everything the provider created, and its state. Idempotent. */
+        teardown,
 
-    async connector(ctx: EdgeContext): Promise<EdgeConnectorSpec | null> {
-        const state = await this.stateFor(ctx.lane)
-        if (state === null) return null
-        return {
-            image: this.env.get('DEPLOYER_CLOUDFLARED_IMAGE'),
-            // `TUNNEL_TOKEN` is the variable cloudflared reads for exactly this; a token
-            // in argv would be readable through `docker inspect`.
-            env: [`TUNNEL_TOKEN=${state.token}`],
-            command: ['cloudflared'],
-            args: ['tunnel', '--no-autoupdate', 'run'],
-            replicas: this.env.get('DEPLOYER_CLOUDFLARED_REPLICAS'),
-        }
-    }
-
-    async dnsRecords(ctx: EdgeContext): Promise<EdgeDnsRecord[]> {
-        const state = await this.stateFor(ctx.lane)
-        if (state === null) return []
-        return [
-            {
-                name: `*.${ctx.lane.domain}`,
-                type: 'CNAME',
-                contents: [`${state.tunnelId}.cfargotunnel.com`],
-                proxied: true,
-                preferredAccountId: state.accountId,
-            },
-        ]
-    }
-
-    async status(ctx: EdgeContext): Promise<EdgeStatus> {
-        const state = await this.stateFor(ctx.lane)
-        if (state === null) {
+        /** The connector the cluster must run, or null when the tunnel is not this lane's. */
+        connector: Effect.fn('CloudflareTunnelEdge.connector')(function* (
+            ctx: EdgeContext
+        ): Effect.fn.Return<EdgeConnectorSpec | null, unknown> {
+            const current = yield* stateFor(ctx.lane)
+            if (current === null) return null
             return {
-                provisioned: false,
-                health: 'down',
-                detail: 'The tunnel is not created yet. Save the public lane to create it.',
-                facts: [],
-                resources: [],
+                image: settings.image(),
+                // `TUNNEL_TOKEN` is the variable cloudflared reads for exactly this; a token in argv would be readable through
+                // `docker inspect`.
+                env: [`TUNNEL_TOKEN=${current.token}`],
+                command: ['cloudflared'],
+                args: ['tunnel', '--no-autoupdate', 'run'],
+                replicas: settings.replicas(),
             }
-        }
-        const health = await this.tunnels((tunnels) =>
-            tunnels.getTunnelHealth(state.accountId, state.tunnelId)
-        )
-        const mapped =
-            health.status === 'healthy'
-                ? 'healthy'
-                : health.status === 'degraded'
-                  ? 'degraded'
-                  : health.status === 'unknown'
-                    ? 'unknown'
-                    : 'down'
-        return {
-            provisioned: true,
-            health: mapped,
-            detail:
-                health.error ??
-                (health.connections === 0
-                    ? 'No connector is connected yet — the connector service may still be starting.'
-                    : null),
-            facts: [
-                { label: 'Tunnel', value: state.tunnelId },
+        }),
+
+        dnsRecords: Effect.fn('CloudflareTunnelEdge.dnsRecords')(function* (
+            ctx: EdgeContext
+        ) {
+            const current = yield* stateFor(ctx.lane)
+            if (current === null) return [] satisfies EdgeDnsRecord[]
+            return [
                 {
-                    label: 'Routes',
-                    value: `${state.wildcard} → ${ctx.ingressTarget}`,
+                    name: `*.${ctx.lane.domain}`,
+                    type: 'CNAME' as const,
+                    contents: [`${current.tunnelId}.cfargotunnel.com`],
+                    proxied: true,
+                    preferredAccountId: current.accountId,
                 },
-                { label: 'Connections', value: String(health.connections) },
-                { label: 'Cloudflare status', value: health.status },
-            ],
-            resources: [
-                {
-                    kind: 'tunnel',
-                    id: state.tunnelId,
-                    accountId: state.accountId,
-                },
-            ],
-        }
+            ] satisfies EdgeDnsRecord[]
+        }),
+
+        status: Effect.fn('CloudflareTunnelEdge.status')(function* (
+            ctx: EdgeContext
+        ) {
+            const current = yield* stateFor(ctx.lane)
+            if (current === null) {
+                return {
+                    provisioned: false,
+                    health: 'down',
+                    detail: 'The tunnel is not created yet. Save the public lane to create it.',
+                    facts: [],
+                    resources: [],
+                } satisfies EdgeStatus
+            }
+            const health = yield* tunnels.getTunnelHealth(
+                current.accountId,
+                current.tunnelId
+            )
+            const mapped =
+                health.status === 'healthy'
+                    ? 'healthy'
+                    : health.status === 'degraded'
+                      ? 'degraded'
+                      : health.status === 'unknown'
+                        ? 'unknown'
+                        : 'down'
+            return {
+                provisioned: true,
+                health: mapped,
+                detail:
+                    health.error ??
+                    (health.connections === 0
+                        ? 'No connector is connected yet — the connector service may still be starting.'
+                        : null),
+                facts: [
+                    { label: 'Tunnel', value: current.tunnelId },
+                    {
+                        label: 'Routes',
+                        value: `${current.wildcard} → ${ctx.ingressTarget}`,
+                    },
+                    {
+                        label: 'Connections',
+                        value: String(health.connections),
+                    },
+                    { label: 'Cloudflare status', value: health.status },
+                ],
+                resources: [
+                    {
+                        kind: 'tunnel',
+                        id: current.tunnelId,
+                        accountId: current.accountId,
+                    },
+                ],
+            } satisfies EdgeStatus
+        }),
+
+        // ─── Called by the Cloudflare tunnels page ─────────────────────────────
+
+        /** The wildcard the stack tunnel routes, when `tunnelId` on `accountId` is it. */
+        stackWildcard: Effect.fn('CloudflareTunnelEdge.stackWildcard')(function* (
+            accountId: string,
+            tunnelId: string
+        ) {
+            const current = yield* state()
+            return current !== null &&
+                current.accountId === accountId &&
+                current.tunnelId === tunnelId
+                ? current.wildcard
+                : null
+        }),
+
+        /** Forget the stack tunnel after it was deleted from the tunnels page. True when it was the stack's. */
+        forgetDeletedTunnel: Effect.fn('CloudflareTunnelEdge.forgetDeletedTunnel')(
+            function* (accountId: string, tunnelId: string) {
+                const current = yield* state()
+                const isStackTunnel =
+                    current !== null &&
+                    current.accountId === accountId &&
+                    current.tunnelId === tunnelId
+                if (!isStackTunnel) return false
+                yield* store.clear(CLOUDFLARE_TUNNEL_EDGE_ID)
+                yield* Effect.logInfo(
+                    `Forgot stack tunnel ${tunnelId} (deleted from the tunnels page)`
+                )
+                return true
+            }
+        ),
     }
+}
 
-    joinPath(ctx: EdgeContext, status: EdgeStatus): PublicJoinPath {
-        return {
-            via: DESCRIPTOR.label,
-            available: status.provisioned,
-            target: `https://api.${ctx.lane.domain}`,
-            hostHeader: null,
-            sources: status.provisioned
-                ? Number(
-                      status.facts.find((fact) => fact.label === 'Connections')
-                          ?.value ?? 0
-                  )
-                : 0,
-            detail: status.provisioned
-                ? 'A node anywhere dials the public domain; a connector carries it in. No node opens a port and the joiner needs no public address.'
-                : (status.detail ?? 'The tunnel is not created yet.'),
-        }
-    }
+export type CloudflareTunnelEdgeShape = Over<
+    ReturnType<typeof makeCloudflareTunnelEdge>,
+    CloudflareTunnelService | EdgeStateStore | CloudflaredSettings
+>
 
-    // ─── Called by the Cloudflare tunnels page ─────────────────────────────
+/** Tag and implementation together: the tag is the contract, `live` the one implementation. */
+export class CloudflareTunnelEdge extends Context.Service<
+    CloudflareTunnelEdge,
+    CloudflareTunnelEdgeShape
+>()('fleet/CloudflareTunnelEdge') {
+    /** The collaborators are yielded when a method runs, so this is a constant the module provides with `useValue`. */
+    static readonly live: CloudflareTunnelEdgeShape = serviceOver(
+        Effect.all({
+            tunnels: CloudflareTunnelService,
+            store: EdgeStateStore,
+            settings: CloudflaredSettings,
+        }),
+        makeCloudflareTunnelEdge
+    )
+}
 
-    /** The wildcard the stack tunnel routes, when `tunnelId` on `accountId` is it. */
-    async stackWildcard(
-        accountId: string,
-        tunnelId: string
-    ): Promise<string | null> {
-        const state = await this.state()
-        return state !== null &&
-            state.accountId === accountId &&
-            state.tunnelId === tunnelId
-            ? state.wildcard
-            : null
-    }
-
-    /** Forget the stack tunnel after it was deleted from the tunnels page. True when it was the stack's. */
-    async forgetDeletedTunnel(
-        accountId: string,
-        tunnelId: string
-    ): Promise<boolean> {
-        if ((await this.stackWildcard(accountId, tunnelId)) === null)
-            return false
-        await this.host.runUnwrapped(
-            this.store.clear(CLOUDFLARE_TUNNEL_EDGE_ID)
+/**
+ * The tunnel edge as the shared plugin contract wants it.
+ *
+ * `EdgeProvider` (in `shared`) is Promise-based and registered into a registry both `shared` and `fleet` read, so this is
+ * the ONE place the Effect service meets that boundary: each method runs the service's Effect on the host and rejects with the
+ * original error. Nothing else in this file is Promise-shaped; moving the contract to Effects deletes this function.
+ */
+export function edgeProviderOver(host: EffectHostShape): EdgeProvider {
+    const run = <A, E, R>(
+        use: (edge: CloudflareTunnelEdgeShape) => Effect.Effect<A, E, R>
+    ): Promise<A> =>
+        host.runUnwrapped(
+            Effect.gen(function* () {
+                return yield* use(yield* CloudflareTunnelEdge)
+            })
         )
-        this.logger.log(
-            `Forgot stack tunnel ${tunnelId} (deleted from the tunnels page)`
-        )
-        return true
+    return {
+        descriptor: DESCRIPTOR,
+        ingress: ingressPlan,
+        joinPath: joinPathOf,
+        provision: (ctx) => run((edge) => edge.provision(ctx)),
+        teardown: () => run((edge) => edge.teardown()),
+        connector: (ctx) => run((edge) => edge.connector(ctx)),
+        dnsRecords: (ctx) => run((edge) => edge.dnsRecords(ctx)),
+        status: (ctx) => run((edge) => edge.status(ctx)),
     }
 }

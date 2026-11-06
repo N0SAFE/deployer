@@ -17,8 +17,14 @@
  *       cloudflare-tunnel/  registers itself into the core EdgeProviderRegistry
  *                           (the account-free `direct` edge is built into core/modules/edge)
  */
-import { createModuleContext, EffectHost } from '@deployer/nest-effect'
-import { EnvModule } from '@deployer/shared/config/env/env.module'
+import { Effect } from 'effect'
+
+import {
+    createModuleContext,
+    EffectHost,
+    type EffectHostShape,
+} from '@deployer/nest-effect'
+import { EnvModule, EnvService } from '@deployer/shared/config/env/env.module'
 import { ConfigurationCoreModule } from '@deployer/shared/core/modules/configuration/configuration-core.module'
 import { GlobalDatabaseModule } from '@deployer/shared/core/modules/database/global/global-database.module'
 import { DeploymentCoreModule } from '@deployer/shared/core/modules/deployment/deployment-core.module'
@@ -26,7 +32,10 @@ import { PreviewCleanupPolicyService } from '@deployer/shared/core/modules/deplo
 import { PreviewNamingService } from '@deployer/shared/core/modules/deployment/services/preview-naming.service'
 import { CoreDomainModule } from '@deployer/shared/core/modules/domain/domain.module'
 import { DomainRoutingService } from '@deployer/shared/core/modules/domain/services/domain-routing.service'
-import { EdgeProviderRegistry } from '@deployer/shared/core/modules/edge/edge-provider.registry'
+import {
+    EdgeProviderRegistry,
+    type EdgeProviderRegistryShape,
+} from '@deployer/shared/core/modules/edge/edge-provider.registry'
 import { CoreEdgeModule } from '@deployer/shared/core/modules/edge/edge.module'
 import {
     CoreEventStreamPoolService,
@@ -58,7 +67,6 @@ import {
 } from '@/core/ports/preview-policy.port'
 import { PublicAccessPoint } from '@/core/ports/public-access-point.port'
 import { SystemActorClients } from '@/core/ports/system-actor-clients.port'
-import { TunnelEdge } from '@/core/ports/tunnel-edge.port'
 
 import { CustomSourceProviderService } from './code/custom/services/custom-source-provider.service'
 import { GitHubAppsController } from './code/github/controllers/github-account.controller'
@@ -85,7 +93,14 @@ import { CloudflareTunnelService } from './dns/cloudflare/services/cloudflare-tu
 import { DnsProviderRegistryService } from './dns/shared/dns-provider-registry.service'
 import { DnsProvidersStore } from './dns/shared/repositories/dns-providers.repository'
 
-import { CloudflareTunnelEdgeProvider } from './edge/cloudflare-tunnel/cloudflare-tunnel.edge-provider'
+import {
+    CloudflareTunnelEdge,
+    edgeProviderOver,
+} from './edge/cloudflare-tunnel/cloudflare-tunnel.edge-provider'
+import {
+    CloudflaredSettings,
+    type CloudflaredSettingsShape,
+} from './edge/cloudflare-tunnel/cloudflare-tunnel.edge-ports'
 
 // `GithubWebhookDispatchService` injects `DomainRoutingService`, which
 // `CoreDomainModule` owns — without this import the module cannot be constructed.
@@ -100,6 +115,9 @@ import {
     startPreviewTtlCleanup,
 } from './code/github/services/preview-ttl-cleanup.service'
 import { GitlabAppsStore } from './code/gitlab/repositories/gitlab-apps.repository'
+
+/** The DI token of the registered Cloudflare tunnel edge. */
+const CLOUDFLARE_TUNNEL_EDGE_REGISTRATION = Symbol('CLOUDFLARE_TUNNEL_EDGE_REGISTRATION')
 
 export class ProvidersModule extends createModuleContext(
     {
@@ -156,7 +174,6 @@ export class ProvidersModule extends createModuleContext(
             { provide: FleetDb, useValue: FleetDb.live },
             { provide: IngressLanes, useExisting: IngressLanesService },
             { provide: EdgeProviders, useExisting: EdgeProviderRegistry },
-            { provide: TunnelEdge, useExisting: CloudflareTunnelEdgeProvider },
             { provide: DnsProvidersStore, useValue: DnsProvidersStore.live },
             {
                 provide: CloudflareAppService,
@@ -175,8 +192,27 @@ export class ProvidersModule extends createModuleContext(
                 provide: DnsProviderRegistryService,
                 useValue: DnsProviderRegistryService.live,
             },
-            // Edge providers — register themselves into the core EdgeProviderRegistry
-            CloudflareTunnelEdgeProvider,
+            // The Cloudflare tunnel edge: an Effect service over the tunnel API, the edge state and the connector settings.
+            { provide: CloudflareTunnelEdge, useValue: CloudflareTunnelEdge.live },
+            {
+                provide: CloudflaredSettings,
+                useFactory: (env: EnvService): CloudflaredSettingsShape => ({
+                    image: () => env.get('DEPLOYER_CLOUDFLARED_IMAGE'),
+                    replicas: () => env.get('DEPLOYER_CLOUDFLARED_REPLICAS'),
+                }),
+                inject: [EnvService],
+            },
+            {
+                // Registered into the core registry when built (before any lifecycle hook): the shared plugin contract is
+                // Promise-based, so this is where the Effect service is handed over through its one adapter.
+                provide: CLOUDFLARE_TUNNEL_EDGE_REGISTRATION,
+                useFactory: (registry: EdgeProviderRegistryShape, host: EffectHostShape) => {
+                    const provider = edgeProviderOver(host)
+                    Effect.runSync(registry.register(provider)) // a duplicate id is a wiring mistake at boot
+                    return provider
+                },
+                inject: [EdgeProviderRegistry, EffectHost],
+            },
             // GitHub webhook / preview stack — stores and use cases are constants; the lifecycle bus is built over the stream pool.
             { provide: GithubAppsStore, useValue: GithubAppsStore.live },
             { provide: GitlabAppsStore, useValue: GitlabAppsStore.live },

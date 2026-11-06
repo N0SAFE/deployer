@@ -17,8 +17,8 @@ import {
 } from '@deployer/shared/core/modules/auth/orpc/middlewares'
 
 import { attempt } from '@/core/effects'
-import { TunnelEdge } from '@/core/ports/tunnel-edge.port'
 
+import { CloudflareTunnelEdge } from '../../../edge/cloudflare-tunnel/cloudflare-tunnel.edge-provider'
 import { CloudflareAppService } from '../services/cloudflare-app.service'
 import { CloudflareDnsProviderService } from '../services/cloudflare-dns-provider.service'
 import { CloudflareTunnelService } from '../services/cloudflare-tunnel.service'
@@ -139,7 +139,7 @@ export class CloudflareController {
             .effect(function* ({ input }) {
                 const apps = yield* CloudflareAppService
                 const { params } = input
-                const query = input.query ?? {}
+                const query = input.query
                 return yield* Effect.gen(function* () {
                     const client = yield* apps.buildClient(params.providerId)
                     const page = yield* attempt(() =>
@@ -158,7 +158,7 @@ export class CloudflareController {
                         content: Array.isArray(r.content)
                             ? r.content.join(' ')
                             : (r.content ?? ''),
-                        ttl: r.ttl ?? 1,
+                        ttl: r.ttl,
                         proxied: r.proxied ?? false,
                     }))
                     // CF-7: real content matching, not a "any record exists" no-op.
@@ -300,24 +300,20 @@ export class CloudflareController {
             .use(requirePlatformRole(DNS_OPERATOR_ROLES))
             .effect(function* ({ input }) {
                 const tunnels = yield* CloudflareTunnelService
-                const tunnelEdge = yield* TunnelEdge
+                const tunnelEdge = yield* CloudflareTunnelEdge
                 const { providerId, id } = input.params
                 return yield* Effect.gen(function* () {
                     // When this is the STACK's tunnel, remove its wildcard CNAME too, and
                     // make the edge forget it so no dead tunnel id keeps claiming the
                     // public lane (the Ingress page then shows it as not provisioned).
-                    const hostname = yield* attempt(() =>
-                        tunnelEdge.stackWildcard(providerId, id)
-                    )
+                    const hostname = yield* tunnelEdge.stackWildcard(providerId, id)
                     const success = yield* tunnels.deleteTunnel(
                         providerId,
                         id,
                         { hostname }
                     )
                     if (success) {
-                        yield* attempt(() =>
-                            tunnelEdge.forgetDeletedTunnel(providerId, id)
-                        ).pipe(
+                        yield* tunnelEdge.forgetDeletedTunnel(providerId, id).pipe(
                             Effect.flatMap((forgotten) =>
                                 forgotten
                                     ? Effect.logInfo(

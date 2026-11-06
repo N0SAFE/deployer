@@ -1,22 +1,28 @@
-import { Effect } from 'effect'
+import { Cause, Effect, Exit } from 'effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PublicLane } from '@deployer/contracts-entities/entities/ingress/index'
+import { provideTo } from '@deployer/effect-core'
 import type { EffectHostShape } from '@deployer/nest-effect'
-import type { EnvService } from '@deployer/shared/config/env/env.module'
 import type { EdgeContext } from '@deployer/shared/core/modules/edge/edge-provider'
 import { makeEdgeProviderRegistry } from '@deployer/shared/core/modules/edge/edge-provider.registry'
-import type { EdgeStateStoreShape } from '@deployer/shared/core/modules/edge/edge-state.store'
+import {
+    EdgeStateStore,
+    type EdgeStateStoreShape,
+} from '@deployer/shared/core/modules/edge/edge-state.store'
 
 import {
     CloudflareTunnelService,
     type CloudflareTunnelServiceShape,
 } from '../../dns/cloudflare/services/cloudflare-tunnel.service'
 
+import { CloudflaredSettings } from './cloudflare-tunnel.edge-ports'
 import {
     CLOUDFLARE_TUNNEL_EDGE_ID,
-    CloudflareTunnelEdgeProvider,
+    CloudflareTunnelEdge,
+    edgeProviderOver,
 } from './cloudflare-tunnel.edge-provider'
+import { FleetInvalid } from '../../../../core/fleet.errors'
 
 const lane = (account: string, domain = 'apps.example.com'): PublicLane => ({
     provider: CLOUDFLARE_TUNNEL_EDGE_ID,
@@ -32,6 +38,7 @@ const ctx = (l: PublicLane): EdgeContext => ({
     resourceName: 'deployer-stack',
 })
 
+/** The service over fakes for its three collaborators, and the registered Promise adapter over the same world. */
 function setup(initial: unknown = null) {
     let state: unknown = initial
     const store = {
@@ -60,30 +67,26 @@ function setup(initial: unknown = null) {
             })
         ),
     } as unknown as CloudflareTunnelServiceShape
-    // The host the provider reaches its tunnel service through, over the fake.
+    const settings = {
+        image: () => 'cloudflare/cloudflared:2025.1.0',
+        replicas: () => 2,
+    }
+    const world = <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E> =>
+        effect.pipe(
+            Effect.provideService(CloudflareTunnelEdge, CloudflareTunnelEdge.live),
+            Effect.provideService(CloudflareTunnelService, tunnels),
+            Effect.provideService(EdgeStateStore, store),
+            Effect.provideService(CloudflaredSettings, settings)
+        ) as Effect.Effect<A, E>
+    const edge = provideTo(CloudflareTunnelEdge.live, (effect) => world(effect))
+    // The host the registered adapter runs the service on, over the same fakes.
     const host = {
         runUnwrapped: (effect: Effect.Effect<unknown, unknown, unknown>) =>
-            Effect.runPromise(
-                effect.pipe(
-                    Effect.provideService(CloudflareTunnelService, tunnels)
-                ) as Effect.Effect<unknown>
-            ),
+            Effect.runPromise(world(effect)),
     } as unknown as EffectHostShape
-    const env = {
-        get: vi.fn((key: string) =>
-            key === 'DEPLOYER_CLOUDFLARED_REPLICAS'
-                ? 2
-                : 'cloudflare/cloudflared:2025.1.0'
-        ),
-    } as unknown as EnvService
     const registry = makeEdgeProviderRegistry()
-    const provider = new CloudflareTunnelEdgeProvider(
-        registry,
-        host,
-        store,
-        env
-    )
-    return { provider, registry, tunnels, store, getState: () => state }
+    Effect.runSync(registry.register(edgeProviderOver(host)))
+    return { edge, registry, tunnels, store, getState: () => state, provider: registry.find(CLOUDFLARE_TUNNEL_EDGE_ID)! }
 }
 
 const existing = {
@@ -93,7 +96,7 @@ const existing = {
     wildcard: '*.apps.example.com',
 }
 
-describe('CloudflareTunnelEdgeProvider', () => {
+describe('CloudflareTunnelEdge', () => {
     beforeEach(() => {
         vi.clearAllMocks()
     })
@@ -124,8 +127,8 @@ describe('CloudflareTunnelEdgeProvider', () => {
     })
 
     it('creates ONE stack tunnel and routes the wildcard to Traefik — no DNS here', async () => {
-        const { provider, tunnels, getState } = setup()
-        await provider.provision(ctx(lane('acc-1')))
+        const { edge, tunnels, getState } = setup()
+        await Effect.runPromise(edge.provision(ctx(lane('acc-1'))))
         expect(tunnels.createTunnel).toHaveBeenCalledWith('acc-1', {
             name: 'deployer-stack',
         })
@@ -144,8 +147,8 @@ describe('CloudflareTunnelEdgeProvider', () => {
     })
 
     it('reuses the tunnel on re-provision and only re-routes a new domain', async () => {
-        const { provider, tunnels, getState } = setup(existing)
-        await provider.provision(ctx(lane('acc-1', 'new.example.com')))
+        const { edge, tunnels, getState } = setup(existing)
+        await Effect.runPromise(edge.provision(ctx(lane('acc-1', 'new.example.com'))))
         expect(tunnels.createTunnel).not.toHaveBeenCalled()
         expect(tunnels.configureIngress).toHaveBeenCalledWith(
             'acc-1',
@@ -160,8 +163,8 @@ describe('CloudflareTunnelEdgeProvider', () => {
     })
 
     it('deletes the old tunnel before moving to another account', async () => {
-        const { provider, tunnels } = setup(existing)
-        await provider.provision(ctx(lane('acc-2')))
+        const { edge, tunnels } = setup(existing)
+        await Effect.runPromise(edge.provision(ctx(lane('acc-2'))))
         expect(tunnels.deleteTunnel).toHaveBeenCalledWith('acc-1', 'tun-1')
         expect(tunnels.createTunnel).toHaveBeenCalledWith('acc-2', {
             name: 'deployer-stack',
@@ -169,19 +172,19 @@ describe('CloudflareTunnelEdgeProvider', () => {
     })
 
     it('runs a connector with the token in the environment, never in argv', async () => {
-        const { provider } = setup(existing)
-        const spec = await provider.connector(ctx(lane('acc-1')))
+        const { edge } = setup(existing)
+        const spec = await Effect.runPromise(edge.connector(ctx(lane('acc-1'))))
         expect(spec).toMatchObject({ env: ['TUNNEL_TOKEN=tok-1'], replicas: 2 })
         expect(JSON.stringify([spec?.command, spec?.args])).not.toContain(
             'tok-1'
         )
         // A tunnel on another account than the lane names is not ours to run.
-        expect(await provider.connector(ctx(lane('acc-2')))).toBeNull()
+        expect(await Effect.runPromise(edge.connector(ctx(lane('acc-2'))))).toBeNull()
     })
 
     it("asks for a proxied wildcard CNAME on the tunnel's own account", async () => {
-        const { provider } = setup(existing)
-        expect(await provider.dnsRecords(ctx(lane('acc-1')))).toEqual([
+        const { edge } = setup(existing)
+        expect(await Effect.runPromise(edge.dnsRecords(ctx(lane('acc-1'))))).toEqual([
             {
                 name: '*.apps.example.com',
                 type: 'CNAME',
@@ -193,34 +196,60 @@ describe('CloudflareTunnelEdgeProvider', () => {
     })
 
     it('reports health and connections, and joinability only once provisioned', async () => {
-        const { provider } = setup(existing)
-        const status = await provider.status(ctx(lane('acc-1')))
+        const { edge, provider } = setup(existing)
+        const status = await Effect.runPromise(edge.status(ctx(lane('acc-1'))))
         expect(status).toMatchObject({ provisioned: true, health: 'healthy' })
         expect(provider.joinPath(ctx(lane('acc-1')), status)).toMatchObject({
             available: true,
             sources: 2,
             target: 'https://api.apps.example.com',
         })
-        const empty = setup().provider
-        const none = await empty.status(ctx(lane('acc-1')))
+        const empty = setup()
+        const none = await Effect.runPromise(empty.edge.status(ctx(lane('acc-1'))))
         expect(none.provisioned).toBe(false)
-        expect(empty.joinPath(ctx(lane('acc-1')), none).available).toBe(false)
+        expect(empty.provider.joinPath(ctx(lane('acc-1')), none).available).toBe(false)
     })
 
     it('tears down provider-first, then forgets', async () => {
-        const { provider, tunnels, store } = setup(existing)
-        await provider.teardown()
+        const { edge, tunnels, store } = setup(existing)
+        await Effect.runPromise(edge.teardown())
         expect(tunnels.deleteTunnel).toHaveBeenCalledWith('acc-1', 'tun-1')
         expect(store.clear).toHaveBeenCalled()
         vi.mocked(tunnels.deleteTunnel).mockClear()
-        await provider.teardown()
+        await Effect.runPromise(edge.teardown())
         expect(tunnels.deleteTunnel).not.toHaveBeenCalled()
     })
 
     it('forgets the stack tunnel only when the deleted one is it', async () => {
-        const { provider, store } = setup(existing)
-        expect(await provider.forgetDeletedTunnel('acc-1', 'other')).toBe(false)
+        const { edge, store } = setup(existing)
+        expect(await Effect.runPromise(edge.forgetDeletedTunnel('acc-1', 'other'))).toBe(false)
         expect(store.clear).not.toHaveBeenCalled()
-        expect(await provider.forgetDeletedTunnel('acc-1', 'tun-1')).toBe(true)
+        expect(await Effect.runPromise(edge.forgetDeletedTunnel('acc-1', 'tun-1'))).toBe(true)
+        expect(store.clear).toHaveBeenCalled()
+    })
+
+    it('refuses a lane that names no Cloudflare account, as a typed error, and touches nothing', async () => {
+        const { edge, tunnels, store } = setup()
+        const noAccount = { ...lane('x'), options: {} }
+
+        const exit = await Effect.runPromiseExit(edge.provision(ctx(noAccount)))
+
+        expect(Exit.isFailure(exit)).toBe(true)
+        if (Exit.isFailure(exit)) expect(Cause.squash(exit.cause)).toBeInstanceOf(FleetInvalid)
+        expect(tunnels.createTunnel).not.toHaveBeenCalled()
+        expect(store.write).not.toHaveBeenCalled()
+    })
+
+    it('lets the registered Promise adapter provision, and reject with the original error', async () => {
+        const ok = setup()
+        await ok.provider.provision(ctx(lane('acc-1')))
+        expect(ok.getState()).toMatchObject({ tunnelId: 'tun-new' })
+
+        const boom = new Error('cloudflare down')
+        const failing = setup()
+        vi.mocked(failing.tunnels.createTunnel).mockImplementationOnce(
+            () => Effect.fail(boom) as never
+        )
+        await expect(failing.provider.provision(ctx(lane('acc-1')))).rejects.toBe(boom)
     })
 })
