@@ -76,6 +76,7 @@ TARGETS: list[tuple[str, str, str, str, str]] = [
     ("providerSchema", "fleet", "providerSchemaContract", "fleet", "@deployer/fleet-contracts"),
     ("reachability", "fleet", "reachabilityContract", "fleet", "@deployer/fleet-contracts"),
     ("mesh", "fleet", "meshContract", "fleet", "@deployer/fleet-contracts"),
+    ("secrets", "fleet", "secretContract", "fleet", "@deployer/fleet-contracts"),
     ("platform", "fleet", "platformContract", "fleet", "@deployer/fleet-contracts"),
     ("health", "health", "healthContract", "health", "@deployer/health-contracts"),
 ]

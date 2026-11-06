@@ -32,6 +32,7 @@ import {
     providerSchemaContract,
     providersContract,
     reachabilityContract,
+    secretContract,
 } from '@deployer/fleet-contracts'
 import { healthContract } from '@deployer/health-contracts'
 import {
@@ -103,6 +104,7 @@ export function serviceSurface() {
         providerSchema: providerSchemaContract,
         reachability: reachabilityContract,
         mesh: meshContract,
+        secrets: secretContract,
         platform: platformContract,
 
         // health

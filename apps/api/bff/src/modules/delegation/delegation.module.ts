@@ -34,6 +34,7 @@ import { ProviderSchemaDelegationController } from './generated/providerSchema.d
 import { PushDelegationController } from './generated/push.delegation'
 import { ReachabilityDelegationController } from './generated/reachability.delegation'
 import { RoleDelegationController } from './generated/role.delegation'
+import { SecretsDelegationController } from './generated/secrets.delegation'
 import { ServiceDelegationController } from './generated/service.delegation'
 import { ServicePreviewTopologyDelegationController } from './generated/servicePreviewTopology.delegation'
 import { StepUpDelegationController } from './generated/stepUp.delegation'
@@ -58,6 +59,7 @@ export class DelegationModule extends createModuleContext({
         PushDelegationController,
         RoleDelegationController,
         ReachabilityDelegationController,
+        SecretsDelegationController,
         ServiceDelegationController,
         ServicePreviewTopologyDelegationController,
         StepUpDelegationController,
