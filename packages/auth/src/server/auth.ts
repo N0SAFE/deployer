@@ -34,6 +34,12 @@ export interface AuthFactoryEnv {
     ENABLE_MASTER_TOKEN?: boolean
     /** The platform secret: required, never read from `process.env` here (the app generates it on first boot, SEC-100). */
     BETTER_AUTH_SECRET: string
+    /**
+     * The earlier generations of the platform secret, current first, once it has been rotated (SEC-101): Better Auth then
+     * seals with the first and still opens what the others sealed, so a rotation signs nobody out. Absent before a
+     * rotation, so an install that never rotated keeps its plain-secret behaviour.
+     */
+    BETTER_AUTH_SECRETS?: { version: number; value: string }[]
     BASE_URL?: string
     APP_URL?: string
     NEXT_PUBLIC_APP_URL?: string
@@ -135,6 +141,7 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
         ENABLE_MASTER_TOKEN,
         NODE_ENV,
         BETTER_AUTH_SECRET,
+        BETTER_AUTH_SECRETS,
         BASE_URL,
         GITHUB_CLIENT_ID,
         GITHUB_CLIENT_SECRET,
@@ -175,6 +182,9 @@ function buildAuthConfig<TSchema extends Record<string, unknown>>(
 
     return {
         secret: BETTER_AUTH_SECRET,
+        ...(BETTER_AUTH_SECRETS === undefined
+            ? {}
+            : { secrets: BETTER_AUTH_SECRETS }),
         baseURL: BASE_URL ?? process.env.NEXT_PUBLIC_API_URL,
         trustedOrigins: origins.length > 0 ? origins : undefined,
         advanced: {

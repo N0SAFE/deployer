@@ -73,8 +73,15 @@ const legacyKeyProvider: EncryptedTextKeyProvider = {
     },
 }
 
-/** Where the sealing root comes from, read at USE time: null means this node has no platform secret yet. */
-export type RootSource = () => string | null
+/** The platform secret as the codecs need it: the generation new values are sealed under, and the earlier ones still opened. */
+export type SealingRing = {
+    readonly generation: number
+    readonly value: string
+    readonly previous: readonly { readonly generation: number; readonly value: string }[]
+}
+
+/** Where the sealing ring comes from, read at USE time: null means this node has no platform secret yet. */
+export type RootSource = () => SealingRing | null
 
 /**
  * Build the sealing codec: the root that protects NEW writes (SEC-016) is the node's platform secret (`node_config`), read
@@ -82,21 +89,26 @@ export type RootSource = () => string | null
  * the node's config can be read; a drizzle column codec is synchronous, so the source is a synchronous reader of the
  * snapshot the node keeps.
  *
+ * The secret is a ring (SEC-101): new values are sealed under the current generation (`column:N`), and a value sealed under
+ * an earlier generation still opens while that generation is accepted, derived from its own root. Retiring a generation
+ * is what makes its rows unreadable, so it is an operator's act, after the reseal.
+ *
  * There is no fallback key, in any environment: a node with no platform secret cannot seal or open anything, and says so
  * (an in-source or public key would make every ciphertext readable by whoever has the repository). A weak root is refused
  * the same way (`WeakRootSecret`), including one adopted from an old environment variable.
  */
 export function resolveSealer(source: RootSource): EncryptedTextSealer {
-    let current: { readonly root: string; readonly sealer: EncryptedTextSealer } | null =
+    let current: { readonly key: string; readonly sealer: EncryptedTextSealer } | null =
         null
     const sealer = (): EncryptedTextSealer => {
-        const root = source()
-        if (root === null || root === '') {
+        const ring = source()
+        if (ring === null || ring.value === '') {
             throw new Error(
                 'Encryption root unavailable: this node has no platform secret yet (its node_config is not set up, or not read yet)'
             )
         }
-        if (current?.root !== root) current = { root, sealer: sealerFor(root) }
+        const key = JSON.stringify(ring)
+        if (current?.key !== key) current = { key, sealer: sealerFor(ring) }
         return current.sealer
     }
     return {
@@ -105,9 +117,20 @@ export function resolveSealer(source: RootSource): EncryptedTextSealer {
     }
 }
 
-function sealerFor(root: string): EncryptedTextSealer {
+function sealerFor(ring: SealingRing): EncryptedTextSealer {
+    const roots: Record<number, Redacted.Redacted> = { [ring.generation]: Redacted.make(ring.value) }
+    for (const entry of ring.previous) roots[entry.generation] = Redacted.make(entry.value)
     const box = runSyncUnwrapped(
-        makeSyncSecretBox({ rootSecret: Redacted.make(root) })
+        makeSyncSecretBox({
+            rootSecret: Redacted.make(ring.value),
+            rootsByGeneration: roots,
+            generations: {
+                column: {
+                    current: ring.generation,
+                    accepted: Object.keys(roots).map(Number),
+                },
+            },
+        })
     )
     // A drizzle column codec is synchronous, so the Effects run here, at the codec boundary.
     return {

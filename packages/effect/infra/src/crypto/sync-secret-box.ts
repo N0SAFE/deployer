@@ -81,11 +81,21 @@ export const makeSyncSecretBox = (
     options: SyncSecretBoxOptions
 ): Effect.Effect<SyncSecretBox, WeakRootSecret | KeyRingConfigInvalid> =>
     Effect.gen(function* () {
-        const root = Redacted.value(options.rootSecret)
+        const rootFor = (generation: number): string =>
+            Redacted.value(
+                options.rootsByGeneration?.[generation] ?? options.rootSecret
+            )
         if (options.allowInsecureRoot !== true) {
-            const weak = validateRootSecret(root)
-            if (weak !== undefined)
-                return yield* Effect.fail(new WeakRootSecret({ message: weak }))
+            for (const root of [
+                Redacted.value(options.rootSecret),
+                ...Object.values(options.rootsByGeneration ?? {}).map((value) =>
+                    Redacted.value(value)
+                ),
+            ]) {
+                const weak = validateRootSecret(root)
+                if (weak !== undefined)
+                    return yield* Effect.fail(new WeakRootSecret({ message: weak }))
+            }
         }
 
         const generations = new Map<KeyPurpose, KeyGenerations>()
@@ -102,7 +112,6 @@ export const makeSyncSecretBox = (
             generations.set(purpose, configured)
         }
 
-        const rootBytes = encoder.encode(root)
         const keys = new Map<string, Buffer>()
         for (const [purpose, gens] of generations) {
             for (const generation of new Set(gens.accepted)) {
@@ -112,7 +121,7 @@ export const makeSyncSecretBox = (
                     Buffer.from(
                         hkdfSync(
                             'sha256',
-                            rootBytes,
+                            encoder.encode(rootFor(generation)),
                             HKDF_SALT,
                             encoder.encode(kid),
                             32

@@ -37,6 +37,11 @@ export type KeyGenerations = {
 export type KeyRingConfig = {
     /** ONE root secret; per-purpose, per-generation keys are HKDF-derived from it (SEC-018). */
     readonly rootSecret: Redacted.Redacted
+    /**
+     * The root a generation is derived from, for a ring whose generations come from different secrets (rotating the root,
+     * SEC-101). A generation without an entry uses `rootSecret`. Each root is held to the same strength rule.
+     */
+    readonly rootsByGeneration?: Readonly<Record<number, Redacted.Redacted>>
     /** Defaults to `{ current: 1, accepted: [1] }` for every purpose. */
     readonly generations?: Partial<Record<KeyPurpose, KeyGenerations>>
 }
@@ -125,10 +130,20 @@ export class KeyRing extends Context.Service<KeyRing, KeyRingShape>()(
         Layer.effect(
             KeyRing,
             Effect.gen(function* () {
-                const root = Redacted.value(config.rootSecret)
-                const weak = validateRootSecret(root)
-                if (weak !== undefined)
-                    return yield* new WeakRootSecret({ message: weak })
+                const rootFor = (generation: number): string =>
+                    Redacted.value(
+                        config.rootsByGeneration?.[generation] ?? config.rootSecret
+                    )
+                for (const root of [
+                    Redacted.value(config.rootSecret),
+                    ...Object.values(config.rootsByGeneration ?? {}).map((value) =>
+                        Redacted.value(value)
+                    ),
+                ]) {
+                    const weak = validateRootSecret(root)
+                    if (weak !== undefined)
+                        return yield* new WeakRootSecret({ message: weak })
+                }
 
                 const generations = new Map<KeyPurpose, KeyGenerations>()
                 for (const purpose of KEY_PURPOSES) {
@@ -145,22 +160,31 @@ export class KeyRing extends Context.Service<KeyRing, KeyRingShape>()(
                 }
 
                 // Defect on a crypto-layer failure: WebCrypto does not fail for valid input.
-                const base = yield* fromAbortable(
-                    () =>
-                        crypto.subtle.importKey(
-                            'raw',
-                            encoder.encode(root),
-                            'HKDF',
-                            false,
-                            ['deriveKey']
-                        ),
-                    (cause) => cause
-                ).pipe(Effect.orDie)
+                const bases = new Map<string, CryptoKey>()
+                const baseFor = (root: string) =>
+                    Effect.gen(function* () {
+                        const known = bases.get(root)
+                        if (known !== undefined) return known
+                        const imported = yield* fromAbortable(
+                            () =>
+                                crypto.subtle.importKey(
+                                    'raw',
+                                    encoder.encode(root),
+                                    'HKDF',
+                                    false,
+                                    ['deriveKey']
+                                ),
+                            (cause) => cause
+                        ).pipe(Effect.orDie)
+                        bases.set(root, imported)
+                        return imported
+                    })
 
                 const handles = new Map<string, KeyHandle>()
                 for (const [purpose, gens] of generations) {
                     for (const generation of new Set(gens.accepted)) {
                         const kid = formatKid(purpose, generation)
+                        const base = yield* baseFor(rootFor(generation))
                         const cryptoKey = yield* fromAbortable(
                             () =>
                                 crypto.subtle.deriveKey(

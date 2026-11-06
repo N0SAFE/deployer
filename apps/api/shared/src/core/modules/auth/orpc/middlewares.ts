@@ -302,11 +302,16 @@ export function requireSystemActor(audience: string) {
             return yield* new Unauthenticated({ reason: 'System actor claim required' })
         }
         const secrets = yield* PlatformSecret
-        const secret = yield* secrets.get()
-        if (secret === null) {
+        const accepted = yield* secrets.accepted()
+        if (accepted.length === 0) {
             return yield* new Forbidden({ reason: 'Platform secret is not configured' })
         }
-        const claim = verifySystemActorClaim(token, secret, audience)
+        // A claim signed just before a rotation is still good: try every generation that is still accepted.
+        let claim: ReturnType<typeof verifySystemActorClaim> = null
+        for (const secret of accepted) {
+            claim = verifySystemActorClaim(token, secret, audience)
+            if (claim !== null) break
+        }
         if (claim === null) {
             return yield* new Unauthenticated({
                 reason: 'Invalid or expired system actor claim',

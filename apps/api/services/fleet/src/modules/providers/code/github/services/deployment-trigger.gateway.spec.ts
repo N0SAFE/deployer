@@ -35,6 +35,11 @@ describe('DeploymentTriggerGateway', () => {
                 } as unknown as SystemActorClientsShape),
                 Effect.provideService(PlatformSecret, {
                     get: () => Effect.sync(secret),
+                    accepted: () =>
+                        Effect.sync(() => {
+                            const current = secret()
+                            return current === null ? [] : [current]
+                        }),
                 })
             ) as Effect.Effect<unknown>
     )

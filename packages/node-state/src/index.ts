@@ -21,6 +21,7 @@ export {
     makeAgentFirstNodeConfigRepository,
     makeNodeConfigRepository,
     NodeConfigRepository,
+    platformSecretRingOf,
 } from './nodes/node-config.repository'
 export type {
     NodeConfigRecordStore,

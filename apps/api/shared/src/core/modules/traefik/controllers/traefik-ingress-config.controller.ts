@@ -13,7 +13,7 @@ import { Effect } from 'effect'
 import { domainError } from '@deployer/effect-core'
 import { EffectHost, type EffectHostShape } from '@deployer/nest-effect'
 
-import { PlatformSecret, type SecretShape } from '../../auth/orpc/secrets'
+import { PlatformSecret, type PlatformSecretShape } from '../../auth/orpc/secrets'
 import {
     INGRESS_TOKEN_HEADER,
     ingressTokenMatches,
@@ -44,7 +44,7 @@ export class TraefikIngressConfigController {
     constructor(
         @Inject(TraefikIngressConfigService)
         private readonly config: TraefikIngressConfigServiceShape,
-        @Inject(PlatformSecret) private readonly secrets: SecretShape,
+        @Inject(PlatformSecret) private readonly secrets: PlatformSecretShape,
         @Inject(EffectHost) private readonly host: EffectHostShape
     ) {}
 
@@ -64,8 +64,12 @@ export class TraefikIngressConfigController {
             IngressTokenInvalid | IngressLanesUnavailable
         > = Effect.gen(function* () {
             // A node with no platform secret fails loudly: an ingress poll must never be accepted against an empty key.
-            const secret = requireIngressSecret(yield* secrets.get())
-            return yield* ingressTokenMatches(token, secret)
+            const accepted = (yield* secrets.accepted()).map((secret) =>
+                requireIngressSecret(secret)
+            )
+            if (accepted.length === 0) requireIngressSecret(null)
+            // Traefik sends the token of the generation it was last configured with: any accepted one is good.
+            return yield* accepted.some((secret) => ingressTokenMatches(token, secret))
                 ? config.buildDynamicConfig()
                 : Effect.fail(new IngressTokenInvalid({}))
         })

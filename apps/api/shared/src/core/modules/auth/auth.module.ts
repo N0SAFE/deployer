@@ -1,6 +1,10 @@
 import { Effect } from 'effect'
 
 import { AccessPolicy, createGlobalModule } from '@deployer/nest-effect'
+import {
+    NodeConfigRepository,
+    type NodeConfigRepositoryShape,
+} from '@deployer/node-state'
 
 import { accessPolicy } from '../../authz/access-policy'
 import { createBetterAuth } from '../../../config/auth/auth'
@@ -11,7 +15,6 @@ import {
     MODULE_OPTIONS_TOKEN,
     type AuthModuleOptions,
 } from './definitions/auth-module-definition'
-import { PlatformSecret, type SecretShape } from './orpc/secrets'
 import { makeSessionResolver, SessionResolver } from './orpc/session-resolver'
 import {
     AuthCoreService,
@@ -44,17 +47,22 @@ export class AuthModule extends createGlobalModule(
                 useFactory: async (
                     database: NodePgDatabase<Record<string, unknown>>,
                     env: EnvService,
-                    secrets: SecretShape
+                    nodeConfig: NodeConfigRepositoryShape
                 ): Promise<AuthModuleOptions> => {
-                    const secret = await Effect.runPromise(secrets.get())
-                    if (secret === null) {
+                    const ring = await Effect.runPromise(
+                        nodeConfig.ensurePlatformSecret().pipe(
+                            Effect.andThen(nodeConfig.platformSecretRing()),
+                            Effect.catch(() => Effect.succeed(null))
+                        )
+                    )
+                    if (ring === null) {
                         throw new Error(
                             'Cannot start Better Auth: this node has no platform secret (its node_config is not set up yet)'
                         )
                     }
-                    return { auth: createBetterAuth(database, env, secret).auth }
+                    return { auth: createBetterAuth(database, env, ring).auth }
                 },
-                inject: [GLOBAL_DATABASE_CONNECTION, EnvService, PlatformSecret],
+                inject: [GLOBAL_DATABASE_CONNECTION, EnvService, NodeConfigRepository],
             },
             {
                 provide: AuthCoreService,

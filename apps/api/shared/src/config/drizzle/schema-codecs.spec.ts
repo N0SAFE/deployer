@@ -16,6 +16,7 @@ import {
     legacyRootFrom,
     registerSchemaCodecs,
     resolveSealer,
+    type SealingRing,
 } from './schema-codecs'
 
 /**
@@ -38,9 +39,15 @@ function oldEncrypt(text: string, key: Buffer): string {
     return `${salt.toString('hex')}:${iv.toString('hex')}:${cipher.getAuthTag().toString('hex')}:${encrypted}`
 }
 
+/** A ring with one generation, which is a node before any rotation. */
+const only =
+    (value: string | null): (() => SealingRing | null) =>
+    () =>
+        value === null ? null : { generation: 1, value, previous: [] }
+
 describe('resolveSealer: the root is the platform secret, read at use time', () => {
     it('round-trips under a strong root (base64 is fine: no hex assumption)', () => {
-        const sealer = resolveSealer(() => STRONG)
+        const sealer = resolveSealer(only(STRONG))
         const stored = sealer.seal('token')
         expect(stored.startsWith('enc:v1:')).toBe(true)
         expect(sealer.open(stored)).toBe('token')
@@ -48,7 +55,7 @@ describe('resolveSealer: the root is the platform secret, read at use time', () 
 
     it('reads the root when it is used, so a root that arrives after registration works', () => {
         let root: string | null = null
-        const sealer = resolveSealer(() => root)
+        const sealer = resolveSealer(() => only(root)())
 
         expect(() => sealer.seal('x')).toThrowError(/Encryption root unavailable/)
         root = STRONG
@@ -62,8 +69,8 @@ describe('resolveSealer: the root is the platform secret, read at use time', () 
     })
 
     it('a different root cannot open what another sealed', () => {
-        const stored = resolveSealer(() => STRONG).seal('secret')
-        expect(() => resolveSealer(() => OTHER_STRONG).open(stored)).toThrow()
+        const stored = resolveSealer(only(STRONG)).seal('secret')
+        expect(() => resolveSealer(only(OTHER_STRONG)).open(stored)).toThrow()
     })
 
     it.each([
@@ -72,12 +79,36 @@ describe('resolveSealer: the root is the platform secret, read at use time', () 
         ['a known fallback', 'fallback-auth-secret-fallback-auth-secret'],
         ['no variety', 'a'.repeat(64)],
     ])('refuses a root that is %s', (_label, secret) => {
-        expect(() => resolveSealer(() => secret).seal('x')).toThrow()
+        expect(() => resolveSealer(only(secret)).seal('x')).toThrow()
+    })
+
+    it('opens what an earlier generation sealed while it is accepted, and seals under the current one', () => {
+        const before = resolveSealer(only(STRONG))
+        const sealedBefore = before.seal('credential')
+
+        const rotated = resolveSealer(() => ({
+            generation: 2,
+            value: OTHER_STRONG,
+            previous: [{ generation: 1, value: STRONG }],
+        }))
+
+        expect(rotated.open(sealedBefore)).toBe('credential')
+        const sealedAfter = rotated.seal('credential')
+        expect(JSON.stringify(sealedAfter)).toContain('column:2')
+        // A node that has not adopted the rotation cannot open what was sealed after it.
+        expect(() => before.open(sealedAfter)).toThrow()
+    })
+
+    it('stops opening an earlier generation once it is retired', () => {
+        const sealedBefore = resolveSealer(only(STRONG)).seal('credential')
+        const retired = resolveSealer(() => ({ generation: 2, value: OTHER_STRONG, previous: [] }))
+
+        expect(() => retired.open(sealedBefore)).toThrow()
     })
 
     it('accepts the 64 hex characters a node generates for itself', () => {
         const generated = randomBytes(32).toString('hex')
-        const sealer = resolveSealer(() => generated)
+        const sealer = resolveSealer(only(generated))
         expect(sealer.open(sealer.seal('v'))).toBe('v')
     })
 })
@@ -104,7 +135,7 @@ describe('registerSchemaCodecs: compatibility with rows written by the old codec
     beforeEach(() => {
         vi.stubEnv('NODE_ENV', 'production')
         vi.stubEnv('AUTH_SECRET', HEX_SECRET)
-        bindEncryptionRoot(() => STRONG)
+        bindEncryptionRoot(only(STRONG))
     })
 
     afterEach(() => {
@@ -168,7 +199,7 @@ describe("the REAL schema's encrypted columns use the registry that registerSche
     beforeEach(() => {
         vi.stubEnv('NODE_ENV', 'production')
         vi.stubEnv('AUTH_SECRET', HEX_SECRET)
-        bindEncryptionRoot(() => STRONG)
+        bindEncryptionRoot(only(STRONG))
         registerSchemaCodecs()
     })
 

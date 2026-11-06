@@ -211,6 +211,73 @@ describe('makeSyncSecretBox', () => {
     })
 })
 
+describe('rotating the ROOT: each generation derives from its own secret', () => {
+    const OLD_ROOT = 'Zr5tYw8Qe1Lk3Vb7Nc9Xs2Pd4Gh6Jf0AaMoIuTyRbEn='
+    const column = (current: number, accepted: number[]) => ({
+        column: { current, accepted },
+    })
+    const ringBox = (accepted: number[], roots: Record<number, string>) =>
+        sync(
+            makeSyncSecretBox({
+                rootSecret: Redacted.make(roots[Math.max(...accepted)] ?? ROOT),
+                rootsByGeneration: Object.fromEntries(
+                    Object.entries(roots).map(([generation, value]) => [
+                        generation,
+                        Redacted.make(value),
+                    ])
+                ),
+                generations: column(Math.max(...accepted), accepted),
+            })
+        )
+
+    it('opens what an older root sealed while its generation is accepted, and seals under the new one', () => {
+        const before = ringBox([1], { 1: OLD_ROOT })
+        const sealedOld = sync(before.seal('credential'))
+        expect(parseSealedText(sealedOld)?.kid).toBe('column:1')
+
+        const after = ringBox([1, 2], { 1: OLD_ROOT, 2: ROOT })
+        expect(sync(after.open(sealedOld))).toBe('credential')
+        const sealedNew = sync(after.seal('credential'))
+        expect(parseSealedText(sealedNew)?.kid).toBe('column:2')
+
+        // A node that has not adopted the new root cannot open what was sealed under it.
+        expect(failTag(before.open(sealedNew))).toBe('UnknownKeyId')
+    })
+
+    it('stops opening the older root once its generation is retired', () => {
+        const sealedOld = sync(ringBox([1], { 1: OLD_ROOT }).seal('credential'))
+        const retired = ringBox([2], { 2: ROOT })
+
+        expect(failTag(retired.open(sealedOld))).toBe('UnknownKeyId')
+    })
+
+    it('holds every root to the strength rule, not only the current one', () => {
+        expect(() =>
+            ringBox([1, 2], { 1: 'short', 2: ROOT })
+        ).toThrow()
+    })
+
+    it('the async ring derives the same keys from the same roots', async () => {
+        const stored = sync(ringBox([1, 2], { 1: OLD_ROOT, 2: ROOT }).seal('x', COLUMN_CODEC_AAD))
+        const box = parseSealedText(stored)
+        const asyncBox = SecretBox.layer.pipe(
+            Layer.provide(
+                KeyRing.layer({
+                    rootSecret: Redacted.make(ROOT),
+                    rootsByGeneration: { 1: Redacted.make(OLD_ROOT), 2: Redacted.make(ROOT) },
+                    generations: column(2, [1, 2]),
+                })
+            )
+        )
+        const opened = await Effect.runPromise(
+            Effect.gen(function* () {
+                return yield* (yield* SecretBox).open(box!, COLUMN_CODEC_AAD)
+            }).pipe(Effect.provide(asyncBox))
+        )
+        expect(Redacted.value(opened)).toBe('x')
+    })
+})
+
 describe('sync/async interop (one design, two implementations)', () => {
     const asyncBox = SecretBox.layer.pipe(
         Layer.provide(KeyRing.layer({ rootSecret: Redacted.make(ROOT) }))

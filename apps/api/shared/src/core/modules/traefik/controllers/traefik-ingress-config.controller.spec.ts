@@ -7,7 +7,7 @@ import { deriveIngressProviderToken } from '../../platform-ingress/services/ingr
 
 import { TraefikIngressConfigController } from './traefik-ingress-config.controller'
 
-import type { SecretShape } from '../../auth/orpc/secrets'
+import type { PlatformSecretShape } from '../../auth/orpc/secrets'
 import type { TraefikIngressConfigServiceShape } from '../services/traefik-ingress-config.service'
 
 const config = { http: { routers: {}, services: {} } }
@@ -16,7 +16,10 @@ function controller() {
     const service = {
         buildDynamicConfig: vi.fn(() => Effect.succeed(config)),
     } as unknown as TraefikIngressConfigServiceShape
-    const secrets: SecretShape = { get: () => Effect.succeed('s3cret') }
+    const secrets: PlatformSecretShape = {
+        get: () => Effect.succeed('s3cret'),
+        accepted: () => Effect.succeed(['s3cret', 'older-s3cret']),
+    }
     const host = {
         runUnwrapped: (effect: Effect.Effect<unknown>) =>
             Effect.runPromise(effect),
@@ -39,6 +42,13 @@ describe('TraefikIngressConfigController', () => {
             )
         ).toBe(config)
         expect(response.status).not.toHaveBeenCalled()
+    })
+
+    it('still serves an ingress configured with the generation before a rotation', async () => {
+        const { controller: c, response } = controller()
+        expect(
+            await c.dynamicConfig(deriveIngressProviderToken('older-s3cret'), response)
+        ).toBe(config)
     })
 
     it('answers anyone else with a plain 401: the endpoint is reachable through Traefik itself', async () => {

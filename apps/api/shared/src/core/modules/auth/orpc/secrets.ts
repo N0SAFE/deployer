@@ -10,4 +10,13 @@ export class MeshSecret extends Context.Service<MeshSecret, SecretShape>()('auth
  * The platform secret system-actor claims are signed and verified with: generated on this node's first boot and stored in
  * `node_config`, never the environment (`provide` it from `NodeStateModule`).
  */
-export class PlatformSecret extends Context.Service<PlatformSecret, SecretShape>()('auth/PlatformSecret') {}
+export type PlatformSecretShape = SecretShape & {
+    /**
+     * Every value that may still be presented, the current one first: what a VERIFIER tries (system-actor claims, the ingress
+     * token). A rotation keeps the earlier generations here until an operator retires them, so nothing signed just before it
+     * stops working. A signer uses `get()`.
+     */
+    readonly accepted: () => Effect.Effect<readonly string[]>
+}
+
+export class PlatformSecret extends Context.Service<PlatformSecret, PlatformSecretShape>()('auth/PlatformSecret') {}

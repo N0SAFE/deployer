@@ -31,6 +31,7 @@ import {
     makeAgentFirstNodeConfigRepository,
     makeClusterNodeInventoryRepository,
     makeClusterNodeRepository,
+    platformSecretRingOf,
     type LocalDatabaseShape,
     type NodeConfigRepositoryShape,
 } from '@deployer/node-state'
@@ -38,8 +39,13 @@ import {
 import {
     bindEncryptionRoot,
     legacyRootFrom,
+    type SealingRing,
 } from '../../../config/drizzle/schema-codecs'
-import { MeshSecret, PlatformSecret, type SecretShape } from '../auth/orpc/secrets'
+import {
+    MeshSecret,
+    PlatformSecret,
+    type PlatformSecretShape,
+} from '../auth/orpc/secrets'
 import { LocalDatabaseModule } from '../database/local/local-database.module'
 
 import { agentNodeRecords } from './agent-node-records'
@@ -78,9 +84,9 @@ const repositories = [
         useFactory: async (
             nodeConfig: NodeConfigRepositoryShape,
             snapshot: NodeConfigSnapshotShape
-        ): Promise<SecretShape> => {
-            let ensured: string | null = null
-            const get = (): Effect.Effect<string | null> =>
+        ): Promise<PlatformSecretShape> => {
+            let ensured: SealingRing | null = null
+            const ring = (): Effect.Effect<SealingRing | null> =>
                 nodeConfig
                     .ensurePlatformSecret(
                         legacyRootFrom({
@@ -89,17 +95,31 @@ const repositories = [
                         })
                     )
                     .pipe(
-                        Effect.tap((secret) => {
-                            ensured = secret
+                        Effect.andThen(nodeConfig.platformSecretRing()),
+                        Effect.tap((current) => {
+                            ensured = current
                             return Effect.void
                         }),
                         Effect.catch(() => Effect.succeed(null))
                     )
+            // The snapshot is the fresher view (it follows a rotation or an adoption within its refresh); what was ensured at boot
+            // covers the moment before its first load.
             bindEncryptionRoot(
-                () => ensured ?? snapshot.current()?.platformSecret ?? null
+                () => platformSecretRingOf(snapshot.current()) ?? ensured
             )
-            await Effect.runPromise(get())
-            return { get }
+            await Effect.runPromise(ring())
+            return {
+                get: () => Effect.map(ring(), (current) => current?.value ?? null),
+                accepted: () =>
+                    Effect.map(ring(), (current) =>
+                        current === null
+                            ? []
+                            : [
+                                  current.value,
+                                  ...current.previous.map((entry) => entry.value),
+                              ]
+                    ),
+            }
         },
         inject: [NodeConfigRepository, NodeConfigSnapshot],
     },

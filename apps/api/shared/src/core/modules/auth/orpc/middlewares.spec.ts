@@ -18,7 +18,7 @@ import {
     requirePlatformRole,
     requireSystemActor,
 } from './middlewares'
-import { MeshSecret, PlatformSecret, type SecretShape } from './secrets'
+import { MeshSecret, PlatformSecret, type PlatformSecretShape, type SecretShape } from './secrets'
 import { SessionResolver, type SessionResolverShape } from './session-resolver'
 import { assertAuthenticated } from './types'
 
@@ -40,6 +40,11 @@ const sessions = (found: UserSession | null): SessionResolverShape => ({
     resolve: () => Effect.succeed(found),
 })
 const secret = (value: string | null): SecretShape => ({ get: () => Effect.succeed(value) })
+/** The platform secret ring: the current value first, then the earlier generations still accepted. */
+const ring = (current: string | null, ...earlier: string[]): PlatformSecretShape => ({
+    get: () => Effect.succeed(current),
+    accepted: () => Effect.succeed(current === null ? [] : [current, ...earlier]),
+})
 
 type Services = SessionResolver | MeshSecret | PlatformSecret
 
@@ -53,10 +58,12 @@ const world = (options: {
     session?: UserSession | null
     mesh?: string | null
     platform?: string | null
+    /** Earlier generations of the platform secret that are still accepted. */
+    earlier?: string[]
 }): Context.Context<Services> =>
     Context.make(SessionResolver, sessions(options.session ?? null)).pipe(
         Context.add(MeshSecret, secret(options.mesh ?? null)),
-        Context.add(PlatformSecret, secret(options.platform ?? null))
+        Context.add(PlatformSecret, ring(options.platform ?? null, ...(options.earlier ?? [])))
     )
 
 describe('requireAuth', () => {
@@ -208,9 +215,13 @@ describe('requireSystemActor', () => {
                 const actor = yield* CurrentActor
                 return { actor: actor.kind, source: context.systemActor.source }
             })
-    const as = (headers: Record<string, string>, platform: string | null = 'platform-secret-platform') => ({
+    const as = (
+        headers: Record<string, string>,
+        platform: string | null = 'platform-secret-platform',
+        earlier: string[] = []
+    ) => ({
         ...request(headers),
-        'effect/context': world({ platform }),
+        'effect/context': world({ platform, earlier }),
     })
 
     it('provides the system actor a verified claim stands for', async () => {
@@ -218,6 +229,16 @@ describe('requireSystemActor', () => {
         await expect(
             call(hook(), {}, { context: as({ [SYSTEM_ACTOR_HEADER]: token }) })
         ).resolves.toEqual({ actor: 'system', source: 'github-push' })
+    })
+
+    it('still accepts a claim signed under the generation before a rotation, and refuses one from a retired generation', async () => {
+        const beforeRotation = signSystemActorClaim({ source: 'github-push', aud: 'runtime' }, 'older-platform-secret')
+        await expect(
+            call(hook(), {}, { context: as({ [SYSTEM_ACTOR_HEADER]: beforeRotation }, 'platform-secret-platform', ['older-platform-secret']) })
+        ).resolves.toEqual({ actor: 'system', source: 'github-push' })
+        await expect(
+            call(hook(), {}, { context: as({ [SYSTEM_ACTOR_HEADER]: beforeRotation }) })
+        ).rejects.toMatchObject({ code: 'UNAUTHORIZED' })
     })
 
     it('answers 401 for a missing, forged or wrongly addressed claim, and 403 without a platform secret', async () => {

@@ -234,11 +234,11 @@ function nodeConfigOperations(
                 })
                 return stored.platformSecret
             }),
-        platformSecretRing: () => ops.find().pipe(Effect.map(ringOf)),
+        platformSecretRing: () => ops.find().pipe(Effect.map(platformSecretRingOf)),
         rotatePlatformSecret: () =>
             Effect.gen(function* () {
                 const row = yield* ops.find()
-                const ring = ringOf(row)
+                const ring = platformSecretRingOf(row)
                 if (row === null || ring === null) return null
                 const { id: _id, ...rest } = row
                 const stored = yield* ops.upsert({
@@ -251,12 +251,12 @@ function nodeConfigOperations(
                         ...ring.previous,
                     ],
                 })
-                return ringOf(stored)
+                return platformSecretRingOf(stored)
             }),
         retirePlatformSecret: (generation) =>
             Effect.gen(function* () {
                 const row = yield* ops.find()
-                const ring = ringOf(row)
+                const ring = platformSecretRingOf(row)
                 if (row === null || ring === null) return null
                 if (generation >= ring.generation) return ring
                 const { id: _id, ...rest } = row
@@ -266,13 +266,13 @@ function nodeConfigOperations(
                         (entry) => entry.generation !== generation
                     ),
                 })
-                return ringOf(stored)
+                return platformSecretRingOf(stored)
             }),
         adoptPlatformSecretRing: (incoming) =>
             Effect.gen(function* () {
                 const row = yield* ops.find()
                 if (row === null) return false
-                const local = ringOf(row)
+                const local = platformSecretRingOf(row)
                 if (local !== null && incoming.generation <= local.generation)
                     return false
                 const earlier = new Map<number, string>()
@@ -322,7 +322,7 @@ function nodeConfigOperations(
 }
 
 /** The ring a row holds, or null when it holds no secret. */
-function ringOf(row: NodeConfigRow | null): PlatformSecretRing | null {
+export function platformSecretRingOf(row: NodeConfigRow | null): PlatformSecretRing | null {
     const value = row?.platformSecret
     if (row === null || value === null || value === undefined || value === '')
         return null

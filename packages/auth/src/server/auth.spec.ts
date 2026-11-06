@@ -419,6 +419,23 @@ describe('betterAuthFactory', () => {
     })
 
     describe('Edge Cases', () => {
+        it('gives Better Auth the versioned secrets only after a rotation (SEC-101)', () => {
+            const plain = betterAuthFactory(mockDb, mockEnv)
+            expect(plain.auth.options.secrets).toBeUndefined()
+
+            const rotated = betterAuthFactory(mockDb, {
+                ...mockEnv,
+                BETTER_AUTH_SECRETS: [
+                    { version: 2, value: 'new-secret-value-0123456789abcdef' },
+                    { version: 1, value: 'old-secret-value-0123456789abcdef' },
+                ],
+            })
+            expect(rotated.auth.options.secrets).toEqual([
+                { version: 2, value: 'new-secret-value-0123456789abcdef' },
+                { version: 1, value: 'old-secret-value-0123456789abcdef' },
+            ])
+        })
+
         it('should handle missing BASE_URL', () => {
             delete mockEnv.BASE_URL
             const result = betterAuthFactory(mockDb, mockEnv)

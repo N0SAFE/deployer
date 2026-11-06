@@ -49,27 +49,58 @@ function drizzleAuditSink<TSchema extends Record<string, unknown>>(
     return { record: insert }
 }
 
-/** What the factory reads from the environment: everything but the secret, which is passed on its own. */
+/** What the factory reads from the environment: everything but the secrets, which are passed on their own. */
 type AuthEnvValues = Omit<
     Parameters<typeof betterAuthFactory>[1],
-    'BETTER_AUTH_SECRET'
+    'BETTER_AUTH_SECRET' | 'BETTER_AUTH_SECRETS'
 >
 
-/**
- * @param platformSecret - the node's platform secret (`PlatformSecret`, generated on first boot). It is never read from the
- *   environment: the same value must sign sessions on every node, so it comes from the node's own stored config.
- */
+/** The platform secret as a ring: the current generation and the earlier ones still accepted, newest first (SEC-101). */
+export type AuthSecretRing = {
+    readonly generation: number
+    readonly value: string
+    readonly previous: readonly { readonly generation: number; readonly value: string }[]
+}
+
 /**
  * A secret for an instance that only PROVISIONS an account (the setup wizard, the admin bootstrap): it uses Better Auth's
  * internal adapter to hash a password and write a user, and signs nothing that leaves the process, so it needs no shared
  * secret, only one that is unguessable.
  */
-export const provisioningSecret = (): string => randomBytes(32).toString('hex')
+export const provisioningSecret = (): AuthSecretRing => ({
+    generation: 1,
+    value: randomBytes(32).toString('hex'),
+    previous: [],
+})
 
+/**
+ * What Better Auth is given for a ring. Before any rotation it is the plain secret, as it always was. After one it is the
+ * versioned list (newest first), so sessions and encrypted values sealed under an earlier generation still open; the plain
+ * `secret` is then the OLDEST accepted value, which Better Auth uses only to open payloads that predate its versioned format.
+ */
+function secretsFor(ring: AuthSecretRing) {
+    if (ring.previous.length === 0) return { BETTER_AUTH_SECRET: ring.value }
+    const oldest = ring.previous[ring.previous.length - 1]
+    return {
+        BETTER_AUTH_SECRET: oldest?.value ?? ring.value,
+        BETTER_AUTH_SECRETS: [
+            { version: ring.generation, value: ring.value },
+            ...ring.previous.map((entry) => ({
+                version: entry.generation,
+                value: entry.value,
+            })),
+        ],
+    }
+}
+
+/**
+ * @param platformSecret - the node's platform secret ring (generated on first boot, rotated by an operator). It is never read
+ *   from the environment: the same value must sign sessions on every node, so it comes from the node's own stored config.
+ */
 export const createBetterAuth = <TSchema extends Record<string, unknown>>(
     database: NodePgDatabase<TSchema>,
     envService: EnvService | AuthEnvValues,
-    platformSecret: string
+    platformSecret: AuthSecretRing
 ) => {
     return betterAuthFactory(
         database,
@@ -79,7 +110,7 @@ export const createBetterAuth = <TSchema extends Record<string, unknown>>(
                   DEFAULT_ADMIN_EMAIL: envService.get('DEFAULT_ADMIN_EMAIL'),
                   NODE_ENV: envService.get('NODE_ENV'),
                   ENABLE_MASTER_TOKEN: envService.get('ENABLE_MASTER_TOKEN'),
-                  BETTER_AUTH_SECRET: platformSecret,
+                  ...secretsFor(platformSecret),
                   BASE_URL: envService.get('NEXT_PUBLIC_API_URL'),
                   TRUSTED_ORIGINS: envService.get('TRUSTED_ORIGINS'),
                   NEXT_PUBLIC_APP_URL: envService.get('NEXT_PUBLIC_APP_URL'),
@@ -98,7 +129,7 @@ export const createBetterAuth = <TSchema extends Record<string, unknown>>(
                       envService.get('GITHUB_CLIENT_SECRET')
                   ),
               }
-            : { ...envService, BETTER_AUTH_SECRET: platformSecret },
+            : { ...envService, ...secretsFor(platformSecret) },
         {
             audit: drizzleAuditSink(database),
             stepUp: drizzleStepUpSink(database),
