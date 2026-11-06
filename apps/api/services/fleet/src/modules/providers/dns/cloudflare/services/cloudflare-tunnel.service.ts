@@ -6,15 +6,18 @@
  * account id is resolved at runtime (never from env vars).
  *
  * The read operations answer `{ error }` instead of failing; the write operations fail with a
- * `BadGatewayException` carrying Cloudflare's reason (kept as thrown, see `attempt`).
+ * `FleetUpstreamFailed` (a 502) carrying Cloudflare's reason.
  */
 import { serviceOver, type Over } from '@deployer/effect-core'
 
-import { BadGatewayException } from '@nestjs/common'
 import { Context, Effect } from 'effect'
 
 import { attempt } from '@/core/effects'
-import { FleetInvalid, FleetNotFound } from '@/core/fleet.errors'
+import {
+    FleetInvalid,
+    FleetNotFound,
+    FleetUpstreamFailed,
+} from '@/core/fleet.errors'
 
 import {
     CloudflareAppService,
@@ -260,9 +263,9 @@ function makeCloudflareTunnelService({ apps, dns }: Ports) {
                     ))
                 if (!created.id)
                     return yield* Effect.fail(
-                        new BadGatewayException(
-                            'Cloudflare did not return a tunnel id'
-                        )
+                        new FleetUpstreamFailed({
+                            reason: 'Cloudflare did not return a tunnel id',
+                        })
                     )
                 const tunnelId = created.id
                 if (existing) {
@@ -318,7 +321,8 @@ function makeCloudflareTunnelService({ apps, dns }: Ports) {
                 ),
                 Effect.mapError(
                     (err) =>
-                        new BadGatewayException(toCloudflareErrorMessage(err), {
+                        new FleetUpstreamFailed({
+                            reason: toCloudflareErrorMessage(err),
                             cause: err,
                         })
                 )
@@ -432,10 +436,10 @@ function makeCloudflareTunnelService({ apps, dns }: Ports) {
                 ).pipe(
                     Effect.andThen(
                         Effect.fail(
-                            new BadGatewayException(
-                                `Could not configure the tunnel's routing for ${hostname}: ${message}`,
-                                { cause: err }
-                            )
+                            new FleetUpstreamFailed({
+                                reason: `Could not configure the tunnel's routing for ${hostname}: ${message}`,
+                                cause: err,
+                            })
                         )
                     )
                 )

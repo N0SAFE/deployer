@@ -38,3 +38,15 @@ export class FleetUnauthorized extends domainError(
         return this.reason
     }
 }
+
+/** An upstream the fleet depends on (Cloudflare) refused or failed the call. `reason` carries its explanation, written for the client. */
+export class FleetUpstreamFailed extends domainError(
+    'FleetUpstreamFailed',
+    'bad_gateway'
+)<{
+    readonly reason: string
+}>() {
+    override publicMessage() {
+        return this.reason
+    }
+}

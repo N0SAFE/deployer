@@ -1,7 +1,5 @@
 {
     "noInjectableService": [],
-    "noNestExceptionFilter": [
-        "src/modules/providers/dns/cloudflare/services/cloudflare-tunnel.service.ts"
-    ],
+    "noNestExceptionFilter": [],
     "noNestLifecycleHook": []
 }

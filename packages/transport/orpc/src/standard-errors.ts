@@ -32,6 +32,7 @@ export const STANDARD_DOMAIN_ORPC_CODE = {
     unauthorized: 'UNAUTHORIZED',
     forbidden: 'FORBIDDEN',
     dependency_missing: 'FAILED_DEPENDENCY',
+    bad_gateway: 'BAD_GATEWAY',
 } as const
 
 export const STANDARD_DOMAIN_HTTP_STATUS = {
@@ -41,6 +42,7 @@ export const STANDARD_DOMAIN_HTTP_STATUS = {
     unauthorized: 401,
     forbidden: 403,
     dependency_missing: 424,
+    bad_gateway: 502,
 } as const
 
 /**
@@ -123,6 +125,11 @@ export const STANDARD_DOMAIN_ERROR_DEFS = {
         status: STANDARD_DOMAIN_HTTP_STATUS.dependency_missing,
         data: standardDomainErrorPayloadSchema,
     },
+    [STANDARD_DOMAIN_ORPC_CODE.bad_gateway]: {
+        message: 'Upstream failed',
+        status: STANDARD_DOMAIN_HTTP_STATUS.bad_gateway,
+        data: standardDomainErrorPayloadSchema,
+    },
 } as const
 
 /**
@@ -172,6 +179,11 @@ export const standardErrorActions = {
         new ORPCError(
             STANDARD_DOMAIN_ORPC_CODE.dependency_missing,
             standardErrorOptions('dependency_missing', message)
+        ),
+    BAD_GATEWAY: (message: string) =>
+        new ORPCError(
+            STANDARD_DOMAIN_ORPC_CODE.bad_gateway,
+            standardErrorOptions('bad_gateway', message)
         ),
 } as const
 
@@ -226,6 +238,11 @@ export function standardDomainErrorContracts(
             .code(STANDARD_DOMAIN_ORPC_CODE.dependency_missing)
             .message('Dependency missing')
             .status(STANDARD_DOMAIN_HTTP_STATUS.dependency_missing)
+            .data(standardDomainErrorPayloadSchema),
+        e()
+            .code(STANDARD_DOMAIN_ORPC_CODE.bad_gateway)
+            .message('Upstream failed')
+            .status(STANDARD_DOMAIN_HTTP_STATUS.bad_gateway)
             .data(standardDomainErrorPayloadSchema),
     ] as const
 }

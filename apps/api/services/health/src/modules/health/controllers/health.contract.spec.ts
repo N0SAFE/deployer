@@ -22,6 +22,7 @@ describe('health contract errors', () => {
             | 'UNAUTHORIZED'
             | 'FORBIDDEN'
             | 'FAILED_DEPENDENCY'
+            | 'BAD_GATEWAY'
         >()
     })
 })

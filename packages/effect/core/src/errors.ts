@@ -1,6 +1,6 @@
 import { Data, type Cause } from 'effect'
 
-/** The six failure kinds a client can tell apart; the transport maps each to one code and status. */
+/** The seven failure kinds a client can tell apart; the transport maps each to one code and status. */
 export type ErrorKind =
     | 'not_found'
     | 'validation'
@@ -8,6 +8,7 @@ export type ErrorKind =
     | 'unauthorized'
     | 'forbidden'
     | 'dependency_missing'
+    | 'bad_gateway'
 
 /** Instance shape every `domainError(...)` class shares. */
 export interface DomainErrorFields<Tag extends string, K extends ErrorKind> {

@@ -18,6 +18,7 @@ const ACTION_BY_KIND: Record<ErrorKind, ErrorAction> = {
     unauthorized: standardErrorActions.UNAUTHORIZED,
     forbidden: standardErrorActions.FORBIDDEN,
     dependency_missing: standardErrorActions.FAILED_DEPENDENCY,
+    bad_gateway: standardErrorActions.BAD_GATEWAY,
 }
 
 /**

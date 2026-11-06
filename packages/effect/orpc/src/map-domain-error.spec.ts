@@ -13,6 +13,7 @@ const CODES: Record<ErrorKind, [string, number]> = {
     unauthorized: ['UNAUTHORIZED', 401],
     forbidden: ['FORBIDDEN', 403],
     dependency_missing: ['FAILED_DEPENDENCY', 424],
+    bad_gateway: ['BAD_GATEWAY', 502],
 }
 
 class Missing extends domainError('Missing', 'not_found')<{

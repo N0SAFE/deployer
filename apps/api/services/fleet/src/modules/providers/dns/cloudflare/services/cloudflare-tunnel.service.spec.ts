@@ -1,8 +1,9 @@
-import { BadGatewayException } from '@nestjs/common'
 import { Cause, Effect, Exit } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
 
 import { provideTo } from '@deployer/effect-core'
+
+import { FleetUpstreamFailed } from '@/core/fleet.errors'
 
 import {
     CloudflareAppService,
@@ -202,7 +203,7 @@ describe('CloudflareTunnelService.configureIngress', () => {
     })
 
     it('is idempotent when applied twice', async () => {
-        const first = await buildService([])
+        const first = buildService([])
         await run(
             first.service.configureIngress(
                 'p1',
@@ -214,7 +215,7 @@ describe('CloudflareTunnelService.configureIngress', () => {
         const once = sentIngress(first.update)
 
         // Feed the first result back in, as a second run would find it.
-        const second = await buildService(once)
+        const second = buildService(once)
         await run(
             second.service.configureIngress(
                 'p1',
@@ -227,7 +228,7 @@ describe('CloudflareTunnelService.configureIngress', () => {
         expect(sentIngress(second.update)).toEqual(once)
     })
 
-    it('surfaces a Cloudflare rejection as a BadGateway carrying the reason', async () => {
+    it('surfaces a Cloudflare rejection as an upstream failure carrying the reason', async () => {
         const { service, update } = buildService([])
         update.mockRejectedValue(
             new Error('Bad Configuration: Validation failed')
@@ -244,7 +245,7 @@ describe('CloudflareTunnelService.configureIngress', () => {
                     'http://traefik:80'
                 )
             )
-        ).rejects.toBeInstanceOf(BadGatewayException)
+        ).rejects.toBeInstanceOf(FleetUpstreamFailed)
 
         await expect(
             run(
