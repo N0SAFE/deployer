@@ -121,14 +121,14 @@ and `apps/setup`. Dev/test-only reads (`boot-agent.ts`, vitest setup, `compile.t
 
 - 58 files use `serviceOver(…)`: `fleet` 26, `identity` 14, `runtime` 10, `shared` 5, `bff` 2, plus package files.
 - 52 exported `make<…>` functions in `shared`, 16 in `apps/setup`, 3 in `runtime`, 4 in `packages/node-state`, others in `docker`, `swarm`, `platform-supervisors`.
-- Written by me in this session and to convert first: `SecretInventory`, `StepUpGateway`, `CloudflareTunnelEdge`, `Enrollment`, `MeshView` (all `serviceOver(…, make…)`) and `makeClusterEvents`.
+- Written by me earlier and since converted (phase 1 below): `SecretInventory`, `StepUpGateway`, `CloudflareTunnelEdge`, `Enrollment`, `MeshView` and `makeClusterEvents`.
 - Already in the target form: `node-agent` (28 files), `health`, the other half of `runtime` (15 files), `shared` (8).
 
 ## 5. Recommended order
 
 Phases are ordered by how much each unblocks and how independent it is. Sizes: S ≤ 1 day, M a few days, L a week or more.
 
-1. **Convention sweep on what I wrote (S).** Convert the six services in 4.8 to `live = class`. No behaviour change.
+1. **Convention sweep on what I wrote (S). Done 2026-11-06** (commit 4e9faccff): `SecretInventory`, `StepUpGateway`, `Enrollment`, `MeshView`, `CloudflareTunnelEdge` and `ClusterEvents` are `live = class` services. Stateless ones are provided with `useClass`; `ClusterEvents` is stateful, so its collaborators are constructor arguments and the module builds it with `new ClusterEvents.live(deps)`. `edgeProviderOver(host)` is an adapter, not a service, and stays a function.
 2. **BFF (L).** Three controllers (`orchestration`, `console-control`, `setup`), three services (`CliAuthService`, `OverviewComposer`, `ScreenRead`), the clients and
    `ServiceClientRegistry` (with `packages/service-client`). The BFF is the only public surface and is 9 % Effect, so it is the biggest consistency gap per line.
 3. **Runtime `docker` module (L, the biggest).** Order: `DockerRepository` and `DeploymentRepository` (Promise → `database.use` / `DockerEngine`), then `DockerImageScanner` /
