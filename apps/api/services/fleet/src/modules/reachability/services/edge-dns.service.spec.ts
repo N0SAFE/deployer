@@ -132,7 +132,7 @@ const record = (
 const makeEdgeDnsService = (registry: DnsProviderRegistryServiceShape) =>
     // The fake registry reads nothing from the context, so the adapters' requirements are discharged.
     provideTo(
-        EdgeDnsService.live,
+        new EdgeDnsService.live(),
         (effect) =>
             effect.pipe(
                 Effect.provideService(DnsProviderRegistryService, registry)

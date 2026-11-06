@@ -6,9 +6,9 @@
  * lanes (the public edge through its provider + the DNS records the lanes need)
  * and the mesh view.
  *
- * The use cases are Layers (`ReachabilityLive`, see `reachability.layers.ts`) built by the app's
- * Effect runtime. The shared platform services they depend on stay Nest providers and are exposed
- * to the Effect side as ports with `useExisting`.
+ * The use cases are Effect services (`static readonly live`, provided with `useClass`) that yield
+ * their collaborators when a method runs. The shared platform services they depend on stay Nest
+ * providers and are exposed to the Effect side as ports with `useExisting`.
  */
 import { nodeDoorFromEnv } from '@deployer/mesh-client'
 import { createModuleContext, EffectHost } from '@deployer/nest-effect'
@@ -75,11 +75,11 @@ export class ReachabilityModule extends createModuleContext({
             useExisting: PublicAccessPointService,
         },
         { provide: EgressPort, useExisting: EgressService },
-        { provide: EdgeDnsService, useValue: EdgeDnsService.live },
-        { provide: IngressEdgeService, useValue: IngressEdgeService.live },
+        { provide: EdgeDnsService, useClass: EdgeDnsService.live },
+        { provide: IngressEdgeService, useClass: IngressEdgeService.live },
         {
             provide: NodeReachabilityService,
-            useValue: NodeReachabilityService.live,
+            useClass: NodeReachabilityService.live,
         },
         // Converges lane DNS on a cadence from when the module is built; stopped with the application.
         {

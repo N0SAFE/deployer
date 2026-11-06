@@ -136,7 +136,7 @@ const cloudflareTunnelConnectionSchema = z
         opened_at: z.string().nullish(),
         origin_ip: z.string().nullish(),
     })
-    .passthrough()
+    .loose()
 
 /**
  * Raw Cloudflare tunnel summary payload (list + get endpoints).
@@ -157,7 +157,12 @@ const cloudflareTunnelSummarySchema = z
         tun_type: z.string().nullish(),
         created_at: z.string().nullish(),
     })
-    .passthrough()
+    .loose()
+
+/** The `connections` field a tunnel summary carries: absent on newer API versions. */
+const cloudflareTunnelConnectionsFieldSchema = z.object({
+    connections: z.array(z.unknown()).optional(),
+})
 
 /** The all-null connection shape used when parsing fails. */
 const emptyTunnelConnectionShape: TunnelConnectionShape = {
@@ -192,6 +197,20 @@ export function toTunnelConnectionShape(input: unknown): TunnelConnectionShape {
         openedAt: c.opened_at ?? null,
         originIp: c.origin_ip ?? null,
     }
+}
+
+/**
+ * The connections a tunnel summary carries, normalized.
+ *
+ * Takes `unknown` on purpose: the SDK marks the field deprecated (it answers an empty array in
+ * newer API versions) but it is still what the list endpoint sends, so reading it through the
+ * schema — rather than off the SDK's type — is the only way to keep the list cheap (one request)
+ * without depending on a deprecated member.
+ */
+export function connectionShapesOf(input: unknown): TunnelConnectionShape[] {
+    const parsed = cloudflareTunnelConnectionsFieldSchema.safeParse(input)
+    if (!parsed.success) return []
+    return (parsed.data.connections ?? []).map(toTunnelConnectionShape)
 }
 
 /**
@@ -231,8 +250,8 @@ export function toTunnelShape(
  */
 export function toCloudflareErrorMessage(error: unknown): string {
     if (error instanceof Error) {
-        const name = error.name ?? ''
-        const message = error.message ?? ''
+        const name = error.name
+        const message = error.message
         if (
             name === 'APIConnectionError' ||
             /connection|ECONNREFUSED|ENOTFOUND|fetch failed|network/i.test(

@@ -30,7 +30,7 @@ async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
  */
 function tunnelServiceOver(appService: object) {
     const over = provideTo(
-        CloudflareTunnelService.live,
+        new CloudflareTunnelService.live(),
         (effect) =>
             effect.pipe(
                 Effect.provideService(

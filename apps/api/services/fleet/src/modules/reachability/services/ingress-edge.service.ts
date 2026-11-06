@@ -32,7 +32,6 @@ import {
     type IngressLanes,
     type PublicLane,
 } from '@deployer/contracts-entities/entities/ingress/index'
-import { bindServices, serviceOver, type Over } from '@deployer/effect-core'
 import type {
     IngressState,
     UpdateIngressInput,
@@ -133,32 +132,68 @@ type Ports = {
     readonly dns: EdgeDnsServiceShape
 }
 
-/** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
+/** The ports, yielded when a method runs: every collaborator is a tag, read from the context once per call. */
+const portsOf = Effect.gen(function* () {
+    return {
+        lanes: yield* IngressLanesPort,
+        edges: yield* EdgeProvidersPort,
+        publicEdge: yield* PublicEdgePort,
+        mesh: yield* NodeAgentPort,
+        hostnames: yield* HostnamesPort,
+        refresher: yield* TraefikRefresherPort,
+        dns: yield* EdgeDnsService,
+    } satisfies Ports
+})
+
+/** Tag and implementation together: the tag is the contract, `live` the one implementation. */
 export class IngressEdgeService extends Context.Service<
     IngressEdgeService,
-    Over<IngressEdgeServiceShape, IngressEdgePorts>
+    IngressEdgeServiceShape
 >()('fleet/IngressEdgeService') {
     /**
-     * The ports are yielded when a method runs, so this is a constant the module provides with `useValue`.
-     * The periodic DNS reconcile is `startIngressDnsReconciler`'s job: a constant has no lifetime of its own.
+     * The ports are yielded when a method runs, so this is a class the module provides with `useClass`.
+     * The periodic DNS reconcile is `startIngressDnsReconciler`'s job: an instance has no lifetime of its own.
      */
-    static readonly live = serviceOver(
-        Effect.gen(function* () {
-            const lanes = yield* IngressLanesPort
-            const edges = yield* EdgeProvidersPort
-            const publicEdge = yield* PublicEdgePort
-            const mesh = yield* NodeAgentPort
-            const hostnames = yield* HostnamesPort
-            const refresher = yield* TraefikRefresherPort
-            // The DNS service reads its own registry from the context; hand it over with that settled.
-            const dns = bindServices(
-                yield* EdgeDnsService,
-                yield* Effect.context<DnsProviderRegistryServices>()
+    static readonly live = class IngressEdgeServiceImpl implements IngressEdgeServiceShape {
+        getState(): ReturnType<IngressEdgeServiceShape['getState']> {
+            return Effect.flatMap(portsOf, (ports) =>
+                implOverPorts(ports).getState()
             )
-            return { lanes, edges, publicEdge, mesh, hostnames, refresher, dns }
-        }),
-        makeIngressEdgeService
-    )
+        }
+
+        update(
+            input: UpdateIngressInput
+        ): ReturnType<IngressEdgeServiceShape['update']> {
+            return Effect.flatMap(portsOf, (ports) =>
+                implOverPorts(ports).update(input)
+            )
+        }
+
+        teardownPublicEdge(): ReturnType<
+            IngressEdgeServiceShape['teardownPublicEdge']
+        > {
+            return Effect.flatMap(portsOf, (ports) =>
+                implOverPorts(ports).teardownPublicEdge()
+            )
+        }
+
+        revokeMeshMember(
+            memberId: string,
+            reason: string
+        ): ReturnType<IngressEdgeServiceShape['revokeMeshMember']> {
+            return Effect.flatMap(portsOf, (ports) =>
+                implOverPorts(ports).revokeMeshMember(memberId, reason)
+            )
+        }
+
+        reconcileDns(
+            retired?: readonly RetiredDnsName[]
+        ): ReturnType<IngressEdgeServiceShape['reconcileDns']> {
+            return Effect.flatMap(portsOf, (ports) =>
+                implOverPorts(ports).reconcileDns(retired)
+            )
+        }
+    }
 }
 
 /**
@@ -220,7 +255,7 @@ function toMeshView(
     }
 }
 
-function makeIngressEdgeService(ports: Ports): IngressEdgeServiceShape {
+function implOverPorts(ports: Ports): IngressEdgeServiceShape {
     const {
         lanes: lanesPort,
         edges,
@@ -330,15 +365,17 @@ function makeIngressEdgeService(ports: Ports): IngressEdgeServiceShape {
     ): Effect.Effect<void, unknown> => {
         const provider = edges.find(providerId)
         if (provider === null) return Effect.void
-        return provider.teardown().pipe(
-            Effect.catch((error) =>
-                strict
-                    ? Effect.fail(error)
-                    : Effect.logWarning(
-                          `${provider.descriptor.label} not torn down (it no longer carries the public lane): ${describe(error)}`
-                      )
+        return provider
+            .teardown()
+            .pipe(
+                Effect.catch((error) =>
+                    strict
+                        ? Effect.fail(error)
+                        : Effect.logWarning(
+                              `${provider.descriptor.label} not torn down (it no longer carries the public lane): ${describe(error)}`
+                          )
+                )
             )
-        )
     }
 
     /**

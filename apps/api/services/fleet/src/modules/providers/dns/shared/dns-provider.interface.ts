@@ -1,10 +1,11 @@
 import type { DnsRecordType } from '@deployer/contracts-common'
 
-import type { Effect } from 'effect'
-
 /**
- * DNS Provider Interface — abstract contract every DNS provider adapter
- * implements. THE abstract contract is the shared dispatch surface.
+ * DNS Provider Interface — the shapes every DNS provider adapter answers.
+ *
+ * The adapters themselves are Effect services (one `Context.Service` tag each, e.g.
+ * `CloudflareDnsProviderService`); the registry dispatches on the key it registers them under, so no
+ * adapter carries a type key of its own and no separate adapter type is declared here.
  */
 
 export type DnsProviderAccountRef = {
@@ -38,40 +39,4 @@ export type CreateDnsRecordInput = {
     content: string
     ttl?: number
     proxied?: boolean
-}
-
-/**
- * What a DNS provider adapter answers, as Effects. `R` is what the adapter reads from the Effect
- * context; the registry dispatches on the key the adapter is registered under, so the adapter carries
- * no type key of its own.
- */
-export type DnsProvider<R = never> = {
-    /** Accounts this provider type knows about. */
-    listAccounts(): Effect.Effect<DnsProviderAccountRef[], unknown, R>
-
-    listZones(
-        account: DnsProviderAccountRef
-    ): Effect.Effect<DnsProviderZone[], unknown, R>
-
-    /** Find the zone whose name is the longest suffix of `hostname`. */
-    findZoneForHostname(
-        account: DnsProviderAccountRef,
-        hostname: string
-    ): Effect.Effect<{ zoneId: string; zoneName: string } | null, unknown, R>
-
-    listRecords(
-        account: DnsProviderAccountRef,
-        zoneId: string
-    ): Effect.Effect<DnsProviderRecord[], unknown, R>
-
-    createRecord(
-        account: DnsProviderAccountRef,
-        input: CreateDnsRecordInput
-    ): Effect.Effect<DnsProviderRecord, unknown, R>
-
-    deleteRecord(
-        account: DnsProviderAccountRef,
-        zoneId: string,
-        recordId: string
-    ): Effect.Effect<void, unknown, R>
 }

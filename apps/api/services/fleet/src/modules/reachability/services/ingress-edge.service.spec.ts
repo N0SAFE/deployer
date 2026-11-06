@@ -172,7 +172,7 @@ function setup(initial: IngressLanes = defaultIngressLanes()) {
     // The fakes need nothing from the context beyond what is provided here, so the DNS registry's
     // adapter requirements are discharged.
     const service = provideTo(
-        IngressEdgeService.live,
+        new IngressEdgeService.live(),
         (effect) =>
             effect.pipe(
                 Effect.provideService(IngressLanesPort, lanesService as never),

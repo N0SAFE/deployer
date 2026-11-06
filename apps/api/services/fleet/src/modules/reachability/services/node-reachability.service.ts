@@ -1,12 +1,9 @@
 import { Context, Effect } from 'effect'
 import { Observable } from 'rxjs'
 
-import { serviceOver, type Over } from '@deployer/effect-core'
-import type { EgressServiceShape } from '@deployer/shared/core/modules/egress/egress.service'
 import type { NodeNetworkConfigData } from '@deployer/shared/core/modules/reachability/services/node-network-config.mapper'
 import type { PublicAccessPointServiceShape } from '@deployer/shared/core/modules/reachability/services/public-access-point.service'
 import type { ReachabilityServiceShape } from '@deployer/shared/core/modules/reachability/services/reachability.service'
-import type { TraefikConfigRefresherShape } from '@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service'
 
 import { attemptSync } from '../../../core/effects'
 import {
@@ -44,11 +41,6 @@ type PublicUrlProbe = {
 const describe = (error: unknown, fallback: string) =>
     error instanceof Error ? error.message : fallback
 
-/**
- * What the Network pages ask about reachability: is a URL up, what is this node's public address,
- * may a domain be used yet. A probe never fails: an unreachable URL is the answer, not an error.
- * The calls that read or write shared state fail with whatever the platform service refused with.
- */
 /**
  * What the reachability service reads from the Effect context while it runs.
  */
@@ -123,30 +115,6 @@ export type NodeReachabilityServiceShape = {
     >
 }
 
-type Ports = {
-    readonly reachability: ReachabilityServiceShape
-    readonly accessPoint: PublicAccessPointServiceShape
-    readonly egress: EgressServiceShape
-    readonly refresher: TraefikConfigRefresherShape
-}
-
-/** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
-export class NodeReachabilityService extends Context.Service<
-    NodeReachabilityService,
-    Over<NodeReachabilityServiceShape, NodeReachabilityPorts>
->()('fleet/NodeReachabilityService') {
-    /** The ports are yielded when a method runs, so this is a constant the module provides with `useValue`. */
-    static readonly live = serviceOver(
-        Effect.all({
-            reachability: ReachabilityCorePort,
-            accessPoint: PublicAccessPointPort,
-            egress: EgressPort,
-            refresher: TraefikRefresherPort,
-        }),
-        makeNodeReachabilityService
-    )
-}
-
 const toNodeNetworkView = (config: NodeNetworkConfigData): NodeNetworkView => ({
     nodeId: config.nodeId,
     publicAddress: config.publicAddress,
@@ -154,115 +122,144 @@ const toNodeNetworkView = (config: NodeNetworkConfigData): NodeNetworkView => ({
     updatedAt: config.updatedAt,
 })
 
-function makeNodeReachabilityService({
-    reachability,
-    accessPoint,
-    egress,
-    refresher,
-}: Ports): NodeReachabilityServiceShape {
-    const isOk = (status: number) => status >= 200 && status < 300
+/** 2xx, the one definition of "the probe answered". */
+const isOk = (status: number) => status >= 200 && status < 300
 
-    const probePublicUrl = Effect.fn('NodeReachabilityService.probePublicUrl')(
-        function* () {
-            const publicUrl = yield* reachability.getNodePublicUrl()
-            if (!publicUrl)
-                return {
-                    publicUrl: null,
-                    lastCheckedAt: null,
-                    lastStatus: null,
-                    reachable: null,
-                }
-            return yield* egress.operator({ url: `${publicUrl}/health` }).pipe(
-                Effect.map((resp): PublicUrlProbe => ({
-                    publicUrl,
-                    lastCheckedAt: new Date().toISOString(),
-                    lastStatus: isOk(resp.status)
-                        ? 'reachable'
-                        : `http_${String(resp.status)}`,
-                    reachable: isOk(resp.status),
-                })),
-                Effect.catch((err) =>
-                    Effect.succeed<PublicUrlProbe>({
-                        publicUrl,
-                        lastCheckedAt: new Date().toISOString(),
-                        lastStatus: describe(err, 'unreachable'),
-                        reachable: false,
-                    })
-                )
-            )
-        }
-    )
-
-    return {
-        check: Effect.fn('NodeReachabilityService.check')(function* (url) {
-            const probeUrl = `${url.replace(/\/$/, '')}/mesh/ping`
-            const start = Date.now()
-            // Any authenticated user can name this URL: it goes through the operator egress policy
-            // (no loopback / link-local / metadata, no redirects) and failures are reported as a
-            // category, never as a resolved address or a transport error.
-            return yield* egress.operator({ url: probeUrl }).pipe(
-                Effect.map((resp) => ({
-                    url,
-                    reachable: isOk(resp.status),
-                    latencyMs: Date.now() - start,
-                    statusCode: resp.status,
-                    error: isOk(resp.status)
-                        ? undefined
-                        : `HTTP ${String(resp.status)}`,
-                })),
-                Effect.catch((err) =>
-                    Effect.succeed({
+/** Tag and implementation together: the tag is the contract, `live` the one implementation. */
+export class NodeReachabilityService extends Context.Service<
+    NodeReachabilityService,
+    NodeReachabilityServiceShape
+>()('fleet/NodeReachabilityService') {
+    /** The ports are yielded when a method runs, so this is a class the module provides with `useClass`. */
+    static readonly live = class NodeReachabilityServiceImpl implements NodeReachabilityServiceShape {
+        check(url: string): ReturnType<NodeReachabilityServiceShape['check']> {
+            return Effect.gen(function* () {
+                const egress = yield* EgressPort
+                const probeUrl = `${url.replace(/\/$/, '')}/mesh/ping`
+                const start = Date.now()
+                // Any authenticated user can name this URL: it goes through the operator egress policy
+                // (no loopback / link-local / metadata, no redirects) and failures are reported as a
+                // category, never as a resolved address or a transport error.
+                return yield* egress.operator({ url: probeUrl }).pipe(
+                    Effect.map((resp) => ({
                         url,
-                        reachable: false,
+                        reachable: isOk(resp.status),
                         latencyMs: Date.now() - start,
-                        error: describe(err, 'Connection failed'),
-                    })
+                        statusCode: resp.status,
+                        error: isOk(resp.status)
+                            ? undefined
+                            : `HTTP ${String(resp.status)}`,
+                    })),
+                    Effect.catch((err) =>
+                        Effect.succeed({
+                            url,
+                            reachable: false,
+                            latencyMs: Date.now() - start,
+                            error: describe(err, 'Connection failed'),
+                        })
+                    )
                 )
-            )
-        }),
+            })
+        }
 
-        probePublicUrl,
+        probePublicUrl(): ReturnType<
+            NodeReachabilityServiceShape['probePublicUrl']
+        > {
+            return Effect.gen(function* () {
+                const reachability = yield* ReachabilityCorePort
+                const egress = yield* EgressPort
+                const publicUrl = yield* reachability.getNodePublicUrl()
+                if (!publicUrl)
+                    return {
+                        publicUrl: null,
+                        lastCheckedAt: null,
+                        lastStatus: null,
+                        reachable: null,
+                    }
+                return yield* egress
+                    .operator({ url: `${publicUrl}/health` })
+                    .pipe(
+                        Effect.map((resp): PublicUrlProbe => ({
+                            publicUrl,
+                            lastCheckedAt: new Date().toISOString(),
+                            lastStatus: isOk(resp.status)
+                                ? 'reachable'
+                                : `http_${String(resp.status)}`,
+                            reachable: isOk(resp.status),
+                        })),
+                        Effect.catch((err) =>
+                            Effect.succeed<PublicUrlProbe>({
+                                publicUrl,
+                                lastCheckedAt: new Date().toISOString(),
+                                lastStatus: describe(err, 'unreachable'),
+                                reachable: false,
+                            })
+                        )
+                    )
+            })
+        }
 
-        checkDomain: Effect.fn('NodeReachabilityService.checkDomain')(
-            function* (domain, expectedIp) {
+        checkDomain(
+            domain: string,
+            expectedIp?: string
+        ): ReturnType<NodeReachabilityServiceShape['checkDomain']> {
+            return Effect.gen(function* () {
+                const reachability = yield* ReachabilityCorePort
                 return yield* reachability.checkDomainReachability(
                     domain,
                     expectedIp
                 )
-            }
-        ),
+            })
+        }
 
-        getPublicIp: Effect.fn('NodeReachabilityService.getPublicIp')(
-            function* () {
+        getPublicIp(): ReturnType<NodeReachabilityServiceShape['getPublicIp']> {
+            return Effect.gen(function* () {
+                const reachability = yield* ReachabilityCorePort
                 return { ip: yield* reachability.getPublicIp() }
-            }
-        ),
+            })
+        }
 
-        getNodeNetworkConfig: Effect.fn(
-            'NodeReachabilityService.getNodeNetworkConfig'
-        )(function* (nodeId) {
-            return toNodeNetworkView(
-                yield* reachability.getNodeNetworkConfig(nodeId)
-            )
-        }),
+        getNodeNetworkConfig(
+            nodeId: Parameters<
+                ReachabilityServiceShape['getNodeNetworkConfig']
+            >[0]
+        ): ReturnType<NodeReachabilityServiceShape['getNodeNetworkConfig']> {
+            return Effect.gen(function* () {
+                const reachability = yield* ReachabilityCorePort
+                return toNodeNetworkView(
+                    yield* reachability.getNodeNetworkConfig(nodeId)
+                )
+            })
+        }
 
-        listNodeNetworkConfigs: Effect.fn(
-            'NodeReachabilityService.listNodeNetworkConfigs'
-        )(function* () {
-            const configs = yield* reachability.listNodeNetworkConfigs()
-            return { configs: configs.map(toNodeNetworkView) }
-        }),
+        listNodeNetworkConfigs(): ReturnType<
+            NodeReachabilityServiceShape['listNodeNetworkConfigs']
+        > {
+            return Effect.gen(function* () {
+                const reachability = yield* ReachabilityCorePort
+                const configs = yield* reachability.listNodeNetworkConfigs()
+                return { configs: configs.map(toNodeNetworkView) }
+            })
+        }
 
-        updateNodeNetworkConfig: Effect.fn(
-            'NodeReachabilityService.updateNodeNetworkConfig'
-        )(function* (input) {
-            const updated = yield* reachability.updateNodeNetworkConfig(input)
-            refresher.refresh()
-            return toNodeNetworkView(updated)
-        }),
+        updateNodeNetworkConfig(
+            input: NodeConfigUpdate
+        ): ReturnType<NodeReachabilityServiceShape['updateNodeNetworkConfig']> {
+            return Effect.gen(function* () {
+                const reachability = yield* ReachabilityCorePort
+                const refresher = yield* TraefikRefresherPort
+                const updated =
+                    yield* reachability.updateNodeNetworkConfig(input)
+                refresher.refresh()
+                return toNodeNetworkView(updated)
+            })
+        }
 
-        checkDomainGate: Effect.fn('NodeReachabilityService.checkDomainGate')(
-            function* () {
+        checkDomainGate(): ReturnType<
+            NodeReachabilityServiceShape['checkDomainGate']
+        > {
+            return Effect.gen(function* () {
+                const reachability = yield* ReachabilityCorePort
                 const gate = yield* reachability.checkDomainGate()
                 return {
                     allowed: gate.allowed,
@@ -270,38 +267,46 @@ function makeNodeReachabilityService({
                     publicAddress: gate.publicAddress,
                     addressKind: gate.addressKind,
                 }
-            }
-        ),
+            })
+        }
 
-        getPublicAccessPoint: Effect.fn(
-            'NodeReachabilityService.getPublicAccessPoint'
-        )(function* () {
-            const state = yield* accessPoint.getAccessPoint()
-            yield* Effect.logInfo(
-                `Public access point requested: kind=${String(state.kind)} url=${state.publicUrl ?? 'none'} reachable=${String(state.reachable)}`
-            )
-            return state
-        }),
+        getPublicAccessPoint(): ReturnType<
+            NodeReachabilityServiceShape['getPublicAccessPoint']
+        > {
+            return Effect.gen(function* () {
+                const accessPoint = yield* PublicAccessPointPort
+                const state = yield* accessPoint.getAccessPoint()
+                yield* Effect.logInfo(
+                    `Public access point requested: kind=${String(state.kind)} url=${state.publicUrl ?? 'none'} reachable=${String(state.reachable)}`
+                )
+                return state
+            })
+        }
 
-        watchPublicAccessPoint: Effect.fn(
-            'NodeReachabilityService.watchPublicAccessPoint'
-        )(function* () {
-            return yield* attemptSync(
-                () =>
-                    new Observable<AccessPointState>((subscriber) => {
-                        const sub = accessPoint.watchAccessPoint().subscribe({
-                            next: (state) => {
-                                subscriber.next(state)
-                            },
-                            error: (err) => {
-                                subscriber.error(err)
-                            },
+        watchPublicAccessPoint(): ReturnType<
+            NodeReachabilityServiceShape['watchPublicAccessPoint']
+        > {
+            return Effect.gen(function* () {
+                const accessPoint = yield* PublicAccessPointPort
+                return yield* attemptSync(
+                    () =>
+                        new Observable<AccessPointState>((subscriber) => {
+                            const sub = accessPoint
+                                .watchAccessPoint()
+                                .subscribe({
+                                    next: (state) => {
+                                        subscriber.next(state)
+                                    },
+                                    error: (err) => {
+                                        subscriber.error(err)
+                                    },
+                                })
+                            return () => {
+                                sub.unsubscribe()
+                            }
                         })
-                        return () => {
-                            sub.unsubscribe()
-                        }
-                    })
-            )
-        }),
+                )
+            })
+        }
     }
 }

@@ -77,7 +77,7 @@ function setup(rows: Record<string, ReturnType<typeof row>> = { p1: row() }) {
     const edges = { accountsInUse: vi.fn((): string[] => []) }
     // The fakes need nothing from the context beyond what is provided here.
     const service = provideTo(
-        CloudflareAppService.live,
+        new CloudflareAppService.live(),
         (effect) =>
             effect.pipe(
                 Effect.provideService(

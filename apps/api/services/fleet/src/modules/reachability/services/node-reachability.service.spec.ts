@@ -21,7 +21,7 @@ describe('NodeReachabilityService outbound probes', () => {
     }
     let refresher: { refresh: ReturnType<typeof vi.fn> }
     let service: ReturnType<
-        typeof provideTo<typeof NodeReachabilityService.live>
+        typeof provideTo<InstanceType<typeof NodeReachabilityService.live>>
     >
 
     const res = (status: number) => ({
@@ -38,7 +38,7 @@ describe('NodeReachabilityService outbound probes', () => {
             updateNodeNetworkConfig: vi.fn(),
         }
         refresher = { refresh: vi.fn() }
-        service = provideTo(NodeReachabilityService.live, (effect) =>
+        service = provideTo(new NodeReachabilityService.live(), (effect) =>
             effect.pipe(
                 Effect.provideService(
                     ReachabilityCorePort,

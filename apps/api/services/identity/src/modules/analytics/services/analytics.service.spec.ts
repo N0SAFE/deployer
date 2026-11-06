@@ -53,13 +53,15 @@ function makeRepository() {
 
 describe('AnalyticsService', () => {
     let repo: ReturnType<typeof makeRepository>
-    let service: ReturnType<typeof provideTo<typeof AnalyticsService.live>>
+    let service: ReturnType<
+        typeof provideTo<InstanceType<typeof AnalyticsService.live>>
+    >
 
     beforeEach(() => {
         vi.useFakeTimers()
         vi.setSystemTime(NOW)
         repo = makeRepository()
-        service = provideTo(AnalyticsService.live, (effect) =>
+        service = provideTo(new AnalyticsService.live(), (effect) =>
             effect.pipe(
                 Effect.provideService(AnalyticsRepository, repo as never),
                 Effect.provideService(DatabasePort, {} as never)

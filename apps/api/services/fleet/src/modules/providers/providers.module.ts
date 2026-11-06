@@ -81,7 +81,15 @@ import { DeploymentTriggerGateway } from './code/github/services/deployment-trig
 import { GithubDeploymentRuleService } from './code/github/services/github-deployment-rule.service'
 import { GithubSourceProviderService } from './code/github/services/github-source-provider.service'
 import { GithubWebhookDispatchService } from './code/github/services/github-webhook-dispatch.service'
+import { PreviewProvisioningService } from './code/github/services/preview-provisioning.service'
+import {
+    PREVIEW_TTL_CLEANUP,
+    PreviewTtlCleanupService,
+    startPreviewTtlCleanup,
+} from './code/github/services/preview-ttl-cleanup.service'
+import { WebhookIdempotencyService } from './code/github/services/webhook-idempotency.service'
 import { GitlabAppsController } from './code/gitlab/controllers/gitlab-account.controller'
+import { GitlabAppsStore } from './code/gitlab/repositories/gitlab-apps.repository'
 import { GitlabSourceProviderService } from './code/gitlab/services/gitlab-source-provider.service'
 import { CodeProviderRegistryService } from './code/shared/code-provider-registry.service'
 import { UploadBundleRegistryService } from './code/upload/services/upload-bundle-registry.service'
@@ -90,31 +98,22 @@ import { CloudflareController } from './dns/cloudflare/controllers/cloudflare.co
 import { CloudflareAppService } from './dns/cloudflare/services/cloudflare-app.service'
 import { CloudflareDnsProviderService } from './dns/cloudflare/services/cloudflare-dns-provider.service'
 import { CloudflareTunnelService } from './dns/cloudflare/services/cloudflare-tunnel.service'
+import { DnsProvidersController } from './dns/shared/controllers/dns-providers.controller'
 import { DnsProviderRegistryService } from './dns/shared/dns-provider-registry.service'
 import { DnsProvidersStore } from './dns/shared/repositories/dns-providers.repository'
-
-import {
-    CloudflareTunnelEdge,
-    edgeProviderOver,
-} from './edge/cloudflare-tunnel/cloudflare-tunnel.edge-provider'
 import {
     CloudflaredSettings,
     type CloudflaredSettingsShape,
 } from './edge/cloudflare-tunnel/cloudflare-tunnel.edge-ports'
+import {
+    CloudflareTunnelEdge,
+    edgeProviderOver,
+} from './edge/cloudflare-tunnel/cloudflare-tunnel.edge-provider'
 
 // `GithubWebhookDispatchService` injects `DomainRoutingService`, which
 // `CoreDomainModule` owns — without this import the module cannot be constructed.
 
-import { DnsProvidersController } from './dns/shared/controllers/dns-providers.controller'
 // GitHub webhook / preview stack (absorbed from the former modules/github)
-import { WebhookIdempotencyService } from './code/github/services/webhook-idempotency.service'
-import { PreviewProvisioningService } from './code/github/services/preview-provisioning.service'
-import {
-    PREVIEW_TTL_CLEANUP,
-    PreviewTtlCleanupService,
-    startPreviewTtlCleanup,
-} from './code/github/services/preview-ttl-cleanup.service'
-import { GitlabAppsStore } from './code/gitlab/repositories/gitlab-apps.repository'
 
 /** The DI token of the registered Cloudflare tunnel edge. */
 const CLOUDFLARE_TUNNEL_EDGE_REGISTRATION = Symbol('CLOUDFLARE_TUNNEL_EDGE_REGISTRATION')
@@ -170,27 +169,27 @@ export class ProvidersModule extends createModuleContext(
                 useValue: CodeProviderRegistryService.live,
             },
             // DNS providers — Effect services over the fleet database and two shared platform services.
-            // Each is a constant (`useValue`); the 15 s state cache lives in `CloudflareAppService.live`.
+            // Each is a class whose methods yield their collaborators, so Nest builds one instance.
             { provide: FleetDb, useValue: FleetDb.live },
             { provide: IngressLanes, useExisting: IngressLanesService },
             { provide: EdgeProviders, useExisting: EdgeProviderRegistry },
             { provide: DnsProvidersStore, useValue: DnsProvidersStore.live },
             {
                 provide: CloudflareAppService,
-                useValue: CloudflareAppService.live,
+                useClass: CloudflareAppService.live,
             },
             {
                 provide: CloudflareTunnelService,
-                useValue: CloudflareTunnelService.live,
+                useClass: CloudflareTunnelService.live,
             },
             {
                 provide: CloudflareDnsProviderService,
-                useValue: CloudflareDnsProviderService.live,
+                useClass: CloudflareDnsProviderService.live,
             },
-            // A second DNS provider is one more entry in the registry's `Effect.all`, not a change here.
+            // A second DNS provider is one more entry in the registry's `REGISTERED_PROVIDERS`, not a change here.
             {
                 provide: DnsProviderRegistryService,
-                useValue: DnsProviderRegistryService.live,
+                useClass: DnsProviderRegistryService.live,
             },
             // The Cloudflare tunnel edge: an Effect service over the tunnel API, the edge state and the connector settings.
             { provide: CloudflareTunnelEdge, useClass: CloudflareTunnelEdge.live },

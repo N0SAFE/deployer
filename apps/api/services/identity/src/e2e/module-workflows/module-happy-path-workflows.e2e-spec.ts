@@ -117,10 +117,10 @@ function runAnalytics<A, E>(
             const analytics = yield* AnalyticsService
             return yield* use(analytics)
         }).pipe(
-            Effect.provideService(AnalyticsService, AnalyticsService.live),
+            Effect.provideService(AnalyticsService, new AnalyticsService.live()),
             Effect.provideService(
                 AnalyticsRepository,
-                AnalyticsRepository.live
+                new AnalyticsRepository.live()
             ),
             Effect.provideService(DatabasePort, database)
         )

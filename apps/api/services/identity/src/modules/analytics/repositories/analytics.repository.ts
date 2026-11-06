@@ -11,7 +11,6 @@ import {
 } from 'drizzle-orm'
 import { Context, Effect } from 'effect'
 
-import { serviceOver } from '@deployer/effect-core'
 import { analyticsReports } from '@deployer/nest-schema/global/identity/analytics'
 import { analyticsReportConfigs } from '@deployer/nest-schema/global/identity/analytics'
 import {
@@ -499,38 +498,198 @@ const attempt = <T>(
         catch: (cause) => new AnalyticsRepositoryFailure({ cause }),
     })
 
-const makeAnalyticsRepository = (
-    database: DatabaseShape
-): AnalyticsRepositoryShape => {
-    const queries = new AnalyticsQueries(database)
-    const prototype = Object.getPrototypeOf(queries) as Record<string, unknown>
-    const entries = Object.getOwnPropertyNames(prototype)
-        .filter(
-            (name) =>
-                name !== 'constructor' && typeof prototype[name] === 'function'
-        )
-        .map((name) => [
-            name,
-            (...args: unknown[]) =>
-                attempt(
-                    async () =>
-                        (await (
-                            prototype[name] as (
-                                ...a: unknown[]
-                            ) => Promise<unknown>
-                        ).apply(queries, args)) as unknown
-                ),
-        ])
-    return Object.fromEntries(entries) as AnalyticsRepositoryShape
-}
-
-/** Tag and implementation together: the tag is the contract, `Live` the Drizzle implementation. */
+/**
+ * Tag and implementation together: the tag is the contract, `live` the Drizzle implementation.
+ *
+ * The database is yielded when a method runs, so the module provides this with `useClass` and a spec
+ * substitutes the port with `Effect.provideService`. Each method delegates to the plain `AnalyticsQueries`
+ * class over the connection it just opened, and wraps the driver call so a failure becomes a typed error
+ * rather than a defect.
+ */
 export class AnalyticsRepository extends Context.Service<
     AnalyticsRepository,
     AnalyticsRepositoryShape
 >()('identity/AnalyticsRepository') {
-    /** The database is yielded when a method runs, so this is a constant the module provides with `useValue`. */
-    static readonly live = serviceOver(DatabasePort, makeAnalyticsRepository)
+    static readonly live = class AnalyticsRepositoryImpl implements AnalyticsRepositoryShape {
+        deploymentsInRange(
+            start: Date,
+            end: Date,
+            serviceIds?: string[]
+        ): ReturnType<AnalyticsRepositoryShape['deploymentsInRange']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* attempt(() =>
+                    new AnalyticsQueries(database).deploymentsInRange(
+                        start,
+                        end,
+                        serviceIds
+                    )
+                )
+            })
+        }
+
+        rollbacksInRange(
+            start: Date,
+            end: Date
+        ): ReturnType<AnalyticsRepositoryShape['rollbacksInRange']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* attempt(() =>
+                    new AnalyticsQueries(database).rollbacksInRange(start, end)
+                )
+            })
+        }
+
+        serviceRows(
+            serviceNames?: string[]
+        ): ReturnType<AnalyticsRepositoryShape['serviceRows']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* attempt(() =>
+                    new AnalyticsQueries(database).serviceRows(serviceNames)
+                )
+            })
+        }
+
+        latestDeploymentPerService(
+            serviceIds: string[]
+        ): ReturnType<AnalyticsRepositoryShape['latestDeploymentPerService']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* attempt(() =>
+                    new AnalyticsQueries(database).latestDeploymentPerService(
+                        serviceIds
+                    )
+                )
+            })
+        }
+
+        projectNamesByIds(
+            ids: string[]
+        ): ReturnType<AnalyticsRepositoryShape['projectNamesByIds']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* attempt(() =>
+                    new AnalyticsQueries(database).projectNamesByIds(ids)
+                )
+            })
+        }
+
+        serviceCountsByProjects(
+            projectIds: string[]
+        ): ReturnType<AnalyticsRepositoryShape['serviceCountsByProjects']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* attempt(() =>
+                    new AnalyticsQueries(database).serviceCountsByProjects(
+                        projectIds
+                    )
+                )
+            })
+        }
+
+        insertReport(
+            input: Parameters<AnalyticsQueries['insertReport']>[0]
+        ): ReturnType<AnalyticsRepositoryShape['insertReport']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* attempt(() =>
+                    new AnalyticsQueries(database).insertReport(input)
+                )
+            })
+        }
+
+        findReport(
+            id: string
+        ): ReturnType<AnalyticsRepositoryShape['findReport']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* attempt(() =>
+                    new AnalyticsQueries(database).findReport(id)
+                )
+            })
+        }
+
+        listReports(
+            limit: number,
+            offset: number,
+            status?: ReportStatus
+        ): ReturnType<AnalyticsRepositoryShape['listReports']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* attempt(() =>
+                    new AnalyticsQueries(database).listReports(
+                        limit,
+                        offset,
+                        status
+                    )
+                )
+            })
+        }
+
+        deleteReport(
+            id: string
+        ): ReturnType<AnalyticsRepositoryShape['deleteReport']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* attempt(() =>
+                    new AnalyticsQueries(database).deleteReport(id)
+                )
+            })
+        }
+
+        insertReportConfig(
+            input: Parameters<AnalyticsQueries['insertReportConfig']>[0]
+        ): ReturnType<AnalyticsRepositoryShape['insertReportConfig']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* attempt(() =>
+                    new AnalyticsQueries(database).insertReportConfig(input)
+                )
+            })
+        }
+
+        listReportConfigs(
+            limit: number,
+            offset: number
+        ): ReturnType<AnalyticsRepositoryShape['listReportConfigs']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* attempt(() =>
+                    new AnalyticsQueries(database).listReportConfigs(
+                        limit,
+                        offset
+                    )
+                )
+            })
+        }
+
+        updateReportConfig(
+            id: string,
+            updates: Parameters<AnalyticsQueries['updateReportConfig']>[1]
+        ): ReturnType<AnalyticsRepositoryShape['updateReportConfig']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* attempt(() =>
+                    new AnalyticsQueries(database).updateReportConfig(
+                        id,
+                        updates
+                    )
+                )
+            })
+        }
+
+        deleteReportConfig(
+            id: string
+        ): ReturnType<AnalyticsRepositoryShape['deleteReportConfig']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* attempt(() =>
+                    new AnalyticsQueries(database).deleteReportConfig(id)
+                )
+            })
+        }
+    }
 }
 
 /**
