@@ -6,6 +6,19 @@ session ran for a long time with one operator and is ending because of a usage l
 continue without asking what happened. Where this file and the repo disagree, the repo wins; where this file and the
 operator's latest message disagree, the operator wins.
 
+## Mission (read this first)
+
+1. **Continue the migration of the whole API tier to Effect** until nothing in `apps/api/*`, `apps/setup` and the runtime packages is a
+   Promise-style class, a Nest provider with hooks, a `.handler(async …)` controller or a thrown Nest/oRPC exception. The map is
+   `docs/architecture/effect-migration-audit-2026-11-06.md`; the order is in section 5.
+2. **Convert every service that uses the `make<X>()` / `serviceOver(…, make<X>)` pattern to the `static readonly live = class XImpl implements XShape` form**
+   (the operator's explicit instruction; the repo has 52 `serviceOver` files and 194 exported `make…` functions). The full inventory, the conversion recipe and the
+   special cases are in `docs/architecture/make-to-live-inventory-2026-11-06.md` — **read it before touching any `make*` file**. This is a track that runs in parallel with the
+   migration, and every file you migrate must end in the live-class form (do not migrate a service to Effect *and* leave a `make*` in it).
+3. **Use sub-agents heavily to split the work** (section 7). The tree is large (about 280 k lines under `apps/api`), most units are independent, and a single context
+   cannot hold it. Plan, partition, delegate, verify, commit.
+4. Keep the operator informed in short plain prose; ask only for decisions that are theirs (section 5, "Decisions waiting").
+
 ## 0. First five minutes
 
 1. Read, in order: `AGENTS.md` (repo root), `v3/AGENTS.md`, `v3/apps/api/AGENTS.md`, `v3/apps/api/shared/AGENTS.md`.
@@ -95,6 +108,9 @@ Everything above is covered by unit/spec tests and type-checks pass. **Not done*
 
 ## 5. What to do next (in this order unless the operator says otherwise)
 
+**Track A (migration) and Track B (`make*` to `live` conversion) run together; assign them to different sub-agents.** Track B is mechanical and can start
+immediately, workspace by workspace, from the inventory file. Track A items below are the migration proper. A file that is in both tracks is done in one pass.
+
 The operator asked to **start the BFF migration** next. The BFF (`apps/api/bff`) is ~15 % Effect and is the only public surface.
 
 1. **BFF migration (L). Start with a design note, not code.** Reading the BFF at the end of the previous session showed the bulk of it is
@@ -131,3 +147,48 @@ The operator asked to **start the BFF migration** next. The BFF (`apps/api/bff`)
 - Test through the service's `live` class with fakes provided by `Effect.provideService`; assert on the typed failure, not on a thrown exception. Use `provideTo(new Service.live(), (e) => e.pipe(Effect.provideService(Tag, fake)))` (from `@deployer/effect-core`).
 - After each logical change: type-check + test + lint for the touched workspaces in **one** turbo run, then commit.
 - Report to the operator in plain, short prose: what changed, what you did **not** verify, what is open, and one question if a decision is theirs. No recaps of what they already know, no pasted code unless asked.
+
+## 7. Sub-agent playbook (use it; this is how the work is meant to be done)
+
+The main agent plans, partitions, briefs, verifies and commits. Sub-agents each own a disjoint set of files and report back. A sub-agent knows only its brief, and its
+mistakes come back in a confident tone, so **verify everything it reports with your own type-check/test run and by reading the diff**.
+
+**Partitioning.** One sub-agent per *module directory* (never two agents in the same files). Good units, from the audit and the inventory:
+- Track B, `apps/api/services/fleet`: `modules/providers/code/github`, `modules/providers/dns/cloudflare`, `modules/reachability`, `modules/cluster` + `modules/fleet` + `modules/platform`.
+- Track B, `apps/api/services/identity`: one agent for `analytics`+`audit`+`push`, one for `approval`+`role`+`step-up`+`user`.
+- Track B, `apps/api/services/runtime`: `deployment/*` (builders, queue, services, storage, triggers), `docker/*` (catalog, domains, repositories), `providers/*`.
+- Track B, `apps/api/shared`: `core/modules/{configuration,database,events,mesh,mesh-node,node-state,platform-ingress,reachability,setup,swarm,traefik,git,domain,edge,supervision,supervisors}` — roughly one agent per two modules; `core/middlewares`, `core/authz`, `config/`, `server/` one more.
+- Track B, `apps/setup/src/modules/{cluster,handover,health,ingress,progress,wizard}`: one agent per module.
+- Track A: BFF (first the design note; then clients/services/controllers), runtime `docker` module (split `repositories`, `domains/containers`, `domains/images`, `common/events`, controllers), shared event framework, setup app, shared initialization, small leftovers.
+- Read-only exploration (use a cheaper model, e.g. `model: "haiku"` or the Explore agent): "who uses X", "list every spec that imports makeY", "which controllers still use `.handler`".
+
+**Isolation.** Prefer `isolation: "worktree"` for any agent that edits many files, so two agents never collide and a failed attempt is discarded for free; the main agent then
+cherry-picks or merges each worktree branch. Without worktrees, give each agent an explicit list of directories it may edit and forbid it from running `git add -A`, from committing, from
+touching `bun.lock` or generated files, and from editing anything in the operator's dirty list (section 0). Only the main agent commits.
+
+**Brief every sub-agent with the same preamble** (copy it): the goal; the exact files/directories it owns and must not leave; the target form (paste the `HealthService` snippet and the
+recipe from the inventory file); the rules (no `any`, no lint disables, no env reads, typed `domainError`s, no `make*`, `useClass: X.live`); how to verify
+(`bun x turbo run type-check test lint --filter=<its package>` — **one turbo process, no loops, no `--concurrency` unless it ran out of memory**); how to treat pre-existing lint errors in files it touches (fix
+them: the hook lints whole files); what to return (a short list of files changed, the commands it ran with their result lines, what it could not do and why, any decision it needs). Tell it to
+read one *already migrated* file as its template before writing.
+
+**Concurrency and memory.** Turbo type-check/test of several big packages at once ran out of memory once (exit 137). Run at most 2-3 agents that execute turbo at the same time, or tell agents to use
+`--concurrency=2`. Agents that only edit and read can be more numerous.
+
+**Verification loop for the main agent** after each batch: read each agent's report; `git diff --stat`; run one turbo command over *all* touched workspaces; grep the lint output for the touched files; fix or send the
+agent back with the exact error; then commit per logical unit with a conventional message. Update the audit/inventory docs in the same commit (cross out what is done: the inventory file is the progress tracker — re-run its two greps and
+paste the new totals).
+
+**When an agent gets it wrong**, do not patch around it: send the error back with `SendMessage` (the same agent keeps its context) or start a fresh one with a sharper brief.
+
+## 8. Reference notes that cost time to learn
+
+- **Effect version**: `effect@4.0.6` (v4 beta APIs). Used and working here: `Context.Service<I, Shape>()('key')`, `Effect.gen`, `Effect.fn('name')(function* …)`, `Effect.fn.Return<A, E>`, `Effect.catch`, `Effect.catchCause`, `Effect.mapError`, `Effect.exit` + `Exit.isSuccess/isFailure`, `Effect.clockWith((c) => … c.currentTimeMillisUnsafe())`, `Effect.provideContext(effect, context)`, `Effect.Services<T>`, `Effect.forever`, `Effect.sleep('5 seconds')`, `Effect.runPromiseExit`, `Cause.squash`, `Stream.fromIterable/filter/tap/groupedWithin/runForEach/debounce`. A `domainError` class is yieldable (`return yield* new MyError({…})`). `Effect.void` is a value, not a function.
+- **Test helpers**: `provideTo` and `serviceOver`-era helpers live in `@deployer/effect-core`; run a single spec from its workspace directory: `cd apps/api/services/fleet && bun x vitest run src/modules/<path>`. Specs run under the Bun runtime. A fake host for `EffectHostShape` needs `context: () => Promise.resolve(Context.make(…))`.
+- **Nest + Effect wiring**: `createModuleContext(metadata, ...Tags)` declares what a module provides at the type level; `serviceLifecycle(Tag)` binds `onStart`/`run`/`onStop` to Nest's lifecycle; `EffectHost` (`run`, `runUnwrapped`, `fork`, `context`) is the bridge for non-request work; `EffectRuntime` is the one `@Injectable` that stays.
+- **oRPC**: `@orpc/server` + `@orpc/nest`; `middlewareGen` from `@orpc/effect` is what `effectMiddleware` wraps; a handler that returns an RxJS `Observable` is how streams are served (`toAsyncIteratorFromObservable`).
+- **Better Auth 1.7.7** supports versioned `secrets: [{ version, value }]` (first = current). **Drizzle** local DB is SQLite (`bun:sqlite`) for `node_config`, Postgres for the shared DB.
+- **Git**: `.claude/worktrees/*` are other sessions' worktrees: ignore them. The branch is `rewrite-v3`; do not push or open PRs unless asked.
+- **Docs map**: `docs/architecture/{access-requirements,secrets-lifecycle,effect-migration-audit-2026-11-06,make-to-live-inventory-2026-11-06}.md`, `docs/runbooks/secrets-encryption.md`, `docs/qa/secrets/*` (Q&A records, required by the root AGENTS.md protocol for non-trivial decisions), roadmap `docs/audit-2026-10-25/roadmap/auth-security.md` (SEC-100..105) and `PERMISSIONS-ROADMAP.md`.
+- **Things that looked finished but are not**: the web "reveal secret" action does not exist; `reseal-secrets --to-current` has no UI button; Better Auth needs a restart to take a new secret generation; the mesh secret is not in the generation ring; the BFF `delegation` layer is Promise-based; `nest/effect/requirements.ts` still has the legacy `Proxy` gate.
+

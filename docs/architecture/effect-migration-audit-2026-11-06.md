@@ -127,8 +127,8 @@ and `apps/setup`. Dev/test-only reads (`boot-agent.ts`, vitest setup, `compile.t
 
 ### 4.8 `make*` and `serviceOver` (convention, section 2)
 
-- 58 files use `serviceOver(…)`: `fleet` 26, `identity` 14, `runtime` 10, `shared` 5, `bff` 2, plus package files.
-- 52 exported `make<…>` functions in `shared`, 16 in `apps/setup`, 3 in `runtime`, 4 in `packages/node-state`, others in `docker`, `swarm`, `platform-supervisors`.
+- 52 files use `serviceOver(…)`: `fleet` 26, `identity` 14, `runtime` 9, `shared` 5, `bff` 2. **The full inventory (every file and every `make…` function, 194 of them) and the conversion recipe are in `docs/architecture/make-to-live-inventory-2026-11-06.md`.**
+- 194 exported `make<…>` functions across the repo (shared ≈ 90, runtime ≈ 30, setup ≈ 20, docker ≈ 15, bff 3, project 1, others); not all are services (supervisor registrations and engine sub-APIs are cases 3 and 4 of the recipe).
 - Written by me earlier and since converted (phase 1 below): `SecretInventory`, `StepUpGateway`, `CloudflareTunnelEdge`, `Enrollment`, `MeshView` and `makeClusterEvents`.
 - Already in the target form: `node-agent` (28 files), `health`, the other half of `runtime` (15 files), `shared` (8).
 
