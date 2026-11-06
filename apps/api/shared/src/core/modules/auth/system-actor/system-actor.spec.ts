@@ -27,6 +27,16 @@ describe('system actor claim', () => {
         })
     })
 
+    it('carries the subject it was made about, and reads null when it names none', () => {
+        const about = signSystemActorClaim(
+            { source: 'fleet-secrets', subject: 'session-1', aud: 'identity' },
+            SECRET,
+            NOW
+        )
+        expect(verifySystemActorClaim(about, SECRET, 'identity', NOW)?.subject).toBe('session-1')
+        expect(verifySystemActorClaim(token, SECRET, 'runtime', NOW)?.subject).toBeNull()
+    })
+
     it('rejects a different secret', () => {
         expect(
             verifySystemActorClaim(

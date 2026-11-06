@@ -39,6 +39,14 @@ export type StepUpServiceShape = {
         CurrentActor | DatabasePort
     >
     /**
+     * The same guard for a session a PEER service names (it authenticated the caller and asks identity, which holds the proofs,
+     * whether that session just passed a critical step-up). The caller's own session is not the one in context here: the call
+     * arrives as a system actor, so the session id is the argument.
+     */
+    readonly assertCriticalFor: (
+        sessionId: string
+    ) => Effect.Effect<void, ForbiddenError, DatabasePort>
+    /**
      * The proof `assertCritical` just accepted, for callers that must bind a decision to it (`SEC-072`).
      *
      * `null` when the session has none — a caller that already passed `assertCritical` will not see null, but the value
@@ -114,6 +122,23 @@ const makeStepUpService = (
                       method: proof.method,
                       verifiedAt: proof.verifiedAt,
                   }
+        }),
+
+    assertCriticalFor: (
+        sessionId: string
+    ): ReturnType<StepUpServiceShape['assertCriticalFor']> =>
+        Effect.gen(function* () {
+            const proof = yield* repository.latestForSession(
+                sessionId,
+                new Date(Date.now() - STEP_UP_WINDOW_SECONDS * 1000)
+            )
+            if (proof === null || !isCriticalStepUp(proof.method)) {
+                return yield* Effect.fail(
+                    new ForbiddenError(
+                        'step-up required: verify with a passkey and retry'
+                    )
+                )
+            }
         }),
 
     assertCritical: (): ReturnType<StepUpServiceShape['assertCritical']> =>

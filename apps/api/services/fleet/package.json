@@ -31,6 +31,7 @@
         "@deployer/errors": "*",
         "@deployer/events": "*",
         "@deployer/fleet-contracts": "*",
+        "@deployer/identity-contracts": "*",
         "@deployer/logger": "*",
         "@deployer/mesh-client": "*",
         "@deployer/mesh-service": "*",

@@ -7,8 +7,12 @@ import { requireAuth } from '@deployer/shared/core/modules/auth/orpc/middlewares
 
 import { PlatformSecretResource } from './access/secret.resource'
 import { SecretInventory } from './secret-inventory.service'
+import { StepUpGateway } from './step-up.gateway'
 
-/** The secrets of the fleet, by fingerprint. The permission is `platform.secret:read`: it never returns a value. */
+/**
+ * The secrets of the fleet, by fingerprint. Reading needs `platform.secret:read` and never returns a value; rotating and retiring
+ * need their own permission AND a passkey step-up, because they change what the whole fleet accepts.
+ */
 @Controller()
 export class SecretInventoryController {
     @Implement(secretContract.inventory)
@@ -29,6 +33,8 @@ export class SecretInventoryController {
             .use(requireAuth())
             .use(accessRequired(PlatformSecretResource.can('rotate')))
             .effect(function* () {
+                // A passkey proof first: rotating changes what the whole fleet accepts.
+                yield* (yield* StepUpGateway).assertCritical()
                 const secrets = yield* SecretInventory
                 return yield* secrets.rotate()
             })
@@ -41,6 +47,7 @@ export class SecretInventoryController {
             .use(requireAuth())
             .use(accessRequired(PlatformSecretResource.can('retire')))
             .effect(function* ({ input }) {
+                yield* (yield* StepUpGateway).assertCritical()
                 const secrets = yield* SecretInventory
                 return yield* secrets.retire(input.generation)
             })

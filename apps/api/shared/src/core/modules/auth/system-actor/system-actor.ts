@@ -37,6 +37,11 @@ export const systemActorClaimSchema = z.object({
     source: z.string().min(1),
     /** The provider's delivery id, when there is one. */
     deliveryId: z.string().nullable(),
+    /**
+     * What the claim speaks about, when it speaks about one thing: the session whose step-up a peer asks identity to check.
+     * Absent on a claim that names none (a webhook), and read as null so a claim an older signer made still verifies.
+     */
+    subject: z.string().min(1).nullable().default(null),
     /** The service this claim is addressed to. */
     aud: z.string(),
     /** Expiry, seconds since the epoch. */
@@ -53,7 +58,12 @@ const sign = (payload: string, secret: string): string =>
 
 /** `<base64url(json)>.<base64url(hmac)>` */
 export function signSystemActorClaim(
-    input: { source: string; deliveryId?: string | null; aud: string },
+    input: {
+        source: string
+        deliveryId?: string | null
+        subject?: string | null
+        aud: string
+    },
     secret: string,
     now: Date = new Date()
 ): string {
@@ -61,6 +71,7 @@ export function signSystemActorClaim(
         kind: 'system',
         source: input.source,
         deliveryId: input.deliveryId ?? null,
+        subject: input.subject ?? null,
         aud: input.aud,
         exp: Math.floor(now.getTime() / 1000) + SYSTEM_ACTOR_TTL_SECONDS,
     }

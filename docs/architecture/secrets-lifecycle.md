@@ -95,6 +95,7 @@ The platform secret becomes a **ring of generations**: one current value and the
 - **A consumer that cannot hot-swap says so.** Better Auth is built once at boot, so it picks a new generation up at the next
   restart; the inventory shows the node's stored generation, and the Better Auth restart is the one step an operator still does.
 - **Who rotates:** `platform.secret:rotate` (new action, `platform-danger`, superAdmin). Retiring is `platform.secret:retire` under
-  the same bundle.
+  the same bundle. Both also need a passkey step-up: identity holds the proofs, so the fleet asks it as the system with a signed
+  claim that names the caller's session, and fails closed if identity does not answer.
 
 Delivery is in four steps, each shippable: the model, the consumers, the distribution between nodes, the operations and their screen.

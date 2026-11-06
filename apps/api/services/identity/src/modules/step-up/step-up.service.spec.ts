@@ -101,4 +101,36 @@ describe('StepUpService', () => {
             method: 'totp',
         })
     })
+
+    describe('assertCriticalFor: the session a peer names', () => {
+        const forSession = (sessionId: string) =>
+            StepUpService.live.assertCriticalFor(sessionId).pipe(
+                Effect.provideService(StepUpRepository, {
+                    latestForSession,
+                } as unknown as StepUpRepositoryShape),
+                Effect.provideService(DatabasePort, {} as never)
+            )
+
+        it('accepts a session with a passkey proof inside the window', async () => {
+            latestForSession.mockImplementation(() =>
+                Effect.succeed({ method: 'passkey', verifiedAt: new Date() })
+            )
+
+            await expect(Effect.runPromise(forSession('session-1'))).resolves.toBeUndefined()
+            expect(latestForSession.mock.calls[0]?.[0]).toBe('session-1')
+        })
+
+        it('refuses a session with no proof, or only a TOTP one', async () => {
+            expect(await Effect.runPromise(Effect.flip(forSession('session-1')))).toBeInstanceOf(
+                ForbiddenError
+            )
+
+            latestForSession.mockImplementation(() =>
+                Effect.succeed({ method: 'totp', verifiedAt: new Date() })
+            )
+            expect(await Effect.runPromise(Effect.flip(forSession('session-1')))).toBeInstanceOf(
+                ForbiddenError
+            )
+        })
+    })
 })

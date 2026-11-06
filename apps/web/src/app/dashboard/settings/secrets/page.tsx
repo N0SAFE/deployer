@@ -319,8 +319,8 @@ export default function SettingsSecretsPage() {
                         </DialogTitle>
                         <DialogDescription>
                             {confirming?.kind === 'retire'
-                                ? 'Values sealed under this generation, and sessions and claims signed with it, stop being accepted on every node. Do this only once every node holds the current generation and the stored credentials have been resealed.'
-                                : 'A new generation becomes current and every node takes it in on its next round. The current one stays accepted, so nothing is cut off. Better Auth picks it up at its next restart.'}
+                                ? 'Values sealed under this generation, and sessions and claims signed with it, stop being accepted on every node. Do this only once every node holds the current generation and the stored credentials have been resealed. A passkey verification in the last five minutes is required (Settings → Account).'
+                                : 'A new generation becomes current and every node takes it in on its next round. The current one stays accepted, so nothing is cut off. Better Auth picks it up at its next restart. A passkey verification in the last five minutes is required (Settings → Account).'}
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>

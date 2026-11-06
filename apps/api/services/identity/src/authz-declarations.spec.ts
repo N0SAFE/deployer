@@ -23,6 +23,10 @@ const UNDECLARED = new Map<string, string>([
         'internal mesh route (`requireMesh()`): a peer names the account it authenticated and the real check runs inside, in the approval ledger',
     ],
     [
+        'stepUp.assertCritical',
+        'internal system-actor route (`requireSystemActor()`): a peer service names the session it authenticated and the check is the step-up proof itself',
+    ],
+    [
         'analytics.generateReport',
         'reports have no permission yet: generating and deleting one is not a read, and `analytics:read` would be a lie',
     ],

@@ -5,7 +5,12 @@ import { createModuleContext } from '@deployer/nest-effect'
 import { EnvModule, EnvService } from '@deployer/shared/config/env/env.module'
 
 import { SecretInventoryController } from './secret-inventory.controller'
+import { ServiceClient } from '@deployer/shared/server'
+
+import { SystemActorClients } from '@/core/ports/system-actor-clients.port'
+
 import { SecretInventory } from './secret-inventory.service'
+import { StepUpGateway } from './step-up.gateway'
 import { SecretsDoor, type SecretsDoorShape } from './secrets.ports'
 
 export class SecretsModule extends createModuleContext(
@@ -29,8 +34,13 @@ export class SecretsModule extends createModuleContext(
                 inject: [EnvService],
             },
             { provide: SecretInventory, useValue: SecretInventory.live },
+            { provide: StepUpGateway, useValue: StepUpGateway.live },
+            // The clients that call a sibling service as the system: the app's `ServiceClient`, seen through this port.
+            { provide: SystemActorClients, useExisting: ServiceClient },
         ],
     },
     SecretsDoor,
-    SecretInventory
+    SecretInventory,
+    StepUpGateway,
+    SystemActorClients
 ) {}

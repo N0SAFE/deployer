@@ -40,9 +40,26 @@ export const stepUpStatusContract = stepUpOps
     )
     .build()
 
+/**
+ * Whether the session a peer names just passed a critical (passkey) step-up (`SEC-070`).
+ *
+ * Internal: a service authenticated the caller, and asks identity, which holds the proofs. The call arrives as a SYSTEM
+ * actor whose signed claim names the session (`subject`), so a peer that merely reaches the port cannot ask on someone
+ * else's behalf, and the claim expires within a minute. A session without the proof is the typed `forbidden`.
+ */
+export const stepUpAssertCriticalContract = stepUpOps
+    .create()
+    .path('/authz/step-up/assert-critical')
+    .input((b) => b.body(z.object({})))
+    .output(z.object({ critical: z.literal(true) }))
+    .tags('Step-up')
+    .errors((e) => [...standardDomainErrorContracts(e)])
+    .build()
+
 /** The step-up namespace the service exposes. */
 export const stepUpContract = oc.router({
     status: stepUpStatusContract,
+    assertCritical: stepUpAssertCriticalContract,
 })
 
 export type StepUpContract = typeof stepUpContract

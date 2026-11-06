@@ -49,4 +49,11 @@ export class StepUpDelegationController {
             this.client.status(input)
         )
     }
+
+    @Implement(stepUpContract.assertCritical)
+    assertCritical() {
+        return implement(stepUpContract.assertCritical).handler(({ input }) =>
+            this.client.assertCritical(input)
+        )
+    }
 }
