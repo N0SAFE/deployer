@@ -21,6 +21,7 @@ type Held = {
     readonly value: string | null
     readonly adoptedAt: string | null
     readonly generation: number | null
+    readonly earlier: readonly number[]
 }
 
 const present = (held: Held): MeshNodeSecret['fingerprint'] =>
@@ -37,11 +38,15 @@ export function secretInventoryOf(
         value: config?.meshSharedSecret ?? null,
         adoptedAt: config?.meshSharedSecretUpdatedAt ?? null,
         generation: null,
+        earlier: [],
     }
     const platform: Held = {
         value: config?.platformSecret ?? null,
         adoptedAt: config?.platformSecretUpdatedAt ?? null,
         generation: config?.platformSecretGeneration ?? null,
+        earlier: (config?.platformSecretPrevious ?? []).map(
+            (entry) => entry.generation
+        ),
     }
     return [
         {
@@ -49,6 +54,7 @@ export function secretInventoryOf(
             purpose: 'Authenticates mesh peers to one another',
             fingerprint: present(mesh),
             generation: mesh.generation,
+            earlierGenerations: [...mesh.earlier],
             adoptedAt: mesh.adoptedAt,
             consumers: ['mesh peer tokens', 'mesh control token'],
         },
@@ -57,6 +63,7 @@ export function secretInventoryOf(
             purpose: 'Signs sessions and service-to-service claims, and seals stored credentials',
             fingerprint: present(platform),
             generation: platform.generation,
+            earlierGenerations: [...platform.earlier],
             adoptedAt: platform.adoptedAt,
             consumers: [
                 'Better Auth sessions',

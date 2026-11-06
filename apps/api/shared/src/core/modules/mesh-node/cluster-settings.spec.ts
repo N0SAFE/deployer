@@ -29,6 +29,8 @@ function fakeDoor(stored: readonly NodeDoorSetting[] | null) {
         checkJoinToken: () => Promise.resolve(null),
         labels: () => Promise.resolve(null),
         fleetSecrets: () => Promise.resolve(null),
+        rotatePlatformSecret: () => Promise.resolve({ kind: 'absent' as const }),
+        retirePlatformSecret: () => Promise.resolve({ kind: 'absent' as const }),
         blockNode: () => Promise.resolve(null),
         unblockNode: () => Promise.resolve(null),
     }

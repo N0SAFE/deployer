@@ -59,6 +59,7 @@ import { KeyHints } from './services/key-hints.service'
 import { LeaseSigner, leaseSignerOver } from './services/lease-signer.service'
 import { MeshClock } from './services/mesh-clock.service'
 import { NodeAgents } from './services/node-agents.service'
+import { PlatformSecretOps } from './services/platform-secret-ops.service'
 import { PlatformSecretSync } from './services/platform-secret-sync.service'
 import { PendingSeeds } from './services/pending-seeds.service'
 import { RelayMetrics } from './services/relay-metrics.service'
@@ -152,6 +153,7 @@ export class MeshDomainModule extends createModuleContext({
         { provide: RosterGossip, useClass: RosterGossip.live },
         { provide: FleetSecrets, useClass: FleetSecrets.live },
         { provide: PlatformSecretSync, useClass: PlatformSecretSync.live },
+        { provide: PlatformSecretOps, useClass: PlatformSecretOps.live },
         { provide: PendingSeeds, useClass: PendingSeeds.live },
         { provide: JoinTokens, useClass: JoinTokens.live },
         { provide: CredentialRotation, useClass: CredentialRotation.live },

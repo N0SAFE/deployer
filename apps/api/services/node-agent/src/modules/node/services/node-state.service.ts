@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto'
+
 import { Context, Effect } from 'effect'
 
 import { domainError } from '@deployer/effect-core'
@@ -12,6 +14,7 @@ import {
 
 import { AgentStore, type AgentStoreError } from '../../../local/agent-store'
 import { NodeIdentity } from '../../mesh/services/node-identity.service'
+import { SecretRotationRefused } from '../secret-rotation.errors'
 import { secretInventoryOf } from '../secret-inventory'
 
 /** The stored node config is not a config this agent wrote: refuse it rather than serve a half-understood node. */
@@ -62,6 +65,26 @@ export type NodeStateShape = {
         NodeConfigUnreadable | AgentStoreError,
         AgentStore | NodeIdentity
     >
+    /**
+     * Makes a new generation of the platform secret current: a fresh random value, the old one kept as an earlier generation.
+     * Refused on a node that is not set up. Answers the generation, never a value.
+     */
+    readonly rotatePlatformSecret: () => Effect.Effect<
+        { readonly generation: number },
+        NodeConfigUnreadable | AgentStoreError | SecretRotationRefused,
+        AgentStore | NodeIdentity
+    >
+    /**
+     * Stops accepting an earlier generation on this node. The current generation is refused; a generation this node does not
+     * hold is already retired, which is the state asked for. Answers the generation that is current.
+     */
+    readonly retirePlatformSecret: (
+        generation: number
+    ) => Effect.Effect<
+        { readonly generation: number | null },
+        NodeConfigUnreadable | AgentStoreError | SecretRotationRefused,
+        AgentStore | NodeIdentity
+    >
     /** Applies a patch and returns the result: the only way a node is created or changed. */
     readonly configure: (
         patch: MeshNodeConfigureInput
@@ -84,22 +107,7 @@ export class NodeState extends Context.Service<NodeState, NodeStateShape>()(
 ) {
     static readonly live = class NodeStateImpl implements NodeStateShape {
         state() {
-            return Effect.gen(function* () {
-                const store = yield* AgentStore
-                const identity = yield* NodeIdentity
-                const stored = yield* store.nodeConfig()
-                if (stored === null)
-                    return {
-                        agentId: identity.nodeId,
-                        configured: false,
-                        config: null,
-                    } as const
-                return {
-                    agentId: identity.nodeId,
-                    configured: true,
-                    config: yield* decode(stored.config),
-                }
-            })
+            return readState()
         }
 
         secrets() {
@@ -116,36 +124,109 @@ export class NodeState extends Context.Service<NodeState, NodeStateShape>()(
             })
         }
 
-        configure(patch: MeshNodeConfigureInput) {
+        rotatePlatformSecret() {
             return Effect.gen(function* () {
-                const store = yield* AgentStore
-                const identity = yield* NodeIdentity
-                const stored = yield* store.nodeConfig()
-                const current =
-                    stored === null ? null : yield* decode(stored.config)
-
-                const now = new Date().toISOString()
-                const next: MeshNodeConfig = {
-                    ...(current ?? UNCONFIGURED),
-                    ...patch,
-                    // Server-owned: the first write is when the node was created, every write moves `updatedAt`.
-                    configuredAt: current?.configuredAt ?? now,
-                    updatedAt: now,
+                const { config } = yield* readState()
+                if (config === null) {
+                    return yield* new SecretRotationRefused({
+                        reason: 'This node is not set up yet, so it has no platform secret to rotate',
+                    })
                 }
-
-                yield* store.putNodeConfig(
-                    JSON.stringify(next),
-                    Date.parse(now)
-                )
-                return {
-                    agentId: identity.nodeId,
-                    configured: true,
-                    config: next,
-                }
+                const earlier =
+                    config.platformSecret === null
+                        ? []
+                        : [
+                              {
+                                  generation: config.platformSecretGeneration,
+                                  value: config.platformSecret,
+                              },
+                              ...config.platformSecretPrevious,
+                          ]
+                const generation =
+                    config.platformSecret === null
+                        ? 1
+                        : config.platformSecretGeneration + 1
+                yield* applyPatch({
+                    platformSecret: randomBytes(32).toString('hex'),
+                    platformSecretUpdatedAt: new Date().toISOString(),
+                    platformSecretGeneration: generation,
+                    platformSecretPrevious: earlier,
+                })
+                return { generation }
             })
+        }
+
+        retirePlatformSecret(generation: number) {
+            return Effect.gen(function* () {
+                const { config } = yield* readState()
+                if (config?.platformSecret === null || config === null) {
+                    return yield* new SecretRotationRefused({
+                        reason: 'This node holds no platform secret',
+                    })
+                }
+                if (generation >= config.platformSecretGeneration) {
+                    return yield* new SecretRotationRefused({
+                        reason: 'The current generation cannot be retired: rotate first',
+                    })
+                }
+                yield* applyPatch({
+                    platformSecretPrevious: config.platformSecretPrevious.filter(
+                        (entry) => entry.generation !== generation
+                    ),
+                })
+                return { generation: config.platformSecretGeneration }
+            })
+        }
+
+        configure(patch: MeshNodeConfigureInput) {
+            return applyPatch(patch)
         }
     }
 }
+
+/** The node's record as its agent holds it. */
+const readState = () =>
+    Effect.gen(function* () {
+        const store = yield* AgentStore
+        const identity = yield* NodeIdentity
+        const stored = yield* store.nodeConfig()
+        if (stored === null)
+            return {
+                agentId: identity.nodeId,
+                configured: false,
+                config: null,
+            } as const
+        return {
+            agentId: identity.nodeId,
+            configured: true,
+            config: yield* decode(stored.config),
+        }
+    })
+
+/** A patch applied to the record: a named field replaces the stored one, an absent one keeps its value. */
+const applyPatch = (patch: MeshNodeConfigureInput) =>
+    Effect.gen(function* () {
+        const store = yield* AgentStore
+        const identity = yield* NodeIdentity
+        const stored = yield* store.nodeConfig()
+        const current = stored === null ? null : yield* decode(stored.config)
+
+        const now = new Date().toISOString()
+        const next: MeshNodeConfig = {
+            ...(current ?? UNCONFIGURED),
+            ...patch,
+            // Server-owned: the first write is when the node was created, every write moves `updatedAt`.
+            configuredAt: current?.configuredAt ?? now,
+            updatedAt: now,
+        }
+
+        yield* store.putNodeConfig(JSON.stringify(next), Date.parse(now))
+        return {
+            agentId: identity.nodeId,
+            configured: true,
+            config: next,
+        }
+    })
 
 const decode = (json: string) =>
     Effect.try({

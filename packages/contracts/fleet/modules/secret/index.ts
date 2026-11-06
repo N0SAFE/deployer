@@ -17,6 +17,7 @@ export const nodeSecretSchema = z.object({
     fingerprint: z.string().min(1).nullable(),
     /** Which generation of a rotating secret the node holds; null for one that does not rotate yet. */
     generation: z.number().int().positive().nullable(),
+    earlierGenerations: z.array(z.number().int().positive()),
     adoptedAt: z.string().nullable(),
     consumers: z.array(z.string().min(1)),
 })
@@ -62,8 +63,49 @@ export const secretInventoryContract = secretOps
     .errors((e) => [...standardDomainErrorContracts(e)])
     .build()
 
+export const secretRotationSchema = z.object({
+    /** The generation that is current after the call. Never a value. */
+    generation: z.number().int().positive(),
+})
+
+export const secretRetirementSchema = z.object({
+    /** The generation that is current (and was left alone). */
+    generation: z.number().int().positive(),
+    /** The nodes told to stop accepting the retired generation, and the ones that could not be reached. */
+    reached: z.array(z.string().min(1)),
+    unreachable: z.array(z.string().min(1)),
+})
+
+export type SecretRotation = z.infer<typeof secretRotationSchema>
+export type SecretRetirement = z.infer<typeof secretRetirementSchema>
+
+const secretRotationOps = standard.zod(secretRotationSchema, 'secretRotation')
+const secretRetirementOps = standard.zod(secretRetirementSchema, 'secretRetirement')
+
+/** Makes a new generation of the platform secret current. Nothing is cut off: the earlier one stays accepted. */
+export const secretRotateContract = secretRotationOps
+    .create()
+    .path('/platform/rotate')
+    .input((b) => b.body(z.object({})))
+    .output(secretRotationSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
+    .build()
+
+/** Stops accepting an earlier generation on every reachable node. Refused until every reachable node holds the current one. */
+export const secretRetireContract = secretRetirementOps
+    .create()
+    .path('/platform/retire')
+    .input((b) => b.body(z.object({ generation: z.number().int().positive() })))
+    .output(secretRetirementSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
+    .build()
+
 export const secretContract = oc
     .meta(openapi({ tags: ['Secrets'], prefix: '/secrets' }))
-    .router({ inventory: secretInventoryContract })
+    .router({
+        inventory: secretInventoryContract,
+        retire: secretRetireContract,
+        rotate: secretRotateContract,
+    })
 
 export type SecretContract = typeof secretContract

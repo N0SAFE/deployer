@@ -3,7 +3,11 @@ import { openapi } from '@orpc/openapi'
 
 import { meshNodeConfigureContract } from './configure'
 import { meshNodeLabelsContract } from './labels'
-import { meshNodeFleetSecretsContract } from './secrets'
+import {
+    meshNodeFleetSecretsContract,
+    meshNodeRetirePlatformSecretContract,
+    meshNodeRotatePlatformSecretContract,
+} from './secrets'
 import { meshNodeSettingsContract } from './settings'
 import { meshNodeStateContract } from './state'
 import { meshNodeStatusContract } from './status'
@@ -20,6 +24,8 @@ export const meshNodeContract = oc
     .router({
         configure: meshNodeConfigureContract,
         labels: meshNodeLabelsContract,
+        retirePlatformSecret: meshNodeRetirePlatformSecretContract,
+        rotatePlatformSecret: meshNodeRotatePlatformSecretContract,
         fleetSecrets: meshNodeFleetSecretsContract,
         settings: meshNodeSettingsContract,
         state: meshNodeStateContract,

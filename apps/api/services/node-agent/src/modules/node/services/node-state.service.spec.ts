@@ -100,6 +100,57 @@ describe('NodeState', () => {
         })
     })
 
+    it('rotates to a new generation, keeping the old one accepted, and answers no value', async () => {
+        const node = nodeFixture()
+        await node.run(
+            new NodeState.live().configure({
+                nodeId: PLATFORM_NODE_ID,
+                strategy: 'local',
+                platformSecret: 'first',
+                platformSecretGeneration: 1,
+            } as never)
+        )
+
+        const rotated = await node.run(new NodeState.live().rotatePlatformSecret())
+        expect(rotated).toEqual({ generation: 2 })
+
+        const state = await node.run(new NodeState.live().state())
+        expect(state.config?.platformSecret).not.toBe('first')
+        expect(state.config?.platformSecretGeneration).toBe(2)
+        expect(state.config?.platformSecretPrevious).toEqual([{ generation: 1, value: 'first' }])
+    })
+
+    it('refuses to rotate a node that is not set up', async () => {
+        const node = nodeFixture()
+        const outcome = await node.settle(new NodeState.live().rotatePlatformSecret())
+
+        expect(outcome).toMatchObject({ error: { _tag: 'SecretRotationRefused' } })
+    })
+
+    it('retires an earlier generation and refuses the current one', async () => {
+        const node = nodeFixture()
+        await node.run(
+            new NodeState.live().configure({
+                nodeId: PLATFORM_NODE_ID,
+                strategy: 'local',
+                platformSecret: 'three',
+                platformSecretGeneration: 3,
+                platformSecretPrevious: [
+                    { generation: 2, value: 'two' },
+                    { generation: 1, value: 'one' },
+                ],
+            } as never)
+        )
+
+        expect(await node.run(new NodeState.live().retirePlatformSecret(1))).toEqual({ generation: 3 })
+        expect(
+            (await node.run(new NodeState.live().state())).config?.platformSecretPrevious
+        ).toEqual([{ generation: 2, value: 'two' }])
+        expect(await node.settle(new NodeState.live().retirePlatformSecret(3))).toMatchObject({
+            error: { _tag: 'SecretRotationRefused' },
+        })
+    })
+
     it('reports what the node holds without a value', async () => {
         const node = nodeFixture()
         await node.run(

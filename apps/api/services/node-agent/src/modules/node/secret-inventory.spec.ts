@@ -13,7 +13,7 @@ const secret = (
     fingerprint: string | null,
     adoptedAt: string | null = null,
     generation: number | null = null
-): MeshNodeSecret => ({ id, purpose: 'p', fingerprint, generation, adoptedAt, consumers: [] })
+): MeshNodeSecret => ({ id, purpose: 'p', fingerprint, generation, earlierGenerations: [], adoptedAt, consumers: [] })
 
 describe('fingerprintOf', () => {
     it('is stable, short, and not the secret', () => {

@@ -98,6 +98,8 @@ export type NodeDoorSecret = {
     readonly fingerprint: string | null
     /** Which generation of a rotating secret the node holds; null for one that does not rotate yet. */
     readonly generation: number | null
+    /** The earlier generations this node still accepts (numbers only). */
+    readonly earlierGenerations: readonly number[]
     readonly adoptedAt: string | null
     readonly consumers: readonly string[]
 }
@@ -123,6 +125,14 @@ export type NodeDoorFleetSecrets = {
     }[]
 }
 
+/** What rotating or retiring a platform secret came to. Never a value. */
+export type NodeDoorSecretRotation = { readonly generation: number }
+export type NodeDoorSecretRetirement = {
+    readonly generation: number
+    readonly reached: readonly string[]
+    readonly unreachable: readonly string[]
+}
+
 /** The procedures this uses; the agent serves them on the node door only. */
 type NodeDoorApi = {
     readonly node: {
@@ -138,6 +148,12 @@ type NodeDoorApi = {
         readonly fleetSecrets: (
             input: Record<string, never>
         ) => Promise<NodeDoorFleetSecrets>
+        readonly rotatePlatformSecret: (
+            input: Record<string, never>
+        ) => Promise<NodeDoorSecretRotation>
+        readonly retirePlatformSecret: (input: {
+            readonly generation: number
+        }) => Promise<NodeDoorSecretRetirement>
     }
     readonly roster: {
         readonly view: (input: Record<string, never>) => Promise<NodeDoorView>
@@ -186,6 +202,12 @@ export type NodeDoorClient = {
     ): Promise<Readonly<Record<string, string>> | null>
     /** The secrets of every reachable node, by fingerprint, and who is behind. Never a value. */
     fleetSecrets(): Promise<NodeDoorFleetSecrets | null>
+    /** Makes a new generation of the platform secret current on this node; the others take it in from here. */
+    rotatePlatformSecret(): Promise<DoorOutcome<NodeDoorSecretRotation>>
+    /** Retires an earlier generation on every reachable node, once they all hold the current one. */
+    retirePlatformSecret(
+        generation: number
+    ): Promise<DoorOutcome<NodeDoorSecretRetirement>>
     /** Stop trusting a node: its agents and replicas are dropped and it cannot be learned again until unblocked. */
     blockNode(nodeId: string): Promise<readonly string[] | null>
     /** Lift a block. */
@@ -256,6 +278,15 @@ export function nodeDoor(options: NodeDoorOptions = {}): NodeDoorClient {
                 { ...options, timeoutMs: options.timeoutMs ?? 15_000 },
                 (client) => client.node.fleetSecrets({})
             ),
+        rotatePlatformSecret: () =>
+            callDoorOutcome(options, (client) =>
+                client.node.rotatePlatformSecret({})
+            ),
+        retirePlatformSecret: (generation) =>
+            callDoorOutcome(
+                { ...options, timeoutMs: options.timeoutMs ?? 15_000 },
+                (client) => client.node.retirePlatformSecret({ generation })
+            ),
         blockNode: async (nodeId) =>
             (
                 await callDoor(
@@ -285,13 +316,19 @@ export function nodeDoorFromEnv(env: {
         : nodeDoor()
 }
 
-async function callDoor<A>(
+/** What one door call came to: an answer, no agent to ask, or the agent's own refusal with the sentence it gave. */
+export type DoorOutcome<A> =
+    | { readonly kind: 'ok'; readonly value: A }
+    | { readonly kind: 'absent' }
+    | { readonly kind: 'refused'; readonly message: string }
+
+async function callDoorOutcome<A>(
     options: NodeDoorOptions,
     call: (
         client: ReturnType<typeof createMeshClient<NodeDoorApi>>
     ) => Effect.Effect<A, unknown>,
     door: 'service' | 'admin' = 'service'
-): Promise<A | null> {
+): Promise<DoorOutcome<A>> {
     const injected =
         door === 'admin' ? (options.adminLink ?? options.link) : options.link
     const owned = injected === undefined
@@ -304,21 +341,46 @@ async function callDoor<A>(
             : options.socketPath === undefined
               ? nodeAgentLink()
               : agentLink(options.socketPath))
-    if (link === undefined) return null
+    if (link === undefined) return { kind: 'absent' }
 
     try {
-        return await withTimeout(
-            Effect.runPromise(call(createMeshClient<NodeDoorApi>(link))),
-            options.timeoutMs ?? 1_000
-        )
-    } catch {
-        return null
+        return {
+            kind: 'ok',
+            value: await withTimeout(
+                Effect.runPromise(call(createMeshClient<NodeDoorApi>(link))),
+                options.timeoutMs ?? 1_000
+            ),
+        }
+    } catch (error) {
+        // An answer from the agent that says no (`code` is set by the transport) is a refusal with a reason; anything else
+        // (a timeout, a closed socket) is the agent being absent.
+        if (
+            typeof error === 'object' &&
+            error !== null &&
+            'code' in error &&
+            'message' in error &&
+            typeof error.message === 'string'
+        ) {
+            return { kind: 'refused', message: error.message }
+        }
+        return { kind: 'absent' }
     } finally {
         if (owned)
             await (link as PooledLink<ClientContext>)
                 .closeAll()
                 .catch(() => undefined)
     }
+}
+
+async function callDoor<A>(
+    options: NodeDoorOptions,
+    call: (
+        client: ReturnType<typeof createMeshClient<NodeDoorApi>>
+    ) => Effect.Effect<A, unknown>,
+    door: 'service' | 'admin' = 'service'
+): Promise<A | null> {
+    const outcome = await callDoorOutcome(options, call, door)
+    return outcome.kind === 'ok' ? outcome.value : null
 }
 
 const withTimeout = async <A>(

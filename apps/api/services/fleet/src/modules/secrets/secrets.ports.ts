@@ -1,6 +1,11 @@
 import { Context, type Effect } from 'effect'
 
-import type { NodeDoorFleetSecrets } from '@deployer/mesh-client'
+import type {
+    DoorOutcome,
+    NodeDoorFleetSecrets,
+    NodeDoorSecretRetirement,
+    NodeDoorSecretRotation,
+} from '@deployer/mesh-client'
 
 /**
  * The one thing the secrets inventory needs from outside: this node's agent, asked for the fleet's secrets. Null is the agent
@@ -8,6 +13,10 @@ import type { NodeDoorFleetSecrets } from '@deployer/mesh-client'
  */
 export type SecretsDoorShape = {
     readonly fleetSecrets: () => Effect.Effect<NodeDoorFleetSecrets | null>
+    readonly rotate: () => Effect.Effect<DoorOutcome<NodeDoorSecretRotation>>
+    readonly retire: (
+        generation: number
+    ) => Effect.Effect<DoorOutcome<NodeDoorSecretRetirement>>
 }
 
 export class SecretsDoor extends Context.Service<SecretsDoor, SecretsDoorShape>()(

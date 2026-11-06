@@ -49,4 +49,18 @@ export class SecretsDelegationController {
             this.client.inventory(input)
         )
     }
+
+    @Implement(secretContract.retire)
+    retire() {
+        return implement(secretContract.retire).handler(({ input }) =>
+            this.client.retire(input)
+        )
+    }
+
+    @Implement(secretContract.rotate)
+    rotate() {
+        return implement(secretContract.rotate).handler(({ input }) =>
+            this.client.rotate(input)
+        )
+    }
 }

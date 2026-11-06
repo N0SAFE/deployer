@@ -14,6 +14,7 @@ import { NodeLabels } from '../../node/services/node-labels.service'
 import { NodeState } from '../../node/services/node-state.service'
 import { CredentialRotation } from '../services/credential-rotation.service'
 import { FleetSecrets } from '../services/fleet-secrets.service'
+import { PlatformSecretOps } from '../services/platform-secret-ops.service'
 import { JoinTokens } from '../services/join-tokens.service'
 import { NodeAgents } from '../services/node-agents.service'
 import { NodeIdentity } from '../services/node-identity.service'
@@ -71,6 +72,23 @@ export class RosterController extends MeshController {
             group: 'roster',
             contract: roster.platformSecret,
         },
+        retirePlatformSecret: {
+            door: 'peer',
+            group: 'roster',
+            contract: roster.retirePlatformSecret,
+        },
+        rotatePlatformSecretOnNode: {
+            door: 'node',
+            group: 'node',
+            key: 'rotatePlatformSecret',
+            contract: nodeAgentContract.node.rotatePlatformSecret,
+        },
+        retirePlatformSecretOnNode: {
+            door: 'node',
+            group: 'node',
+            key: 'retirePlatformSecret',
+            contract: nodeAgentContract.node.retirePlatformSecret,
+        },
         fleetSecrets: {
             door: 'node',
             group: 'node',
@@ -111,6 +129,49 @@ export class RosterController extends MeshController {
                                       previous: config.platformSecretPrevious,
                                   },
                     }
+                })
+            )
+        })
+    }
+
+    /** Stops accepting an earlier generation here: how a retirement ordered on another node reaches this one. Peer door. */
+    retirePlatformSecret() {
+        return procedure(roster.retirePlatformSecret).effect(function* ({ input, context }) {
+            return yield* serveMeshPeer(context)(
+                Effect.gen(function* () {
+                    const state = yield* NodeState
+                    return yield* state.retirePlatformSecret(input.generation)
+                })
+            )
+        })
+    }
+
+    /** Makes a new generation current on this node; the others take it in from here. Node door only. */
+    rotatePlatformSecretOnNode() {
+        return procedure(nodeAgentContract.node.rotatePlatformSecret).effect(function* ({
+            context,
+        }) {
+            return yield* serveMeshPeer(context)(
+                Effect.gen(function* () {
+                    yield* requireNodeDoor(context)
+                    const state = yield* NodeState
+                    return yield* state.rotatePlatformSecret()
+                })
+            )
+        })
+    }
+
+    /** Retires an earlier generation on every reachable node, once they have all taken in the current one. Node door only. */
+    retirePlatformSecretOnNode() {
+        return procedure(nodeAgentContract.node.retirePlatformSecret).effect(function* ({
+            input,
+            context,
+        }) {
+            return yield* serveMeshPeer(context)(
+                Effect.gen(function* () {
+                    yield* requireNodeDoor(context)
+                    const ops = yield* PlatformSecretOps
+                    return yield* ops.retire(input.generation)
                 })
             )
         })

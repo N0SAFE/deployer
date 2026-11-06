@@ -15,6 +15,16 @@ export class SecretInventoryUnavailable extends domainError(
     }
 }
 
+/** The agent said no, and why: the fleet is not ready for it, or the node is not set up. `reason` is the agent's own sentence. */
+export class SecretRotationNotAllowed extends domainError(
+    'SecretRotationNotAllowed',
+    'conflict'
+)<{ readonly reason: string }>() {
+    override publicMessage() {
+        return this.reason
+    }
+}
+
 /**
  * Which node holds which secret, and who is behind, as this node's agent sees the fleet.
  *
@@ -35,6 +45,7 @@ const makeSecretInventory = ({
                 reachable: node.reachable,
                 secrets: node.secrets.map((secret) => ({
                     ...secret,
+                    earlierGenerations: [...secret.earlierGenerations],
                     consumers: [...secret.consumers],
                 })),
             })),
@@ -44,6 +55,30 @@ const makeSecretInventory = ({
             })),
         }
         return view
+    }),
+
+    /** A new generation of the platform secret becomes current; the earlier one stays accepted everywhere. */
+    rotate: Effect.fn('SecretInventory.rotate')(function* () {
+        const outcome = yield* door.rotate()
+        if (outcome.kind === 'absent') return yield* new SecretInventoryUnavailable({})
+        if (outcome.kind === 'refused') {
+            return yield* new SecretRotationNotAllowed({ reason: outcome.message })
+        }
+        return outcome.value
+    }),
+
+    /** An earlier generation stops being accepted on every reachable node. */
+    retire: Effect.fn('SecretInventory.retire')(function* (generation: number) {
+        const outcome = yield* door.retire(generation)
+        if (outcome.kind === 'absent') return yield* new SecretInventoryUnavailable({})
+        if (outcome.kind === 'refused') {
+            return yield* new SecretRotationNotAllowed({ reason: outcome.message })
+        }
+        return {
+            generation: outcome.value.generation,
+            reached: [...outcome.value.reached],
+            unreachable: [...outcome.value.unreachable],
+        }
     }),
 })
 

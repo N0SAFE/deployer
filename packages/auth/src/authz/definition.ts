@@ -168,6 +168,16 @@ const builder = createAuthzBuilder()
                 description:
                     'See which node holds which version of a platform secret, and which nodes are behind. Never the value.',
             },
+            rotate: {
+                risk: 'admin',
+                description:
+                    'Make a new generation of the platform secret current. Nothing is cut off: the earlier one stays accepted.',
+            },
+            retire: {
+                risk: 'destructive',
+                description:
+                    'Stop accepting an earlier generation of the platform secret. Values sealed under it become unreadable.',
+            },
             reveal: {
                 risk: 'reveal',
                 description: 'Reveal a platform secret.',
@@ -348,7 +358,7 @@ const builder = createAuthzBuilder()
             user: ['delete', 'impersonate', 'impersonate-admins'],
             node: ['revoke'],
             cluster: ['join-token:reveal'],
-            'platform.secret': ['read', 'reveal'],
+            'platform.secret': ['read', 'rotate', 'retire', 'reveal'],
         }),
         'project-admin': permissions({
             project: ['read', 'write', 'delete'],

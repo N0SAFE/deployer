@@ -19,6 +19,12 @@ export class SecretsModule extends createModuleContext(
                 useFactory: (env: EnvService): SecretsDoorShape => ({
                     fleetSecrets: () =>
                         Effect.promise(() => nodeDoorFromEnv(env).fleetSecrets()),
+                    rotate: () =>
+                        Effect.promise(() => nodeDoorFromEnv(env).rotatePlatformSecret()),
+                    retire: (generation) =>
+                        Effect.promise(() =>
+                            nodeDoorFromEnv(env).retirePlatformSecret(generation)
+                        ),
                 }),
                 inject: [EnvService],
             },
