@@ -127,13 +127,6 @@ export class DeploymentDelegationController {
         )
     }
 
-    @Implement(deploymentContract.streamInternal)
-    streamInternal() {
-        return implement(deploymentContract.streamInternal).handler(
-            ({ input }) => this.client.streamInternal(input)
-        )
-    }
-
     @Implement(deploymentContract.streamService)
     streamService() {
         return implement(deploymentContract.streamService).handler(

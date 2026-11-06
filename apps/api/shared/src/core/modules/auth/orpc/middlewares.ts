@@ -2,8 +2,6 @@ import { fromNodeHeaders } from 'better-auth/node'
 import { Effect } from 'effect'
 import z from 'zod/v4'
 
-import { verifyMeshToken, verifyPeerServiceToken } from '@deployer/auth/mesh'
-import { secretsMatch } from '@deployer/auth/server'
 import { Actor, CurrentActor } from '@deployer/effect-core'
 import { actorFromContext } from '@deployer/effect-orpc'
 import { effectMiddleware, Forbidden, Unauthenticated } from '@deployer/nest-effect'
@@ -11,19 +9,14 @@ import { effectMiddleware, Forbidden, Unauthenticated } from '@deployer/nest-eff
 import { SYSTEM_ACTOR_HEADER, verifySystemActorClaim } from '../system-actor'
 
 import { AuthUtils, AuthUtilsEmpty } from './auth-utils'
-import { MeshSecret, PlatformSecret } from './secrets'
+import { PlatformSecret } from './secrets'
 import { SessionResolver } from './session-resolver'
-import {
-    assertAuthenticated,
-    type ORPCAuthContext,
-    type MeshContext,
-    type MeshParcourEntry,
-} from './types'
+import { assertAuthenticated, type ORPCAuthContext } from './types'
 
 /**
  * The auth middlewares, written as Effects (`effectMiddleware`, over `@orpc/effect`'s `middlewareGen`).
  *
- * Each one declares what it needs as a service (`SessionResolver`, `MeshSecret`, `PlatformSecret`), and that need is carried
+ * Each one declares what it needs as a service (`SessionResolver`, `PlatformSecret`), and that need is carried
  * into the procedure's requirements: a service whose module does not provide it fails to compile instead of failing at the
  * first request. A refusal is a typed domain error (`Unauthenticated`, `Forbidden`) mapped to its status by kind.
  *
@@ -127,158 +120,6 @@ export function publicAccess() {
         return yield* next({ context: { auth } }).pipe(
             Effect.provideService(CurrentActor, actorOfAuth(auth))
         )
-    })
-}
-
-// ─── Incoming header constants ──────────────────────────────────────────────
-
-const HDR_MESH_NODE_ID = 'x-mesh-node-id'
-const HDR_MESH_PARCOUR = 'x-mesh-parcour'
-const HDR_MESH_INTERNAL_KEY = 'x-mesh-internal-key'
-
-/**
- * Parse the parcour header — a comma-separated list of nodeIds, oldest
- * first. Each entry MAY carry an optional `@timestamp` suffix.
- *
- * Input:  "node-a@2025-01-01T00:00:00Z,node-b"
- * Output: [{ nodeId: "node-a", timestamp: "2025-01-01T00:00:00Z" },
- *          { nodeId: "node-b" }]
- */
-function parseParcour(raw: string | null): MeshParcourEntry[] {
-    if (!raw) return []
-    return raw
-        .split(',')
-        .map((part) => {
-            const trimmed = part.trim()
-            if (!trimmed) return null
-            const atIdx = trimmed.indexOf('@')
-            if (atIdx > 0) {
-                return {
-                    nodeId: trimmed.slice(0, atIdx),
-                    timestamp: trimmed.slice(atIdx + 1) || undefined,
-                }
-            }
-            return { nodeId: trimmed }
-        })
-        .filter((e): e is MeshParcourEntry => e !== null)
-}
-
-/**
- * Build the full MeshContext from the incoming headers and verified
- * peer identity.
- */
-function buildMeshContext(
-    verifiedNodeId: string,
-    tokenType: 'peer-service' | 'mesh-internal',
-    webHeaders: Headers
-): MeshContext {
-    const callerNodeId = verifiedNodeId
-
-    const rawParcour =
-        webHeaders.get(HDR_MESH_PARCOUR) ??
-        webHeaders.get(HDR_MESH_PARCOUR.toUpperCase())
-    const incomingParcour: MeshParcourEntry[] = parseParcour(rawParcour)
-
-    const incomingNodeId: string | null =
-        webHeaders.get(HDR_MESH_NODE_ID) ??
-        webHeaders.get(HDR_MESH_NODE_ID.toUpperCase())
-
-    // Build the full parcour: incoming trail (oldest first) → caller.
-    const fullParcour: MeshParcourEntry[] = [...incomingParcour]
-    const lastIncoming: MeshParcourEntry | undefined =
-        fullParcour[fullParcour.length - 1]
-    if (lastIncoming?.nodeId !== callerNodeId) {
-        fullParcour.push({ nodeId: callerNodeId })
-    }
-
-    // If the incomingNodeId header differs from the last parcour entry,
-    // prepend it as an even earlier hop (the caller's outbound record).
-    if (incomingNodeId !== null && incomingNodeId !== callerNodeId) {
-        const firstExisting: MeshParcourEntry | undefined = fullParcour[0]
-        if (firstExisting?.nodeId !== incomingNodeId) {
-            fullParcour.unshift({ nodeId: incomingNodeId })
-        }
-    }
-
-    const originNodeId: string = fullParcour[0]?.nodeId ?? callerNodeId
-    const previousCallerNodeId: string | null =
-        fullParcour.length >= 2
-            ? (fullParcour[fullParcour.length - 2]?.nodeId ?? null)
-            : null
-
-    return {
-        verified: true,
-        callerNodeId,
-        meshParcour: fullParcour,
-        originNodeId,
-        previousCallerNodeId,
-        peerIdentity: { nodeId: callerNodeId, tokenType },
-    }
-}
-
-// ─── requireMesh — the core peer-identity middleware ─────────────────────────
-
-/**
- * **requireMesh** — validate that the caller is an authenticated mesh peer and populate `context.mesh` with verified routing
- * information. Orthogonal to `requireAuth()`: it never reads or modifies `context.auth`.
- *
- * Accepted credentials, in order of preference:
- *
- * 1. **Peer service token** (`v2.…`) in `X-Mesh-Internal-Key`, signed with a node-specific derivative of the mesh secret.
- * 2. **Generic mesh control token** (`v1.…`, or the bare shared secret) in `X-Mesh-Internal-Key`.
- *
- * Failures: `Forbidden` (no valid credential, or the secret is not configured), `Unauthenticated` (a peer token that is
- * malformed or expired).
- */
-export function requireMesh() {
-    return effectMiddleware<MeshSecret, { readonly mesh: MeshContext }>(function* ({
-        context,
-        next,
-    }) {
-        const webHeaders = headersOf(context)
-        const internalKey =
-            webHeaders?.get(HDR_MESH_INTERNAL_KEY) ??
-            webHeaders?.get(HDR_MESH_INTERNAL_KEY.toUpperCase()) ??
-            null
-        if (webHeaders === null || internalKey === null || internalKey === '') {
-            return yield* new Forbidden({
-                reason: 'Mesh endpoint requires internal credentials',
-            })
-        }
-
-        const secrets = yield* MeshSecret
-        const sharedSecret = yield* secrets.get()
-        if (sharedSecret === null) {
-            return yield* new Forbidden({ reason: 'Mesh shared secret is not configured' })
-        }
-
-        if (internalKey.startsWith('v2.')) {
-            const verified = verifyPeerServiceToken(internalKey, sharedSecret)
-            if (!verified) {
-                return yield* new Unauthenticated({
-                    reason: 'Invalid or expired peer service token',
-                })
-            }
-            return yield* next({
-                context: {
-                    mesh: buildMeshContext(verified.nodeId, 'peer-service', webHeaders),
-                },
-            })
-        }
-
-        // The bare shared secret is compared in constant time (AUTH-008): `===` leaks the expected prefix, and an HMAC token
-        // already goes through `timingSafeEqual` inside `verifyMeshToken`.
-        const ok = internalKey.startsWith('v1.')
-            ? verifyMeshToken(internalKey, sharedSecret)
-            : secretsMatch(internalKey.trim(), sharedSecret)
-        if (!ok) {
-            return yield* new Forbidden({
-                reason: 'Mesh endpoint requires internal credentials',
-            })
-        }
-        return yield* next({
-            context: { mesh: buildMeshContext('mesh-internal', 'mesh-internal', webHeaders) },
-        })
     })
 }
 

@@ -21,7 +21,6 @@ import {
     meshNodeConfigSchema,
     meshNodeConfigUpdateInputSchema,
     meshNodeConfigUpdateResultSchema,
-    meshNodeConfigRegenerateSecretResultSchema,
     meshNodeConfigTestDbInputSchema,
     meshNodeConfigTestDbResultSchema,
 } from '@deployer/contracts-entities'
@@ -78,10 +77,6 @@ const meshNodeConfigOps = standard.zod(meshNodeConfigSchema, 'meshNodeConfig')
 const meshNodeConfigUpdateOps = standard.zod(
     meshNodeConfigUpdateResultSchema,
     'meshNodeConfigUpdate'
-)
-const meshNodeConfigRegenerateSecretOps = standard.zod(
-    meshNodeConfigRegenerateSecretResultSchema,
-    'meshNodeConfigRegenerateSecret'
 )
 const meshNodeConfigTestDbOps = standard.zod(
     meshNodeConfigTestDbResultSchema,
@@ -200,15 +195,6 @@ export const meshUpdateNodeConfigContract = meshNodeConfigUpdateOps
     .meta(access({ permission: 'mesh:operate' }))
     .build()
 
-export const meshRegenerateNodeConfigSecretContract =
-    meshNodeConfigRegenerateSecretOps
-        .create()
-        .path('/node/config/regenerate-secret')
-        .input((b) => b.body(z.object({}).optional()))
-        .output(meshNodeConfigRegenerateSecretResultSchema)
-        .meta(access({ permission: 'mesh:operate' }))
-        .build()
-
 export const meshTestNodeConfigDbContract = meshNodeConfigTestDbOps
     .create()
     .path('/node/config/test-db')
@@ -233,7 +219,6 @@ export const meshContract = oc
         issueJoinToken: meshIssueJoinTokenContract,
         getNodeConfig: meshGetNodeConfigContract,
         updateNodeConfig: meshUpdateNodeConfigContract,
-        regenerateNodeConfigSecret: meshRegenerateNodeConfigSecretContract,
         testNodeConfigDb: meshTestNodeConfigDbContract,
     })
 

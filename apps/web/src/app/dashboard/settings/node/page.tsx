@@ -15,7 +15,6 @@ import { useIsPlatformAdmin } from '../_components/use-is-admin'
 
 import { DatabaseTestCard } from './_components/database-test-card'
 import { SettingsSection } from './_components/field'
-import { MeshSecretCard } from './_components/mesh-secret-card'
 import { NodeConfigCard } from './_components/node-config-card'
 
 /**
@@ -66,13 +65,6 @@ export default function SettingsNodePage() {
                 description="Verify a database before you commit it to the configuration file."
             >
                 <DatabaseTestCard />
-            </SettingsSection>
-
-            <SettingsSection
-                title="Danger zone"
-                description="Actions that cut peers off from this node."
-            >
-                <MeshSecretCard />
             </SettingsSection>
         </div>
     )

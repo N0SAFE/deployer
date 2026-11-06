@@ -19,7 +19,6 @@ export const meshEndpoints = {
     // ─── Node Configuration ─────────────────────────────────────────
     getNodeConfig: orpc.mesh.getNodeConfig,
     updateNodeConfig: orpc.mesh.updateNodeConfig,
-    regenerateNodeConfigSecret: orpc.mesh.regenerateNodeConfigSecret,
     testNodeConfigDb: orpc.mesh.testNodeConfigDb,
 } as const
 

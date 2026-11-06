@@ -172,8 +172,6 @@ export class MeshController {
                     databaseUrl: row?.databaseUrl ?? null,
                     configuredAt: row?.configuredAt ?? null,
                     updatedAt: row?.updatedAt ?? new Date().toISOString(),
-                    meshSharedSecretUpdatedAt:
-                        row?.meshSharedSecretUpdatedAt ?? null,
                     region: localNode.region,
                     zone: localNode.zone,
                     roles: localNode.roles,
@@ -219,9 +217,6 @@ export class MeshController {
                         peerServiceToken: existing?.peerServiceToken ?? null,
                         peerServiceTokenExpiresAt:
                             existing?.peerServiceTokenExpiresAt ?? null,
-                        meshSharedSecret: existing?.meshSharedSecret ?? null,
-                        meshSharedSecretUpdatedAt:
-                            existing?.meshSharedSecretUpdatedAt ?? null,
                     })
                 )
 
@@ -236,8 +231,6 @@ export class MeshController {
                         databaseUrl: updated.databaseUrl,
                         configuredAt: updated.configuredAt,
                         updatedAt: updated.updatedAt,
-                        meshSharedSecretUpdatedAt:
-                            updated.meshSharedSecretUpdatedAt,
                         region: localNode.region,
                         zone: localNode.zone,
                         roles: localNode.roles,
@@ -248,43 +241,6 @@ export class MeshController {
                         startedAt: localNode.startedAt,
                         lastSeenAt: localNode.lastSeenAt,
                     },
-                }
-            })
-    }
-
-    @Implement(meshContract.regenerateNodeConfigSecret)
-    regenerateNodeConfigSecret() {
-        return procedure(meshContract.regenerateNodeConfigSecret)
-            .use(requireAuth())
-            .handler(async () => {
-                const newSecret = crypto.randomBytes(32).toString('hex')
-                const now = new Date().toISOString()
-                const existing = await runPromiseUnwrapped(
-                    this.nodeConfigRepository.find()
-                )
-
-                await runPromiseUnwrapped(
-                    this.nodeConfigRepository.upsert({
-                        nodeId: existing?.nodeId ?? crypto.randomUUID(),
-                        strategy: existing?.strategy ?? 'local',
-                        meshUrlsSnapshot: existing?.meshUrlsSnapshot ?? [],
-                        databaseUrl: existing?.databaseUrl ?? null,
-                        databaseProvisioning:
-                            existing?.databaseProvisioning ?? null,
-                        configuredAt: existing?.configuredAt ?? null,
-                        updatedAt: now,
-                        peerServiceToken: existing?.peerServiceToken ?? null,
-                        peerServiceTokenExpiresAt:
-                            existing?.peerServiceTokenExpiresAt ?? null,
-                        meshSharedSecret: newSecret,
-                        meshSharedSecretUpdatedAt: now,
-                    })
-                )
-
-                return {
-                    success: true,
-                    meshSharedSecret: newSecret,
-                    rotatedAt: now,
                 }
             })
     }
@@ -342,12 +298,4 @@ export class MeshController {
                 }
             })
     }
-
-    // ========================================================================
-    // PRIVATE — mesh-to-mesh transport (requireMesh)
-    // ========================================================================
-
-    // Heartbeat is a mesh-to-mesh transport op. It stays on the public
-    // contract (the web client's endpoints.ts declares it) but is guarded
-    // with requireMesh() because only peers should be able to heartbeat.
 }

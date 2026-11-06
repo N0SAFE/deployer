@@ -50,11 +50,6 @@ export type NodeConfigRepositoryShape = {
     readonly upsert: (
         data: Omit<typeof nodeConfig.$inferInsert, 'id'>
     ) => Effect.Effect<NodeConfigRow, LocalDatabaseError | NodeStateConflict>
-    /** The mesh shared secret, or null when there is no row or the column is empty. */
-    readonly getMeshSharedSecret: () => Effect.Effect<
-        string | null,
-        LocalDatabaseError
-    >
     /** The platform secret, or null when there is no row yet or this node has neither generated nor received one. */
     readonly getPlatformSecret: () => Effect.Effect<
         string | null,
@@ -206,16 +201,6 @@ function nodeConfigOperations(
 ): NodeConfigRepositoryShape {
     return {
         ...ops,
-        getMeshSharedSecret: () =>
-            ops.find().pipe(
-                Effect.map((row) => {
-                    if (row === null) return null
-                    const record = row as Record<string, unknown>
-                    return (record.meshSharedSecret ??
-                        record.mesh_shared_secret ??
-                        null) as string | null
-                })
-            ),
         getPlatformSecret: () =>
             ops.find().pipe(Effect.map((row) => row?.platformSecret ?? null)),
         ensurePlatformSecret: (seed) =>

@@ -114,10 +114,8 @@ export const meshJoinGrantConsumeResultSchema = z.object({
      * Long-lived signed token the new node presents on subsequent
      * peer-to-peer mesh calls (sent verbatim as `X-Mesh-Internal-Key`).
      *
-     * Format: `v2.<issuedAtMs>.<expiresAtMs>.<nodeId>.<hmac>`, signed
-     * with a node-specific secret derived from the mesh shared secret
-     * and the nodeId. See `@deployer/auth/mesh` `signPeerServiceToken` /
-     * `verifyPeerServiceToken` for the full envelope.
+     * Format: `v2.<issuedAtMs>.<expiresAtMs>.<nodeId>.<hmac>`. Nothing verifies it any more (the mesh shared secret it was
+     * signed under is gone); it is kept only until the legacy join flow that carries it is removed.
      *
      * The token is the only thing the local node needs to call
      * authenticated peer-to-peer mesh routes (e.g. `getLocalNode`,
@@ -129,23 +127,9 @@ export const meshJoinGrantConsumeResultSchema = z.object({
     /**
      * ISO timestamp at which `peerServiceToken` stops being accepted.
      * After this point the caller must re-enroll to obtain a new token.
-     * Null when no token was issued (mesh shared secret not configured).
+     * Null when no token was issued.
      */
     peerServiceTokenExpiresAt: z.string().nullable(),
-    /**
-     * The mesh shared secret that the joining node should persist in its
-     * local node_config table. This secret is used by `requireMesh()` and
-     * `requireInternalMesh()` to verify peer credentials — it replaces
-     * the static `MESH_STREAM_SHARED_SECRET` env var.
-     *
-     * The joining node stores this value in `node_config.mesh_shared_secret`
-     * and presents it (via `resolveSharedSecret()`) on every subsequent
-     * peer-to-peer call that uses mesh authentication.
-     *
-     * Null when the mesh node has no shared secret configured, meaning
-     * peer service tokens cannot be issued.
-     */
-    meshSharedSecret: z.string().min(1).nullable(),
     /**
      * SWARM join credentials + the fleet's role decision for this node, or
      * null when the mesh has no converged swarm to hand over (the joining node

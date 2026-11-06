@@ -4,7 +4,6 @@ import { Context, Effect } from 'effect'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import z from 'zod/v4'
 
-import { signMeshToken, signPeerServiceToken } from '@deployer/auth/mesh'
 import { CurrentActor } from '@deployer/effect-core'
 import { procedure, type RequiredBy } from '@deployer/nest-effect'
 
@@ -14,11 +13,10 @@ import { AuthUtils, AuthUtilsEmpty } from './auth-utils'
 import {
     publicAccess,
     requireAuth,
-    requireMesh,
     requirePlatformRole,
     requireSystemActor,
 } from './middlewares'
-import { MeshSecret, PlatformSecret, type PlatformSecretShape, type SecretShape } from './secrets'
+import { PlatformSecret, type PlatformSecretShape } from './secrets'
 import { SessionResolver, type SessionResolverShape } from './session-resolver'
 import { assertAuthenticated } from './types'
 
@@ -39,14 +37,13 @@ const sessionOf = (id: string, role = 'user'): UserSession =>
 const sessions = (found: UserSession | null): SessionResolverShape => ({
     resolve: () => Effect.succeed(found),
 })
-const secret = (value: string | null): SecretShape => ({ get: () => Effect.succeed(value) })
 /** The platform secret ring: the current value first, then the earlier generations still accepted. */
 const ring = (current: string | null, ...earlier: string[]): PlatformSecretShape => ({
     get: () => Effect.succeed(current),
     accepted: () => Effect.succeed(current === null ? [] : [current, ...earlier]),
 })
 
-type Services = SessionResolver | MeshSecret | PlatformSecret
+type Services = SessionResolver | PlatformSecret
 
 /** A request as the host builds it: a real `Request`, and `auth` anonymous until a middleware resolves the session. */
 const request = (headers: Record<string, string> = {}) => ({
@@ -56,13 +53,11 @@ const request = (headers: Record<string, string> = {}) => ({
 
 const world = (options: {
     session?: UserSession | null
-    mesh?: string | null
     platform?: string | null
     /** Earlier generations of the platform secret that are still accepted. */
     earlier?: string[]
 }): Context.Context<Services> =>
     Context.make(SessionResolver, sessions(options.session ?? null)).pipe(
-        Context.add(MeshSecret, secret(options.mesh ?? null)),
         Context.add(PlatformSecret, ring(options.platform ?? null, ...(options.earlier ?? [])))
     )
 
@@ -163,50 +158,6 @@ describe('requirePlatformRole', () => {
     })
 })
 
-describe('requireMesh', () => {
-    const peer = () =>
-        procedure(contract)
-            .use(requireMesh())
-            .effect(function* ({ context }) {
-                yield* Effect.void
-                return context.mesh.peerIdentity.tokenType
-            })
-    const as = (headers: Record<string, string>, mesh: string | null = 's3cret-s3cret-s3cret') => ({
-        ...request(headers),
-        'effect/context': world({ mesh }),
-    })
-
-    it('refuses a call with no credential, and one when the secret is not configured', async () => {
-        await expect(call(peer(), {}, { context: as({}) })).rejects.toMatchObject({ code: 'FORBIDDEN' })
-        await expect(
-            call(peer(), {}, { context: as({ 'x-mesh-internal-key': 'anything' }, null) })
-        ).rejects.toMatchObject({ code: 'FORBIDDEN', message: expect.stringContaining('not configured') })
-    })
-
-    it('accepts the bare shared secret and a control token, and refuses a wrong one', async () => {
-        const shared = 's3cret-s3cret-s3cret'
-        await expect(
-            call(peer(), {}, { context: as({ 'x-mesh-internal-key': shared }) })
-        ).resolves.toBe('mesh-internal')
-        await expect(
-            call(peer(), {}, { context: as({ 'x-mesh-internal-key': signMeshToken(shared) }) })
-        ).resolves.toBe('mesh-internal')
-        await expect(
-            call(peer(), {}, { context: as({ 'x-mesh-internal-key': 'wrong-wrong-wrong-wrong' }) })
-        ).rejects.toMatchObject({ code: 'FORBIDDEN' })
-    })
-
-    it('accepts a peer service token as that peer, and answers 401 for a malformed v2 token', async () => {
-        const shared = 's3cret-s3cret-s3cret'
-        await expect(
-            call(peer(), {}, { context: as({ 'x-mesh-internal-key': signPeerServiceToken(shared, '3b241101-e2bb-4255-8caf-4136c566a962').token }) })
-        ).resolves.toBe('peer-service')
-        await expect(
-            call(peer(), {}, { context: as({ 'x-mesh-internal-key': 'v2.garbage' }) })
-        ).rejects.toMatchObject({ code: 'UNAUTHORIZED' })
-    })
-})
-
 describe('requireSystemActor', () => {
     const hook = () =>
         procedure(contract)
@@ -263,11 +214,9 @@ describe('requireSystemActor', () => {
 describe('dependencies are checked, not assumed', () => {
     it('carries the services each middleware needs into the procedure\'s requirements', () => {
         const authed = procedure(contract).use(requireAuth()).effect(function* () { yield* Effect.void; return 1 })
-        const mesh = procedure(contract).use(requireMesh()).effect(function* () { yield* Effect.void; return 1 })
         const system = procedure(contract).use(requireSystemActor('x')).effect(function* () { yield* Effect.void; return 1 })
         const requirements = <P>(_p: P) => expectTypeOf<RequiredBy<P>>()
         requirements(authed).toEqualTypeOf<SessionResolver>()
-        requirements(mesh).toEqualTypeOf<MeshSecret>()
         requirements(system).toEqualTypeOf<PlatformSecret>()
     })
 })

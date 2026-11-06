@@ -56,8 +56,6 @@ describe('NodeState', () => {
             swarmConfig: null,
             peerServiceToken: null,
             peerServiceTokenExpiresAt: null,
-            meshSharedSecret: 'mesh-value',
-            meshSharedSecretUpdatedAt: null,
             scanConfig: null,
             mesh: null,
             postSetupFlags: null,

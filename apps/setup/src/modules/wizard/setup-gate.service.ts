@@ -369,8 +369,6 @@ export class SetupGateServiceImpl {
                     databaseUrl === null ? 'local' : 'external',
                 configuredAt: existing?.configuredAt ?? null,
                 meshUrlsSnapshot: existing?.meshUrlsSnapshot ?? [],
-                meshSharedSecret: existing?.meshSharedSecret,
-                meshSharedSecretUpdatedAt: existing?.meshSharedSecretUpdatedAt,
                 peerServiceToken: existing?.peerServiceToken,
                 peerServiceTokenExpiresAt: existing?.peerServiceTokenExpiresAt,
                 upgradedAtVersion: existing?.upgradedAtVersion,

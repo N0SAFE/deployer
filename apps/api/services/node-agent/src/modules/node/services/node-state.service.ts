@@ -40,8 +40,6 @@ const UNCONFIGURED: Omit<MeshNodeConfig, 'updatedAt'> = {
     swarmConfig: null,
     peerServiceToken: null,
     peerServiceTokenExpiresAt: null,
-    meshSharedSecret: null,
-    meshSharedSecretUpdatedAt: null,
     platformSecret: null,
     platformSecretUpdatedAt: null,
     platformSecretGeneration: 1,

@@ -16,18 +16,17 @@ secrets are not provided, they are made.
 
 | Secret | Where it comes from now | What uses it | Target |
 |---|---|---|---|
-| **Mesh shared secret** | generated on the node's first boot and stored in `node_config.mesh_shared_secret` (with `mesh_shared_secret_updated_at`); handed to a joiner with the join grant | mesh peer tokens (`v1.`, `v2.`), the control token, `requireMesh()` | already the target; needs versioning and adoption status |
 | **Platform secret** | `node_config` for system-actor claims , Better Auth sessions, column encryption and the ingress token (generated on first use); **environment variable** (`AUTH_SECRET`, optional) only for the legacy column reader and a one-time import | Better Auth session signing, the column-encryption root key (`schema-codecs`), the ingress token derivation, system-actor claims | generated on first boot, stored in `node_config`, shared with joiners (`SEC-100`) |
 | **Root secret** (`DEPLOYER_ROOT_SECRET`) | **environment variable**, falls back to the platform secret | derived keys for encrypted columns | derived from the platform secret generated above; no separate variable |
 
-`MeshSecret` and `PlatformSecret` are Effect services (`apps/api/shared/src/core/modules/auth/orpc/secrets.ts`), so the source is
-one swap point. `MeshSecret` is provided from the node's own `NodeConfigRepository`. `PlatformSecret` still reads the
+`PlatformSecret` is an Effect service (`apps/api/shared/src/core/modules/auth/orpc/secrets.ts`), so the source is
+one swap point. `PlatformSecret` still reads the
 environment behind a `shortcut:` comment, and that is the first thing to remove.
 
 ## 3. Target model
 
 1. **Created on first boot.** The first node of a cluster generates the platform secret with the same code that generates the
-   mesh secret (`local-initialization.service`) and persists it in its local `node_config`. Nothing is asked of the operator.
+   platform secret (`local-initialization.service`) and persists it in its local `node_config`. Nothing is asked of the operator.
 2. **Inferred to and from the other nodes.** A joining node receives the platform secret with the join grant, exactly like the mesh
    secret (the remote-join spec already pins "stores exactly what the fleet granted"); a node that learns of a newer version
    from a peer adopts it. No node is the source of truth: the secret replicates peer to peer through the signed roster, in line
@@ -43,7 +42,7 @@ environment behind a `shortcut:` comment, and that is the first thing to remove.
 
 | | node A | node B | node C |
 |---|---|---|---|
-| mesh secret, v7 | v7, adopted 10:02 | v7, adopted 10:02 | **v6, not yet updated** |
+| platform secret, v7 | v7, adopted 10:02 | v7, adopted 10:02 | **v6, not yet updated** |
 | platform secret, v3 | v3 | v3 | v3 |
 
 Per secret: its purpose, the services that use it on each node, last rotation, who rotated it, and the nodes still on an older
@@ -54,11 +53,11 @@ version (with how long, and whether they are reachable). A rotation can be pause
 | Piece | Location |
 |---|---|
 | secret metadata and per-node adoption (id, purpose, version, adoptedAt, consumers); values stay local and encrypted | `node_config` / a new local `node_secrets` table, owned by the node agent |
-| first-boot generation | `local-initialization.service` (next to the mesh secret) |
+| first-boot generation | `local-initialization.service`  |
 | hand-over to a joiner and adoption from a peer | the join grant contract and the roster gossip in the node agent |
 | per-node status aggregation | fleet service, by asking each node's agent over the mesh |
 | the screen | BFF screen (`secrets`), `apps/web` Settings → Secrets, behind `platform.secret:read` and `:rotate` |
-| the consumers | Better Auth, the column codecs, ingress token, system-actor claims read `PlatformSecret` / `MeshSecret`, never `process.env` |
+| the consumers | Better Auth, the column codecs, ingress token, system-actor claims read `PlatformSecret`, never `process.env` |
 
 ## 4. Open decisions
 
@@ -72,8 +71,8 @@ version (with how long, and whether they are reachable). A rotation can be pause
 
 ## 5. What already follows the rule (2026-11-05)
 
-- The mesh middleware (`requireMesh`) verifies against `MeshSecret`, backed by the node's own `node_config`, not an environment
-  variable.
+- The system-actor middleware (`requireSystemActor`) verifies against `PlatformSecret`, backed by the node's own `node_config`, not
+  an environment variable.
 - The boot audit's mode is a bootstrap option each app sets in code (`accessAudit`), not an environment variable.
 
 ## 6. Rotation of the platform secret (SEC-101), decided 2026-11-06
@@ -99,3 +98,16 @@ The platform secret becomes a **ring of generations**: one current value and the
   claim that names the caller's session, and fails closed if identity does not answer.
 
 Delivery is in four steps, each shippable: the model, the consumers, the distribution between nodes, the operations and their screen.
+
+## Removed: the mesh shared secret (2026-11-07)
+
+The mesh shared secret (`node_config.mesh_shared_secret`), `requireMesh()`, the `v1.`/`v2.` mesh tokens (`@deployer/auth/mesh`) and
+the "regenerate mesh secret" action are gone. Nothing signed or presented them: peer authentication between nodes is the swarm
+credential (which already rotates with a grace window) and service-to-service calls carry a system-actor claim signed with the
+platform secret. Cross-service approval checks moved to that claim (`ApprovalGuard`, bound to the requester), which is what made
+`requireMesh` unused. The local migration `0015` drops both columns, so an upgraded node loses the stored value on purpose; the agent
+record is a tolerant parse, so an old record that still carries the key decodes and is rewritten without it.
+
+Left for a separate step: `peerServiceToken` (stored and forwarded by the legacy join flow, verified by nothing now), and the
+mixed-version window in which an old agent still answers the secret inventory with a `mesh` entry (its answer no longer parses, so the
+fleet cannot show that node's secrets until its agent upgrades).

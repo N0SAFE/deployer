@@ -63,14 +63,13 @@ describe('identity route guards', () => {
     })
 
     it('authenticates every procedure, except the explicit public allowlist', () => {
-        // A procedure is authenticated by a USER session, by the MESH (`SEC-069`), or by a signed SYSTEM-ACTOR claim a peer
+        // A procedure is authenticated by a USER session, by a signed SYSTEM-ACTOR claim a peer
         // service made (`requireSystemActor`): a peer call has no browser session, and the handler says which trust it rests on.
         const unguarded = mounted
             .filter((procedure) => !PUBLIC_ALLOWLIST.has(procedure.contract))
             .filter(
                 (procedure) =>
                     !procedure.body.includes('requireAuth()') &&
-                    !procedure.body.includes('requireMesh()') &&
                     !procedure.body.includes('requireSystemActor(')
             )
             .map((procedure) => `${procedure.file} → ${procedure.contract}`)

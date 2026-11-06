@@ -357,18 +357,6 @@ export const deploymentStreamContract = deploymentProgressEventOps
     .errors((e) => [...standardDomainErrorContracts(e)])
     .build()
 
-/** GET /deployments/internal/{id}/stream — internal mesh stream access */
-export const deploymentInternalStreamContract = deploymentProgressEventOps
-    .list()
-    .input((b) =>
-        b
-            .params((p) => p`/internal/${p('id', z.uuid())}/stream`)
-            .query(streamReplayQuerySchema)
-    )
-    .output((b) => b.observable(deploymentProgressEventSchema))
-    .errors((e) => [...standardDomainErrorContracts(e)])
-    .build()
-
 /** GET /deployments/services/{serviceId}/stream — subscribe to all deployments for a service */
 export const serviceDeploymentsStreamContract = serviceDeploymentEventOps
     .list()

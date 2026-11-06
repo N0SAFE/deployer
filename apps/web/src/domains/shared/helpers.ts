@@ -933,9 +933,9 @@ export type CallableInvalidationConfig<
  *     keys.trustKeyringConvergenceStatus(),  // ← direct key (no cascade)
  *   ],
  *   // Mutations using keys referencing the same node are automatically followed
- *   regenerateNodeConfigSecret: ({ keys }) => [
+ *   updateNodeConfig: ({ keys }) => [
  *     keys.getNodeConfig(),
- *     keys.trustKeyringStatus(),  // ← this creates an edge: trustKeyringStatus → regenerateNodeConfigSecret
+ *     keys.trustKeyringStatus(),  // ← this creates an edge: trustKeyringStatus → updateNodeConfig
  *   ],
  * })
  * ```

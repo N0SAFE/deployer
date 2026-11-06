@@ -30,7 +30,7 @@ export type HookImpl = (...args: never[]) => unknown
 
 /** Verbs that mark a hook as a mutation. */
 const MUTATION_NAME =
-    /^use(?:Create|Update|Delete|Remove|Add|Verify|Retry|Cancel|Rollback|Promote|Trigger|Resolve|Set|Refresh|Upsert|Invite|Revoke|Lookup|Regenerate|Teardown|Check|Provision|Toggle|Clone|Generate|Download|Test|Save|Restart|Stop|Start|Redeploy|Deploy|Rotate|Mesh(?:UpdateNodeConfig|RegenerateNodeConfigSecret|TestNodeConfigDb)|Cloudflare(?:Create|Delete)|GitHub(?:Create|Install|Manifest)|Docker(?:Write|Delete|Rename|Create|Run|Open|Send|Close)|Admin(?:Ban|Unban|SetRole|CreateUser|UpdateUser|RemoveUser))(?![a-z])/
+    /^use(?:Create|Update|Delete|Remove|Add|Verify|Retry|Cancel|Rollback|Promote|Trigger|Resolve|Set|Refresh|Upsert|Invite|Revoke|Lookup|Regenerate|Teardown|Check|Provision|Toggle|Clone|Generate|Download|Test|Save|Restart|Stop|Start|Redeploy|Deploy|Rotate|Mesh(?:UpdateNodeConfig|TestNodeConfigDb)|Cloudflare(?:Create|Delete)|GitHub(?:Create|Install|Manifest)|Docker(?:Write|Delete|Rename|Create|Run|Open|Send|Close)|Admin(?:Ban|Unban|SetRole|CreateUser|UpdateUser|RemoveUser))(?![a-z])/
 
 /** Named like a mutation but consumed as a query. */
 const QUERY_NAMES = new Set(['useCheckDomainGate'])

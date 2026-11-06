@@ -98,7 +98,6 @@ export const meshNodeConfig = {
     databaseUrl: 'postgres://postgres@db:5432/deployer',
     configuredAt: minutesAgo(600),
     updatedAt: minutesAgo(600),
-    meshSharedSecretUpdatedAt: null,
     region: 'eu-west',
     roles: ['edge'],
     version: '3.0.0',

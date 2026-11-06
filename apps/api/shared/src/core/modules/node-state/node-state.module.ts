@@ -42,7 +42,6 @@ import {
     type SealingRing,
 } from '../../../config/drizzle/schema-codecs'
 import {
-    MeshSecret,
     PlatformSecret,
     type PlatformSecretShape,
 } from '../auth/orpc/secrets'
@@ -60,18 +59,6 @@ const repositories = [
         useFactory: (db: LocalDatabaseShape) =>
             makeAgentFirstNodeConfigRepository(db, agentNodeRecords()),
         inject: [LocalDatabase],
-    },
-    // The mesh shared secret is THIS node's, generated on its first boot and handed to nodes that join (`node_config`). It is not
-    // an environment variable: a missing or unreadable row is "not configured", which the mesh middleware refuses.
-    {
-        provide: MeshSecret,
-        useFactory: (nodeConfig: NodeConfigRepositoryShape) => ({
-            get: () =>
-                nodeConfig
-                    .getMeshSharedSecret()
-                    .pipe(Effect.catch(() => Effect.succeed(null))),
-        }),
-        inject: [NodeConfigRepository],
     },
     // The platform secret is generated here on first use and stored in the same row, so every service of the node signs and
     // verifies with one value. Unconfigured (no row yet) is "no secret", which the system-actor middleware refuses.
@@ -147,8 +134,7 @@ export const NodeStateModule = createGlobalModule({
     exports: [
         NodeConfigRepository,
         NodeConfigSnapshot,
-        MeshSecret,
-        PlatformSecret,
+            PlatformSecret,
         ClusterNodeRepository,
         ClusterNodeInventoryRepository,
     ],

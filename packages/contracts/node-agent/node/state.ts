@@ -66,9 +66,6 @@ export const meshNodeConfigSchema = z.object({
     /** Long-lived peer service token issued by a remote mesh, and when it stops being accepted. */
     peerServiceToken: z.string().nullable(),
     peerServiceTokenExpiresAt: z.string().nullable(),
-    /** The secret peers present to this node, and when it was last rotated. */
-    meshSharedSecret: z.string().nullable(),
-    meshSharedSecretUpdatedAt: z.string().nullable(),
     /**
      * The platform secret and when this node adopted it, which generation it is, and the earlier generations still accepted
      * (SEC-101). Deliberately NOT defaulted here: this schema also types the configure PATCH (`.partial()`), where a default

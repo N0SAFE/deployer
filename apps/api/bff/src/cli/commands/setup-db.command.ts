@@ -90,9 +90,6 @@ export class SetupDbCommand extends CommandRunner {
                 peerServiceToken: existing?.peerServiceToken ?? null,
                 peerServiceTokenExpiresAt:
                     existing?.peerServiceTokenExpiresAt ?? null,
-                meshSharedSecret: existing?.meshSharedSecret ?? null,
-                meshSharedSecretUpdatedAt:
-                    existing?.meshSharedSecretUpdatedAt ?? null,
                 updatedAt: new Date().toISOString(),
             })
         )

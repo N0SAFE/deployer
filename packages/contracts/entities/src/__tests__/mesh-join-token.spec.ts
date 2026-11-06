@@ -45,7 +45,6 @@ describe('mesh join token threading', () => {
             databaseUrl: 'postgres://db',
             peerServiceToken: null,
             peerServiceTokenExpiresAt: null,
-            meshSharedSecret: null,
         }
         expect(
             meshJoinGrantConsumeResultSchema.parse(base).meshJoinToken

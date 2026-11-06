@@ -23,8 +23,6 @@ const RECORD = {
         swarmConfig: null,
         peerServiceToken: null,
         peerServiceTokenExpiresAt: null,
-        meshSharedSecret: null,
-        meshSharedSecretUpdatedAt: null,
         scanConfig: null,
         postSetupFlags: null,
         configuredAt: '2026-10-30T10:00:00.000Z',

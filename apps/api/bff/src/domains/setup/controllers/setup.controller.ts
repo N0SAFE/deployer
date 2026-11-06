@@ -189,8 +189,6 @@ export class SetupController {
                     databaseProvisioning: config.databaseProvisioning ?? null,
                     configuredAt: config.configuredAt,
                     meshUrlsSnapshot: config.meshUrlsSnapshot ?? [],
-                    meshSharedSecret: config.meshSharedSecret,
-                    meshSharedSecretUpdatedAt: config.meshSharedSecretUpdatedAt,
                     peerServiceToken: config.peerServiceToken,
                     peerServiceTokenExpiresAt: config.peerServiceTokenExpiresAt,
                     upgradedAtVersion: config.upgradedAtVersion,

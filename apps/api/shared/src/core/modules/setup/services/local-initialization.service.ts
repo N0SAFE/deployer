@@ -22,7 +22,6 @@ import { Pool } from 'pg'
 // `GLOBAL_MIGRATIONS_DIR` is resolved by the schema package itself, which owns
 // the migrations, so the path cannot drift when a caller moves.
 
-import { generateMeshSharedSecret } from '@deployer/auth/mesh'
 import { provisionUserAccount } from '@deployer/auth/server'
 import type { SetupInitializeLocalInput } from '@deployer/contracts-entities'
 import {
@@ -510,8 +509,6 @@ export function makeLocalInitializationService(
                         `  swarm    = ${swarmChoice.mode} cluster (policy=${swarmChoice.policy})`
                     )
                 }
-                stepLog('▸ Generating mesh shared secret…')
-                const meshSharedSecret = generateMeshSharedSecret()
                 stepLog('▸ Persisting node config to global database…')
                 const now = new Date().toISOString()
                 await runPromiseUnwrapped(
@@ -525,8 +522,6 @@ export function makeLocalInitializationService(
                         updatedAt: now,
                         databaseUrl,
                         databaseProvisioning,
-                        meshSharedSecret,
-                        meshSharedSecretUpdatedAt: now,
                         swarmConfig: swarmChoice
                             ? {
                                   mode: swarmChoice.mode,

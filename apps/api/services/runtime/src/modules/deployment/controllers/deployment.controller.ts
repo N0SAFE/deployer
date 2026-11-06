@@ -7,7 +7,6 @@ import { procedure } from '@deployer/nest-effect'
 import { deploymentContract } from '@deployer/runtime-contracts'
 import {
     requireAuth,
-    requireMesh,
     requirePlatformRole,
     requireSystemActor,
 } from '@deployer/shared/core/modules/auth/orpc/middlewares'
@@ -240,21 +239,6 @@ export class DeploymentController {
             .effect(function* ({ input }) {
                 const orchestrator = yield* DeploymentStreamOrchestratorService
                 return yield* orchestrator.openDeploymentStream({
-                    deploymentId: input.params.id,
-                    replay: input.query.replay,
-                    replayLimit: input.query.replayLimit,
-                })
-            })
-    }
-
-    @Implement(deploymentContract.streamInternal)
-    streamInternal() {
-        return procedure(deploymentContract.streamInternal)
-            .use(requireMesh())
-            .use(requireAuth())
-            .effect(function* ({ input }) {
-                const deployments = yield* DeploymentService
-                return deployments.streamDeploymentEvents({
                     deploymentId: input.params.id,
                     replay: input.query.replay,
                     replayLimit: input.query.replayLimit,

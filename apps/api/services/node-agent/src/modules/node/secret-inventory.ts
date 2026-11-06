@@ -34,12 +34,6 @@ const present = (held: Held): MeshNodeSecret['fingerprint'] =>
 export function secretInventoryOf(
     config: MeshNodeConfig | null
 ): MeshNodeSecret[] {
-    const mesh: Held = {
-        value: config?.meshSharedSecret ?? null,
-        adoptedAt: config?.meshSharedSecretUpdatedAt ?? null,
-        generation: null,
-        earlier: [],
-    }
     const platform: Held = {
         value: config?.platformSecret ?? null,
         adoptedAt: config?.platformSecretUpdatedAt ?? null,
@@ -49,15 +43,6 @@ export function secretInventoryOf(
         ),
     }
     return [
-        {
-            id: 'mesh',
-            purpose: 'Authenticates mesh peers to one another',
-            fingerprint: present(mesh),
-            generation: mesh.generation,
-            earlierGenerations: [...mesh.earlier],
-            adoptedAt: mesh.adoptedAt,
-            consumers: ['mesh peer tokens', 'mesh control token'],
-        },
         {
             id: 'platform',
             purpose: 'Signs sessions and service-to-service claims, and seals stored credentials',

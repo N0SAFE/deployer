@@ -34,8 +34,6 @@ const CONFIG: NodeRecordConfig = {
     },
     peerServiceToken: null,
     peerServiceTokenExpiresAt: null,
-    meshSharedSecret: 'secret',
-    meshSharedSecretUpdatedAt: '2026-10-30T10:00:00.000Z',
     platformSecret: 'platform',
     platformSecretUpdatedAt: '2026-10-30T10:00:00.000Z',
     platformSecretGeneration: 2,
@@ -77,8 +75,6 @@ describe('nodeConfigRowFromRecord', () => {
             peerServiceToken: null,
             peerServiceTokenExpiresAt: null,
             updatedAt: '2026-10-30T11:00:00.000Z',
-            meshSharedSecret: 'secret',
-            meshSharedSecretUpdatedAt: '2026-10-30T10:00:00.000Z',
             platformSecret: 'platform',
             platformSecretUpdatedAt: '2026-10-30T10:00:00.000Z',
             platformSecretGeneration: 2,
@@ -109,7 +105,6 @@ describe('nodeRecordPatchFromRow', () => {
             databaseUrl: 'postgres://db',
             meshUrlsSnapshot: ['ws://peer'],
             swarmConfig: { mode: 'create' },
-            meshSharedSecret: 'secret',
             scanConfig: { autoScan: true, scanners: ['trivy'] },
         })
         expect(patch).not.toHaveProperty('id')

@@ -142,21 +142,6 @@
                 "require": "./dist/production/cjs/react/session/server.js"
             }
         },
-        "./mesh": {
-            "types": "./dist/types/mesh/index.d.ts",
-            "development": {
-                "import": "./dist/development/esm/mesh/index.mjs",
-                "require": "./dist/development/cjs/mesh/index.js"
-            },
-            "production": {
-                "import": "./dist/production/esm/mesh/index.mjs",
-                "require": "./dist/production/cjs/mesh/index.js"
-            },
-            "default": {
-                "import": "./dist/production/esm/mesh/index.mjs",
-                "require": "./dist/production/cjs/mesh/index.js"
-            }
-        },
         "./authz": {
             "types": "./dist/types/authz/index.d.ts",
             "development": {

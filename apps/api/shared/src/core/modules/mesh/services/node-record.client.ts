@@ -37,8 +37,6 @@ export type NodeRecordConfig = {
     } | null
     readonly peerServiceToken: string | null
     readonly peerServiceTokenExpiresAt: string | null
-    readonly meshSharedSecret: string | null
-    readonly meshSharedSecretUpdatedAt: string | null
     readonly platformSecret: string | null
     readonly platformSecretUpdatedAt: string | null
     readonly platformSecretGeneration: number

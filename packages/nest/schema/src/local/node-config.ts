@@ -116,22 +116,6 @@ export const nodeConfig = sqliteTable('node_config', {
     updatedAt: text('updated_at').notNull(),
 
     /**
-     * The mesh shared secret used by `requireMesh()` / `requireInternalMesh()`
-     * to verify peer credentials. Generated at setup time and persisted so
-     * the node can validate mesh requests across restarts without re-reading
-     * the env var (which may not be set on mesh nodes).
-     *
-     * Null on nodes that have not yet been configured / joined a mesh.
-     */
-    meshSharedSecret: text('mesh_shared_secret'),
-
-    /**
-     * ISO-8601 timestamp when `meshSharedSecret` was last rotated.
-     * Null if the secret has never been set.
-     */
-    meshSharedSecretUpdatedAt: text('mesh_shared_secret_updated_at'),
-
-    /**
      * The platform secret: what signs the claims one service hands another (system actors) and, later, everything else the
      * platform derives keys from. Generated on this node's first boot, never read from the environment, and handed to nodes
      * that join so every node verifies what the others sign (SEC-100).

@@ -23,8 +23,6 @@ const row = (databaseUrl: string): NodeConfigRow => ({
     peerServiceToken: null,
     peerServiceTokenExpiresAt: null,
     updatedAt: '2026-01-01T00:00:00.000Z',
-    meshSharedSecret: null,
-    meshSharedSecretUpdatedAt: null,
     platformSecret: null,
     platformSecretUpdatedAt: null,
     platformSecretGeneration: 1,

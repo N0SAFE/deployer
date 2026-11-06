@@ -126,15 +126,6 @@ export function useMeshUpdateNodeConfig() {
     )
 }
 
-export function useMeshRegenerateNodeConfigSecret() {
-    return useMutation(
-        meshEndpoints.regenerateNodeConfigSecret.mutationOptions({
-            onSuccess:
-                enhancedMesh.regenerateNodeConfigSecret.withInvalidationOnSuccess(),
-        })
-    )
-}
-
 export function useMeshTestNodeConfigDb() {
     return useMutation(meshEndpoints.testNodeConfigDb.mutationOptions({}))
 }

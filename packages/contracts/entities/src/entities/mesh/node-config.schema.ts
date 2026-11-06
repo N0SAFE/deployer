@@ -14,7 +14,7 @@ export type MeshBootstrapStrategy = z.infer<typeof meshBootstrapStrategySchema>
 
 /**
  * Full node configuration — mirrors the sqlite node_config table.
- * Excludes sensitive fields (peerServiceToken, meshSharedSecret)
+ * Excludes sensitive fields (peerServiceToken)
  * unless explicitly requested.
  */
 export const meshNodeConfigSchema = z.object({
@@ -30,8 +30,6 @@ export const meshNodeConfigSchema = z.object({
     configuredAt: z.string().nullable(),
     /** ISO-8601 timestamp of last update */
     updatedAt: z.string(),
-    /** When the mesh shared secret was last rotated */
-    meshSharedSecretUpdatedAt: z.string().nullable(),
     /** Node metadata — region, zone, roles, version, routing mode, etc. */
     region: z.string().nullable().optional(),
     zone: z.string().nullable().optional(),
@@ -79,19 +77,6 @@ export const meshNodeConfigUpdateResultSchema = z.object({
 })
 export type MeshNodeConfigUpdateResult = z.infer<
     typeof meshNodeConfigUpdateResultSchema
->
-
-/**
- * Result of regenerating the mesh shared secret.
- * The new secret is returned once — it will not be visible again.
- */
-export const meshNodeConfigRegenerateSecretResultSchema = z.object({
-    success: z.boolean(),
-    meshSharedSecret: z.string(),
-    rotatedAt: z.string(),
-})
-export type MeshNodeConfigRegenerateSecretResult = z.infer<
-    typeof meshNodeConfigRegenerateSecretResultSchema
 >
 
 /**

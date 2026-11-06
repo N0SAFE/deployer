@@ -68,7 +68,6 @@ import {
 } from './state-machine'
 import {
     deploymentStreamContract,
-    deploymentInternalStreamContract,
     serviceDeploymentsStreamContract,
     deploymentQueryStreamContract,
     deploymentStreamsListContract,
@@ -90,7 +89,6 @@ export const deploymentContract = oc
         getLogs: deploymentGetLogsContract,
         delete: deploymentDeleteContract,
         stream: deploymentStreamContract,
-        streamInternal: deploymentInternalStreamContract,
         streamService: serviceDeploymentsStreamContract,
         streamQuery: deploymentQueryStreamContract,
         streamsList: deploymentStreamsListContract,

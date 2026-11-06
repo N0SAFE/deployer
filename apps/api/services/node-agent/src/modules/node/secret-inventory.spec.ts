@@ -26,19 +26,19 @@ describe('fingerprintOf', () => {
 })
 
 describe('secretInventoryOf', () => {
-    it('lists both secrets with what reads them, and never a value', () => {
+    it('lists the secret with what reads it, and never a value', () => {
         const inventory = secretInventoryOf({
+            // A record an older agent wrote still carries the mesh secret: it is not read, and never listed.
             meshSharedSecret: 'mesh-value',
-            meshSharedSecretUpdatedAt: '2026-11-05T10:00:00.000Z',
             platformSecret: 'platform-value',
             platformSecretUpdatedAt: '2026-11-05T10:01:00.000Z',
             platformSecretGeneration: 1,
         } as never)
 
-        expect(inventory.map((entry) => entry.id)).toEqual(['mesh', 'platform'])
+        expect(inventory.map((entry) => entry.id)).toEqual(['platform'])
         expect(JSON.stringify(inventory)).not.toContain('mesh-value')
         expect(JSON.stringify(inventory)).not.toContain('platform-value')
-        expect(inventory[1]).toMatchObject({
+        expect(inventory[0]).toMatchObject({
             generation: 1,
             adoptedAt: '2026-11-05T10:01:00.000Z',
             consumers: expect.arrayContaining(['Better Auth sessions', 'column encryption']),
@@ -46,11 +46,8 @@ describe('secretInventoryOf', () => {
     })
 
     it('says "none held" for an unconfigured node or an empty column', () => {
-        for (const config of [null, { meshSharedSecret: '', platformSecret: null } as never]) {
-            expect(secretInventoryOf(config).map((entry) => entry.fingerprint)).toEqual([
-                null,
-                null,
-            ])
+        for (const config of [null, { platformSecret: '' } as never]) {
+            expect(secretInventoryOf(config).map((entry) => entry.fingerprint)).toEqual([null])
         }
     })
 })
@@ -117,8 +114,8 @@ describe('adoptionOf', () => {
     })
 
     it('has no current value when no node holds one', () => {
-        const [mesh] = adoptionOf([{ nodeId: 'a', secrets: [secret('mesh', null)] }])
-        expect(mesh?.current).toBeNull()
-        expect(mesh?.nodes[0]?.status).toBe('missing')
+        const [platform] = adoptionOf([{ nodeId: 'a', secrets: [secret('platform', null)] }])
+        expect(platform?.current).toBeNull()
+        expect(platform?.nodes[0]?.status).toBe('missing')
     })
 })

@@ -51,7 +51,6 @@ vi.mock('@orpc/server', async (importOriginal) => ({
 
 vi.mock('@deployer/shared/core/modules/auth/orpc/middlewares', () => ({
     requireAuth: vi.fn(() => ({})),
-    requireMesh: vi.fn(() => ({})),
     requirePlatformRole: vi.fn(() => ({})),
     requireSystemActor: vi.fn(() => ({})),
 }))
@@ -138,7 +137,6 @@ describe('DeploymentController', () => {
             'retry',
             'getRollbackHistory',
             'stream',
-            'streamInternal',
             'streamService',
             'streamQuery',
             'streamsList',
@@ -285,40 +283,6 @@ describe('DeploymentController', () => {
             since: undefined,
             cursor: undefined,
             replay: true,
-            replayLimit: 10,
-        })
-        expect(returned).toBe(serviceStream)
-    })
-
-    it('streamInternal should delegate stream creation to deployment service', async () => {
-        const serviceStream = {
-            async *[Symbol.asyncIterator]() {
-                await Promise.resolve()
-                yield { type: 'statusChanged', sequence: 1, replayed: false }
-            },
-        }
-        mockDeploymentService.streamDeploymentEvents.mockReturnValue(
-            serviceStream
-        )
-
-        const impl = controller.streamInternal() as any
-        const returned = await runHandler(
-            procedureHandler(impl),
-            {
-                input: {
-                    params: { id: '00000000-0000-0000-0000-000000000001' },
-                    query: { replay: false, replayLimit: 10 },
-                },
-                context: {},
-            },
-            { deployments: mockDeploymentService }
-        )
-
-        expect(
-            mockDeploymentService.streamDeploymentEvents
-        ).toHaveBeenCalledWith({
-            deploymentId: '00000000-0000-0000-0000-000000000001',
-            replay: false,
             replayLimit: 10,
         })
         expect(returned).toBe(serviceStream)

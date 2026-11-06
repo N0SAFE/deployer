@@ -405,13 +405,11 @@ describe.each(
             setupState: string
             databaseProvisioning: string
             swarmConfig?: { policy: string }
-            meshSharedSecret?: string
         }
         expect(final.setupState).toBe('setup_done')
         expect(final.databaseProvisioning).toBe(
             source === 'provision' ? 'local' : 'external'
         )
-        expect(final.meshSharedSecret).toBeTruthy()
         // What the operator chose is what is stored, not a default.
         expect(final.swarmConfig?.policy).toBe(swarm?.policy)
     })

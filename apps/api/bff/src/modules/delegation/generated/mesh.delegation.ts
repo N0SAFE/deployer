@@ -134,13 +134,6 @@ export class MeshDelegationController {
         )
     }
 
-    @Implement(meshContract.regenerateNodeConfigSecret)
-    regenerateNodeConfigSecret() {
-        return implement(meshContract.regenerateNodeConfigSecret).handler(
-            ({ input }) => this.client.regenerateNodeConfigSecret(input)
-        )
-    }
-
     @Implement(meshContract.testNodeConfigDb)
     testNodeConfigDb() {
         return implement(meshContract.testNodeConfigDb).handler(({ input }) =>

@@ -159,8 +159,6 @@ const AGENT_ROW: NodeConfigRow = {
     peerServiceToken: null,
     peerServiceTokenExpiresAt: null,
     updatedAt: '2026-10-30T10:00:00.000Z',
-    meshSharedSecret: 'agent-secret',
-    meshSharedSecretUpdatedAt: null,
     platformSecret: null,
     platformSecretUpdatedAt: null,
     platformSecretGeneration: 1,
@@ -184,7 +182,6 @@ describe('AgentFirstNodeConfigRepository', () => {
         })
 
         expect(await run(repository.find())).toEqual(AGENT_ROW)
-        expect(await run(repository.getMeshSharedSecret())).toBe('agent-secret')
 
         const written = await run(
             repository.upsert({ nodeId: 'written', strategy: 'local' } as never)

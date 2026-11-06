@@ -3,7 +3,7 @@ import z from 'zod/v4'
 import { standard, standardDomainErrorContracts } from '@deployer/orpc-utils'
 
 /** The secrets a node holds. A new secret is a new id here, and a consumer list the node declares itself. */
-export const meshNodeSecretIdSchema = z.enum(['mesh', 'platform'])
+export const meshNodeSecretIdSchema = z.enum(['platform'])
 
 /**
  * What one node says about one secret it holds: never the value.

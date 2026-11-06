@@ -13,5 +13,4 @@ export const meshInvalidations: ReturnType<
     >
 > = defineInvalidations(meshEndpoints, {
     updateNodeConfig: ({ keys }) => [keys.getNodeConfig(), keys.getLocalNode()],
-    regenerateNodeConfigSecret: ({ keys }) => [keys.getNodeConfig()],
 })
