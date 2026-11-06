@@ -19,7 +19,7 @@ export default defineConfig([
         ],
     },
     // The Effect conventions (C1/C3/C5/C9/C10 of the migration inventory) — the whole gate for this app. `controllersUseProcedure` is part of it.
-    // `nest-roles.ledger.json` is the migration's to-do list (ClusterSwarmEventsService (the RxJS stream hub) and CloudflareTunnelEdgeProvider (lifecycle hooks) are still @Injectable). Delete an entry as its file migrates.
+    // `nest-roles.ledger.json` is the migration's to-do list (CloudflareTunnelEdgeProvider (lifecycle hooks) is still @Injectable). Delete an entry as its file migrates.
     {
         extends: [
             nestjsConfig.configs.effectConventions({
