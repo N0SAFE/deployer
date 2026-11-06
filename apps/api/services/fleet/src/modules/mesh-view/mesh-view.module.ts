@@ -33,7 +33,7 @@ export class MeshViewModule extends createModuleContext(
                 }),
                 inject: [NodeConfigRepository],
             },
-            { provide: MeshView, useValue: MeshView.live },
+            { provide: MeshView, useClass: MeshView.live },
         ],
     },
     MeshAgent,

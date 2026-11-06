@@ -1,7 +1,7 @@
 import { Effect, Fiber, Stream } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
 
-import { makeClusterEvents, type ClusterEventsDeps } from './cluster-events'
+import { ClusterEvents, type ClusterEventsDeps } from './cluster-events'
 
 const inventoryRow = (nodeId: string, state: 'active' | 'down') => ({
     nodeId,
@@ -65,7 +65,7 @@ function hubWith(options: Options = {}) {
         },
         pool: { observePooledStream: (_key: string, factory: () => unknown) => factory() },
     } as unknown as ClusterEventsDeps
-    return { hub: makeClusterEvents(deps), calls }
+    return { hub: new ClusterEvents.live(deps), calls }
 }
 
 const latest = <T>(source: { subscribe: (next: (value: T) => void) => { unsubscribe: () => void } }): T | undefined => {
@@ -80,7 +80,7 @@ describe('ClusterEvents', () => {
     it('loads the whole state once at start, so a subscriber never waits for the first event', async () => {
         const { hub, calls } = hubWith()
 
-        await Effect.runPromise(hub.onStart?.() ?? Effect.void)
+        await Effect.runPromise(hub.onStart())
 
         expect(calls).toMatchObject({ snapshot: 1, services: 1, tasks: 1 })
         expect(latest(hub.observeSnapshot())).toMatchObject({ clusterId: 'c' })
@@ -91,7 +91,7 @@ describe('ClusterEvents', () => {
     it('on a node that is not in a swarm, refreshes the inventory and nothing else', async () => {
         const { hub, calls } = hubWith({ active: false })
 
-        await Effect.runPromise(hub.onStart?.() ?? Effect.void)
+        await Effect.runPromise(hub.onStart())
 
         expect(calls).toMatchObject({ snapshot: 0, services: 0, tasks: 0, inventory: 1 })
         expect(latest(hub.observeNodes(true))?.map((row) => row.nodeId)).toEqual(['n1', 'n2'])
@@ -99,7 +99,7 @@ describe('ClusterEvents', () => {
 
     it('offers every node, or only the active ones', async () => {
         const { hub } = hubWith()
-        await Effect.runPromise(hub.onStart?.() ?? Effect.void)
+        await Effect.runPromise(hub.onStart())
 
         expect(latest(hub.observeNodes(true))?.map((row) => row.nodeId)).toEqual(['n1', 'n2'])
         expect(latest(hub.observeNodes(false))?.map((row) => row.nodeId)).toEqual(['n1'])
@@ -107,7 +107,7 @@ describe('ClusterEvents', () => {
 
     it('narrows tasks to a service and/or a node', async () => {
         const { hub } = hubWith()
-        await Effect.runPromise(hub.onStart?.() ?? Effect.void)
+        await Effect.runPromise(hub.onStart())
 
         expect(latest(hub.observeTasks())?.map((task) => task.id)).toEqual(['t1', 't2', 't3'])
         expect(latest(hub.observeTasks('s1'))?.map((task) => task.id)).toEqual(['t1', 't3'])
@@ -120,10 +120,10 @@ describe('ClusterEvents', () => {
             snapshot: () =>
                 failing ? Effect.fail(new Error('engine busy')) : Effect.succeed(snapshot({ nodeId: 'n1' })),
         })
-        await Effect.runPromise(hub.onStart?.() ?? Effect.void)
+        await Effect.runPromise(hub.onStart())
 
         failing = true
-        await Effect.runPromise(hub.onStart?.() ?? Effect.void)
+        await Effect.runPromise(hub.onStart())
 
         // The snapshot read failed, so the old snapshot stays; services and tasks were still read.
         expect(latest(hub.observeSnapshot())).toMatchObject({ clusterId: 'c' })
@@ -142,7 +142,7 @@ describe('ClusterEvents', () => {
                 ],
             })
 
-            const fiber = Effect.runFork(hub.run?.() ?? Effect.void)
+            const fiber = Effect.runFork(hub.run())
             await vi.advanceTimersByTimeAsync(700)
 
             // Three swarm events inside one window: one refresh. The container event counts for nothing.
@@ -173,9 +173,9 @@ describe('ClusterEvents', () => {
                 inventory: { list: () => Effect.succeed([]) },
                 pool: { observePooledStream: (_k: string, f: () => unknown) => f() },
             } as unknown as ClusterEventsDeps
-            const reconnecting = makeClusterEvents(deps)
+            const reconnecting = new ClusterEvents.live(deps)
 
-            const fiber = Effect.runFork(reconnecting.run?.() ?? Effect.void)
+            const fiber = Effect.runFork(reconnecting.run())
             await vi.advanceTimersByTimeAsync(11_000)
             await Effect.runPromise(Fiber.interrupt(fiber))
 

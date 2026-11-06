@@ -9,14 +9,13 @@ import type {
     SwarmParticipationShape,
 } from '@deployer/swarm'
 
-import type { ClusterEventsShape } from './events/cluster-events'
 
 /**
  * What the cluster module depends on, as Effect ports.
  *
  * The swarm services and node repositories are Promise-based (or synchronous) Nest providers owned
  * by other packages; each tag is registered in the module with `useExisting`, so a Layer asks for the
- * port without importing Nest. `ClusterEventsPort` is the RxJS stream hub that feeds the `stream*`
+ * port without importing Nest. `ClusterEvents` is the RxJS stream hub that feeds the `stream*`
  * procedures: it owns Docker-event subscriptions and lifecycle hooks, so it stays a Nest provider
  * and the controller reaches it through this port.
  */
@@ -44,7 +43,3 @@ export class ClusterEnvPort extends Context.Service<
     ClusterEnvPort,
     EnvService
 >()('fleet/ClusterEnvPort') {}
-export class ClusterEventsPort extends Context.Service<
-    ClusterEventsPort,
-    ClusterEventsShape
->()('fleet/ClusterEventsPort') {}

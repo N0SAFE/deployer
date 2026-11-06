@@ -24,7 +24,6 @@ import type {
     PublicJoinPath,
     PublicLane,
 } from '@deployer/contracts-entities/entities/ingress/index'
-import { serviceOver, type Over } from '@deployer/effect-core'
 import type { EffectHostShape } from '@deployer/nest-effect'
 import type {
     EdgeConnectorSpec,
@@ -33,10 +32,16 @@ import type {
     EdgeIngressPlan,
     EdgeProvider,
 } from '@deployer/shared/core/modules/edge/edge-provider'
-import { EdgeStateStore } from '@deployer/shared/core/modules/edge/edge-state.store'
+import {
+    EdgeStateStore,
+    type EdgeStateStoreShape,
+} from '@deployer/shared/core/modules/edge/edge-state.store'
 
 import { FleetInvalid } from '../../../../core/fleet.errors'
-import { CloudflareTunnelService } from '../../dns/cloudflare/services/cloudflare-tunnel.service'
+import {
+    CloudflareTunnelService,
+    type CloudflareTunnelServiceShape,
+} from '../../dns/cloudflare/services/cloudflare-tunnel.service'
 
 import { CloudflaredSettings } from './cloudflare-tunnel.edge-ports'
 
@@ -111,37 +116,35 @@ const joinPathOf = (ctx: EdgeContext, status: EdgeStatus): PublicJoinPath => ({
         : (status.detail ?? 'The tunnel is not created yet.'),
 })
 
-/**
- * The stack tunnel, as an Effect service over the tunnel API, the edge state store and the connector settings.
- *
- * Every method is an Effect that fails with its own typed errors (a lane without an account, a state that cannot be stored, the
- * tunnel service's own failures); nothing here is a Promise, a Nest provider or a hook.
- */
-const makeCloudflareTunnelEdge = ({
-    tunnels,
-    store,
-    settings,
-}: {
-    readonly tunnels: Context.Service.Shape<typeof CloudflareTunnelService>
-    readonly store: Context.Service.Shape<typeof EdgeStateStore>
-    readonly settings: Context.Service.Shape<typeof CloudflaredSettings>
-}) => {
-    const state = () => store.read(CLOUDFLARE_TUNNEL_EDGE_ID, stateSchema)
+type TunnelApi = CloudflareTunnelServiceShape
+type StoreApi = EdgeStateStoreShape
 
-    /** The state, but only when it belongs to the account the lane names. */
-    const stateFor = (lane: PublicLane) =>
-        Effect.gen(function* () {
-            const account = yield* accountOf(lane)
-            const current = yield* state()
-            return current !== null && current.accountId === account
-                ? current
-                : null
-        })
+/** What running the edge needs from the context: its three collaborators, and whatever the tunnel API itself needs. */
+type EdgeNeeds =
+    | CloudflareTunnelService
+    | EdgeStateStore
+    | CloudflaredSettings
+    // Every tunnel operation needs the same services, so one of them stands for all.
+    | Effect.Services<ReturnType<TunnelApi['createTunnel']>>
 
-    const teardown = Effect.fn('CloudflareTunnelEdge.teardown')(function* () {
-        const current = yield* state()
+/** A lane without an account, a state that cannot be stored, or whatever the tunnel service failed with (it does not type its errors). */
+type EdgeFailure = unknown
+
+const readState = (store: StoreApi) => store.read(CLOUDFLARE_TUNNEL_EDGE_ID, stateSchema)
+
+/** The state, but only when it belongs to the account the lane names. */
+const stateForLane = (store: StoreApi, lane: PublicLane) =>
+    Effect.gen(function* () {
+        const account = yield* accountOf(lane)
+        const current = yield* readState(store)
+        return current !== null && current.accountId === account ? current : null
+    })
+
+/** Provider first: forgetting the id first would orphan a tunnel nobody can name. */
+const teardownWith = (tunnels: TunnelApi, store: StoreApi) =>
+    Effect.gen(function* () {
+        const current = yield* readState(store)
         if (current === null) return
-        // Provider first: forgetting the id first would orphan a tunnel nobody can name.
         yield* tunnels.deleteTunnel(current.accountId, current.tunnelId)
         yield* store.clear(CLOUDFLARE_TUNNEL_EDGE_ID)
         yield* Effect.logInfo(
@@ -149,160 +152,202 @@ const makeCloudflareTunnelEdge = ({
         )
     })
 
-    return {
-        /** Make the provider side exist and route `*.<domain>` to the ingress target. Idempotent. */
-        provision: Effect.fn('CloudflareTunnelEdge.provision')(function* (
-            ctx: EdgeContext
-        ) {
-            const accountId = yield* accountOf(ctx.lane)
-            const wildcard = `*.${ctx.lane.domain}`
-            let current: TunnelState | null = yield* state()
+export type CloudflareTunnelEdgeShape = {
+    /** Make the provider side exist and route `*.<domain>` to the ingress target. Idempotent. */
+    readonly provision: (ctx: EdgeContext) => Effect.Effect<void, EdgeFailure, EdgeNeeds>
+    /** Remove everything the provider created, and its state. Idempotent. */
+    readonly teardown: () => Effect.Effect<void, EdgeFailure, EdgeNeeds>
+    /** The connector the cluster must run, or null when the tunnel is not this lane's. */
+    readonly connector: (
+        ctx: EdgeContext
+    ) => Effect.Effect<EdgeConnectorSpec | null, EdgeFailure, EdgeNeeds>
+    readonly dnsRecords: (
+        ctx: EdgeContext
+    ) => Effect.Effect<EdgeDnsRecord[], EdgeFailure, EdgeNeeds>
+    readonly status: (ctx: EdgeContext) => Effect.Effect<EdgeStatus, EdgeFailure, EdgeNeeds>
+    /** The wildcard the stack tunnel routes, when `tunnelId` on `accountId` is it (called by the tunnels page). */
+    readonly stackWildcard: (
+        accountId: string,
+        tunnelId: string
+    ) => Effect.Effect<string | null, EdgeFailure, EdgeNeeds>
+    /** Forget the stack tunnel after it was deleted from the tunnels page. True when it was the stack's. */
+    readonly forgetDeletedTunnel: (
+        accountId: string,
+        tunnelId: string
+    ) => Effect.Effect<boolean, EdgeFailure, EdgeNeeds>
+}
 
-            // Moving to another account: the old tunnel would keep its connectors' token valid and route nothing, so remove
-            // it first.
-            if (current !== null && current.accountId !== accountId)
-                yield* teardown()
-            current = yield* state()
+/**
+ * The stack tunnel, as an Effect service over the tunnel API, the edge state store and the connector settings.
+ *
+ * Every method is an Effect that fails with its own typed errors (a lane without an account, a state that cannot be stored, the
+ * tunnel service's own failures); nothing here is a Promise, a Nest provider or a hook. The collaborators are yielded when a
+ * method runs.
+ */
+export class CloudflareTunnelEdge extends Context.Service<
+    CloudflareTunnelEdge,
+    CloudflareTunnelEdgeShape
+>()('fleet/CloudflareTunnelEdge') {
+    static readonly live = class CloudflareTunnelEdgeImpl
+        implements CloudflareTunnelEdgeShape
+    {
+        provision(ctx: EdgeContext): ReturnType<CloudflareTunnelEdgeShape['provision']> {
+            return Effect.gen(function* () {
+                const tunnels = yield* CloudflareTunnelService
+                const store = yield* EdgeStateStore
+                const accountId = yield* accountOf(ctx.lane)
+                const wildcard = `*.${ctx.lane.domain}`
+                let current: TunnelState | null = yield* readState(store)
 
-            if (current === null) {
-                yield* Effect.logInfo(
-                    `Creating the stack tunnel on Cloudflare account ${accountId}`
-                )
-                // `createTunnel` adopts a tunnel this account already owns under the same name, so a retry after a partial
-                // failure does not create a second one.
-                const created = yield* tunnels.createTunnel(accountId, {
-                    name: ctx.resourceName,
-                })
-                current = {
-                    accountId,
-                    tunnelId: created.tunnel.id,
-                    token: created.token,
-                    wildcard,
+                // Moving to another account: the old tunnel would keep its connectors' token valid and route nothing, so
+                // remove it first.
+                if (current !== null && current.accountId !== accountId)
+                    yield* teardownWith(tunnels, store)
+                current = yield* readState(store)
+
+                if (current === null) {
+                    yield* Effect.logInfo(
+                        `Creating the stack tunnel on Cloudflare account ${accountId}`
+                    )
+                    // `createTunnel` adopts a tunnel this account already owns under the same name, so a retry after a
+                    // partial failure does not create a second one.
+                    const created = yield* tunnels.createTunnel(accountId, {
+                        name: ctx.resourceName,
+                    })
+                    current = {
+                        accountId,
+                        tunnelId: created.tunnel.id,
+                        token: created.token,
+                        wildcard,
+                    }
                 }
-            }
-            yield* store.write(CLOUDFLARE_TUNNEL_EDGE_ID, stateSchema, {
-                ...current,
-                wildcard,
+                yield* store.write(CLOUDFLARE_TUNNEL_EDGE_ID, stateSchema, {
+                    ...current,
+                    wildcard,
+                })
+                // ONE wildcard rule. No DNS here: that is the DNS plane's job (`dnsRecords`).
+                yield* tunnels.configureIngress(
+                    accountId,
+                    current.tunnelId,
+                    wildcard,
+                    ctx.ingressTarget
+                )
             })
-            // ONE wildcard rule. No DNS here: that is the DNS plane's job (`dnsRecords`).
-            yield* tunnels.configureIngress(
-                accountId,
-                current.tunnelId,
-                wildcard,
-                ctx.ingressTarget
-            )
-        }),
+        }
 
-        /** Remove everything the provider created, and its state. Idempotent. */
-        teardown,
+        teardown(): ReturnType<CloudflareTunnelEdgeShape['teardown']> {
+            return Effect.gen(function* () {
+                yield* teardownWith(yield* CloudflareTunnelService, yield* EdgeStateStore)
+            })
+        }
 
-        /** The connector the cluster must run, or null when the tunnel is not this lane's. */
-        connector: Effect.fn('CloudflareTunnelEdge.connector')(function* (
-            ctx: EdgeContext
-        ): Effect.fn.Return<EdgeConnectorSpec | null, unknown> {
-            const current = yield* stateFor(ctx.lane)
-            if (current === null) return null
-            return {
-                image: settings.image(),
-                // `TUNNEL_TOKEN` is the variable cloudflared reads for exactly this; a token in argv would be readable through
-                // `docker inspect`.
-                env: [`TUNNEL_TOKEN=${current.token}`],
-                command: ['cloudflared'],
-                args: ['tunnel', '--no-autoupdate', 'run'],
-                replicas: settings.replicas(),
-            }
-        }),
-
-        dnsRecords: Effect.fn('CloudflareTunnelEdge.dnsRecords')(function* (
-            ctx: EdgeContext
-        ) {
-            const current = yield* stateFor(ctx.lane)
-            if (current === null) return [] satisfies EdgeDnsRecord[]
-            return [
-                {
-                    name: `*.${ctx.lane.domain}`,
-                    type: 'CNAME' as const,
-                    contents: [`${current.tunnelId}.cfargotunnel.com`],
-                    proxied: true,
-                    preferredAccountId: current.accountId,
-                },
-            ] satisfies EdgeDnsRecord[]
-        }),
-
-        status: Effect.fn('CloudflareTunnelEdge.status')(function* (
-            ctx: EdgeContext
-        ) {
-            const current = yield* stateFor(ctx.lane)
-            if (current === null) {
+        connector(ctx: EdgeContext): ReturnType<CloudflareTunnelEdgeShape['connector']> {
+            return Effect.gen(function* () {
+                const settings = yield* CloudflaredSettings
+                const current = yield* stateForLane(yield* EdgeStateStore, ctx.lane)
+                if (current === null) return null
                 return {
-                    provisioned: false,
-                    health: 'down',
-                    detail: 'The tunnel is not created yet. Save the public lane to create it.',
-                    facts: [],
-                    resources: [],
+                    image: settings.image(),
+                    // `TUNNEL_TOKEN` is the variable cloudflared reads for exactly this; a token in argv would be readable
+                    // through `docker inspect`.
+                    env: [`TUNNEL_TOKEN=${current.token}`],
+                    command: ['cloudflared'],
+                    args: ['tunnel', '--no-autoupdate', 'run'],
+                    replicas: settings.replicas(),
+                } satisfies EdgeConnectorSpec
+            })
+        }
+
+        dnsRecords(ctx: EdgeContext): ReturnType<CloudflareTunnelEdgeShape['dnsRecords']> {
+            return Effect.gen(function* () {
+                const current = yield* stateForLane(yield* EdgeStateStore, ctx.lane)
+                if (current === null) return []
+                return [
+                    {
+                        name: `*.${ctx.lane.domain}`,
+                        type: 'CNAME' as const,
+                        contents: [`${current.tunnelId}.cfargotunnel.com`],
+                        proxied: true,
+                        preferredAccountId: current.accountId,
+                    },
+                ] satisfies EdgeDnsRecord[]
+            })
+        }
+
+        status(ctx: EdgeContext): ReturnType<CloudflareTunnelEdgeShape['status']> {
+            return Effect.gen(function* () {
+                const tunnels = yield* CloudflareTunnelService
+                const current = yield* stateForLane(yield* EdgeStateStore, ctx.lane)
+                if (current === null) {
+                    return {
+                        provisioned: false,
+                        health: 'down',
+                        detail: 'The tunnel is not created yet. Save the public lane to create it.',
+                        facts: [],
+                        resources: [],
+                    } satisfies EdgeStatus
+                }
+                const health = yield* tunnels.getTunnelHealth(
+                    current.accountId,
+                    current.tunnelId
+                )
+                const mapped =
+                    health.status === 'healthy'
+                        ? 'healthy'
+                        : health.status === 'degraded'
+                          ? 'degraded'
+                          : health.status === 'unknown'
+                            ? 'unknown'
+                            : 'down'
+                return {
+                    provisioned: true,
+                    health: mapped,
+                    detail:
+                        health.error ??
+                        (health.connections === 0
+                            ? 'No connector is connected yet — the connector service may still be starting.'
+                            : null),
+                    facts: [
+                        { label: 'Tunnel', value: current.tunnelId },
+                        {
+                            label: 'Routes',
+                            value: `${current.wildcard} → ${ctx.ingressTarget}`,
+                        },
+                        { label: 'Connections', value: String(health.connections) },
+                        { label: 'Cloudflare status', value: health.status },
+                    ],
+                    resources: [
+                        {
+                            kind: 'tunnel',
+                            id: current.tunnelId,
+                            accountId: current.accountId,
+                        },
+                    ],
                 } satisfies EdgeStatus
-            }
-            const health = yield* tunnels.getTunnelHealth(
-                current.accountId,
-                current.tunnelId
-            )
-            const mapped =
-                health.status === 'healthy'
-                    ? 'healthy'
-                    : health.status === 'degraded'
-                      ? 'degraded'
-                      : health.status === 'unknown'
-                        ? 'unknown'
-                        : 'down'
-            return {
-                provisioned: true,
-                health: mapped,
-                detail:
-                    health.error ??
-                    (health.connections === 0
-                        ? 'No connector is connected yet — the connector service may still be starting.'
-                        : null),
-                facts: [
-                    { label: 'Tunnel', value: current.tunnelId },
-                    {
-                        label: 'Routes',
-                        value: `${current.wildcard} → ${ctx.ingressTarget}`,
-                    },
-                    {
-                        label: 'Connections',
-                        value: String(health.connections),
-                    },
-                    { label: 'Cloudflare status', value: health.status },
-                ],
-                resources: [
-                    {
-                        kind: 'tunnel',
-                        id: current.tunnelId,
-                        accountId: current.accountId,
-                    },
-                ],
-            } satisfies EdgeStatus
-        }),
+            })
+        }
 
-        // ─── Called by the Cloudflare tunnels page ─────────────────────────────
-
-        /** The wildcard the stack tunnel routes, when `tunnelId` on `accountId` is it. */
-        stackWildcard: Effect.fn('CloudflareTunnelEdge.stackWildcard')(function* (
+        stackWildcard(
             accountId: string,
             tunnelId: string
-        ) {
-            const current = yield* state()
-            return current !== null &&
-                current.accountId === accountId &&
-                current.tunnelId === tunnelId
-                ? current.wildcard
-                : null
-        }),
+        ): ReturnType<CloudflareTunnelEdgeShape['stackWildcard']> {
+            return Effect.gen(function* () {
+                const current = yield* readState(yield* EdgeStateStore)
+                return current !== null &&
+                    current.accountId === accountId &&
+                    current.tunnelId === tunnelId
+                    ? current.wildcard
+                    : null
+            })
+        }
 
-        /** Forget the stack tunnel after it was deleted from the tunnels page. True when it was the stack's. */
-        forgetDeletedTunnel: Effect.fn('CloudflareTunnelEdge.forgetDeletedTunnel')(
-            function* (accountId: string, tunnelId: string) {
-                const current = yield* state()
+        forgetDeletedTunnel(
+            accountId: string,
+            tunnelId: string
+        ): ReturnType<CloudflareTunnelEdgeShape['forgetDeletedTunnel']> {
+            return Effect.gen(function* () {
+                const store = yield* EdgeStateStore
+                const current = yield* readState(store)
                 const isStackTunnel =
                     current !== null &&
                     current.accountId === accountId &&
@@ -313,30 +358,9 @@ const makeCloudflareTunnelEdge = ({
                     `Forgot stack tunnel ${tunnelId} (deleted from the tunnels page)`
                 )
                 return true
-            }
-        ),
+            })
+        }
     }
-}
-
-export type CloudflareTunnelEdgeShape = Over<
-    ReturnType<typeof makeCloudflareTunnelEdge>,
-    CloudflareTunnelService | EdgeStateStore | CloudflaredSettings
->
-
-/** Tag and implementation together: the tag is the contract, `live` the one implementation. */
-export class CloudflareTunnelEdge extends Context.Service<
-    CloudflareTunnelEdge,
-    CloudflareTunnelEdgeShape
->()('fleet/CloudflareTunnelEdge') {
-    /** The collaborators are yielded when a method runs, so this is a constant the module provides with `useValue`. */
-    static readonly live: CloudflareTunnelEdgeShape = serviceOver(
-        Effect.all({
-            tunnels: CloudflareTunnelService,
-            store: EdgeStateStore,
-            settings: CloudflaredSettings,
-        }),
-        makeCloudflareTunnelEdge
-    )
 }
 
 /**

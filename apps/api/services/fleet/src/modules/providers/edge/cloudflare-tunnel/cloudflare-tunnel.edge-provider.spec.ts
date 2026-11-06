@@ -73,14 +73,14 @@ function setup(initial: unknown = null) {
     }
     const world = <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E> =>
         effect.pipe(
-            Effect.provideService(CloudflareTunnelEdge, CloudflareTunnelEdge.live),
+            Effect.provideService(CloudflareTunnelEdge, new CloudflareTunnelEdge.live()),
             Effect.provideService(CloudflareTunnelService, tunnels),
             Effect.provideService(EdgeStateStore, store),
             Effect.provideService(CloudflaredSettings, settings)
         ) as Effect.Effect<A, E>
-    const edge = provideTo(CloudflareTunnelEdge.live, (effect) => world(effect))
+    const edge = provideTo(new CloudflareTunnelEdge.live(), (effect) => world(effect))
     // The host the registered adapter takes its context from: the app's, which holds every service over the same fakes.
-    const appContext = Context.make(CloudflareTunnelEdge, CloudflareTunnelEdge.live).pipe(
+    const appContext = Context.make(CloudflareTunnelEdge, new CloudflareTunnelEdge.live()).pipe(
         Context.add(CloudflareTunnelService, tunnels),
         Context.add(EdgeStateStore, store),
         Context.add(CloudflaredSettings, settings)

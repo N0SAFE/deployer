@@ -19,7 +19,7 @@ function gateway(options: {
     const assertCritical = vi.fn(options.identity ?? (() => Promise.resolve({ critical: true })))
     const systemActorClientFor = vi.fn(() => ({ assertCritical }))
     const service = provideTo(
-        StepUpGateway.live,
+        new StepUpGateway.live(),
         (effect) =>
             effect.pipe(
                 Effect.provideService(SystemActorClients, { systemActorClientFor } as never),

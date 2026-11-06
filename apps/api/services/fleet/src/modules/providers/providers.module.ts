@@ -193,7 +193,7 @@ export class ProvidersModule extends createModuleContext(
                 useValue: DnsProviderRegistryService.live,
             },
             // The Cloudflare tunnel edge: an Effect service over the tunnel API, the edge state and the connector settings.
-            { provide: CloudflareTunnelEdge, useValue: CloudflareTunnelEdge.live },
+            { provide: CloudflareTunnelEdge, useClass: CloudflareTunnelEdge.live },
             {
                 provide: CloudflaredSettings,
                 useFactory: (env: EnvService): CloudflaredSettingsShape => ({

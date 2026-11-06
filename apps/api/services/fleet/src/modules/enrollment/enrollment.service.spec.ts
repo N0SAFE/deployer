@@ -54,7 +54,7 @@ function enrollmentOver(over: Partial<World> = {}) {
         ...over,
     }
     const service = provideTo(
-        Enrollment.live,
+        new Enrollment.live(),
         (effect) =>
             effect.pipe(
                 Effect.provideService(JoinTokenVoucher, world.voucher),

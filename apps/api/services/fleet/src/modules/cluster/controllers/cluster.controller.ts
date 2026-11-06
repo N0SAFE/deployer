@@ -11,7 +11,7 @@ import {
 import { liveSnapshot } from '@deployer/shared/core/utils/live-snapshot.utils'
 
 import { attemptSync } from '../../../core/effects'
-import { ClusterEventsPort } from '../cluster.ports'
+import { ClusterEvents } from '../events/cluster-events'
 import {
     ClusterService,
     type ClusterServicePorts,
@@ -26,7 +26,7 @@ const SWARM_CONFIG_STREAM_INTERVAL_MS = 15_000
 /**
  * The cluster surface. Request/response procedures resolve `ClusterService` from the module's Effect
  * context; the `stream*` procedures hand back the RxJS observables of the event hub (reached through
- * `ClusterEventsPort`). Every use case runs through the `.effect()` boundary.
+ * `ClusterEvents`). Every use case runs through the `.effect()` boundary.
  */
 
 /** Swarm membership and node labels are operational acts: a viewer keeps the reads. */
@@ -49,7 +49,7 @@ export class ClusterController {
         return procedure(clusterContract.streamSnapshot)
             .use(requireAuth())
             .effect(function* () {
-                const events = yield* ClusterEventsPort
+                const events = yield* ClusterEvents
                 return yield* attemptSync(() => events.observeSnapshot())
             })
     }
@@ -60,7 +60,7 @@ export class ClusterController {
             .use(requireAuth())
             .effect(function* ({ input }) {
                 const cluster = yield* ClusterService
-                return yield* cluster.listNodes(input.includeDown ?? false)
+                return yield* cluster.listNodes(input.includeDown)
             })
     }
 
@@ -69,9 +69,9 @@ export class ClusterController {
         return procedure(clusterContract.streamNodes)
             .use(requireAuth())
             .effect(function* ({ input }) {
-                const events = yield* ClusterEventsPort
+                const events = yield* ClusterEvents
                 return yield* attemptSync(() =>
-                    events.observeNodes(input.includeDown ?? false)
+                    events.observeNodes(input.includeDown)
                 )
             })
     }
@@ -137,7 +137,7 @@ export class ClusterController {
         return procedure(clusterContract.streamMaster)
             .use(requireAuth())
             .effect(function* () {
-                const events = yield* ClusterEventsPort
+                const events = yield* ClusterEvents
                 return yield* attemptSync(() => events.observeMaster())
             })
     }
@@ -171,7 +171,7 @@ export class ClusterController {
         return procedure(clusterContract.streamServices)
             .use(requireAuth())
             .effect(function* () {
-                const events = yield* ClusterEventsPort
+                const events = yield* ClusterEvents
                 return yield* attemptSync(() => events.observeServices())
             })
     }
@@ -194,7 +194,7 @@ export class ClusterController {
         return procedure(clusterContract.streamTasks)
             .use(requireAuth())
             .effect(function* ({ input }) {
-                const events = yield* ClusterEventsPort
+                const events = yield* ClusterEvents
                 return yield* attemptSync(() =>
                     events.observeTasks(
                         input.query?.serviceId,

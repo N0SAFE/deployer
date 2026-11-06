@@ -49,8 +49,8 @@ export class SecretsModule extends createModuleContext(
                 }),
                 inject: [GLOBAL_DATABASE_POOL],
             },
-            { provide: SecretInventory, useValue: SecretInventory.live },
-            { provide: StepUpGateway, useValue: StepUpGateway.live },
+            { provide: SecretInventory, useClass: SecretInventory.live },
+            { provide: StepUpGateway, useClass: StepUpGateway.live },
             // The clients that call a sibling service as the system: the app's `ServiceClient`, seen through this port.
             { provide: SystemActorClients, useExisting: ServiceClient },
         ],

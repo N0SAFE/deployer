@@ -21,7 +21,6 @@ import {
 
 import {
     ClusterEnvPort,
-    ClusterEventsPort,
     ClusterNodeRepoPort,
     NodeInventoryPort,
     SwarmClusterPort,
@@ -29,14 +28,14 @@ import {
     SwarmParticipationPort,
 } from './cluster.ports'
 import { ClusterController } from './controllers/cluster.controller'
-import { makeClusterEvents } from './events/cluster-events'
+import { ClusterEvents } from './events/cluster-events'
 import { ClusterService } from './services/cluster.service'
 
 /**
  * `EnvModule` IS IMPORTED EXPLICITLY: the cluster ports alias `EnvService`, so it must be
  * resolvable from THIS module's scope rather than assumed to be registered globally elsewhere.
  *
- * `ClusterService` is a constant over the swarm ports. `ClusterEventsPort` is the live-state hub: stateful, so built once by a
+ * `ClusterService` is a constant over the swarm ports. `ClusterEvents` is the live-state hub: stateful, so built once by a
  * factory from its collaborators, with its lifetime (first load, the Docker event subscription) declared in its shape and run
  * by `serviceLifecycle`. Its streams are RxJS, which stays the streaming surface.
  */
@@ -54,14 +53,14 @@ export class ClusterModule extends createModuleContext({
         },
         { provide: ClusterEnvPort, useExisting: EnvService },
         {
-            provide: ClusterEventsPort,
+            provide: ClusterEvents,
             useFactory: (
                 docker: DockerEngineShape,
                 cluster: SwarmClusterShape,
                 fleet: SwarmFleetShape,
                 inventory: ClusterNodeInventoryRepositoryShape,
                 pool: CoreEventStreamPoolServiceShape
-            ) => makeClusterEvents({ docker, cluster, fleet, inventory, pool }),
+            ) => new ClusterEvents.live({ docker, cluster, fleet, inventory, pool }),
             inject: [
                 DockerEngine,
                 SwarmCluster,
@@ -71,7 +70,7 @@ export class ClusterModule extends createModuleContext({
             ],
         },
         // Binds the hub's first load and its Docker event subscription to the app's lifecycle.
-        serviceLifecycle(ClusterEventsPort),
+        serviceLifecycle(ClusterEvents),
         { provide: ClusterService, useValue: ClusterService.live },
     ],
 }) {}

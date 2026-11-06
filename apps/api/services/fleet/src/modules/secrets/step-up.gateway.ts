@@ -1,14 +1,11 @@
 import { Context, Effect } from 'effect'
 
-import { CurrentActor, domainError, serviceOver, type Over } from '@deployer/effect-core'
+import { CurrentActor, domainError } from '@deployer/effect-core'
 import { stepUpContract } from '@deployer/identity-contracts'
 import { PlatformSecret } from '@deployer/shared/core/modules/auth/orpc/secrets'
 import { signSystemActorClaim } from '@deployer/shared/core/modules/auth/system-actor/system-actor'
 
-import {
-    SystemActorClients,
-    type SystemActorClientsShape,
-} from '@/core/ports/system-actor-clients.port'
+import { SystemActorClients } from '@/core/ports/system-actor-clients.port'
 
 /** The caller has not stepped up with a passkey recently. `reason` is the sentence identity gave, for the operator. */
 export class StepUpRequired extends domainError('StepUpRequired', 'forbidden')<{
@@ -36,6 +33,15 @@ const codeOf = (error: unknown): unknown =>
         ? error.code
         : undefined
 
+export type StepUpGatewayShape = {
+    /** Fails with `StepUpRequired` unless the caller's session just passed a passkey step-up. */
+    readonly assertCritical: () => Effect.Effect<
+        void,
+        StepUpRequired | StepUpUnavailable,
+        CurrentActor | SystemActorClients | PlatformSecret
+    >
+}
+
 /**
  * The guard an act that needs a passkey calls first.
  *
@@ -44,58 +50,53 @@ const codeOf = (error: unknown): unknown =>
  * merely reaches identity's port cannot ask on someone else's behalf, and the claim is good for a minute. Fails closed: if
  * identity does not answer, nothing is allowed.
  */
-const makeStepUpGateway = ({
-    clients,
-    secrets,
-}: {
-    readonly clients: SystemActorClientsShape
-    readonly secrets: Context.Service.Shape<typeof PlatformSecret>
-}) => ({
-    assertCritical: Effect.fn('StepUpGateway.assertCritical')(function* () {
-        const actor = yield* CurrentActor
-        if (actor.kind !== 'user' || actor.sessionId === null) {
-            return yield* new StepUpRequired({
-                reason: 'step-up needs a user session',
-            })
-        }
-        const secret = yield* secrets.get()
-        if (secret === null) return yield* new StepUpUnavailable({})
-
-        const token = signSystemActorClaim(
-            { source: 'fleet-secrets', subject: actor.sessionId, aud: 'identity' },
-            secret
-        )
-        const client = clients.systemActorClientFor('identity', stepUpContract, token)
-        yield* Effect.tryPromise({
-            try: () => client.assertCritical({}),
-            catch: (error) => error,
-        }).pipe(
-            Effect.mapError((error) =>
-                codeOf(error) === FORBIDDEN
-                    ? new StepUpRequired({
-                          reason:
-                              error instanceof Error
-                                  ? error.message
-                                  : 'step-up required: verify with a passkey and retry',
-                      })
-                    : new StepUpUnavailable({ cause: error })
-            )
-        )
-    }),
-})
-
-export type StepUpGatewayShape = Over<
-    ReturnType<typeof makeStepUpGateway>,
-    SystemActorClients | PlatformSecret
->
-
-/** Tag and implementation together: the tag is the contract, `live` the one implementation. */
 export class StepUpGateway extends Context.Service<
     StepUpGateway,
     StepUpGatewayShape
 >()('fleet/StepUpGateway') {
-    static readonly live: StepUpGatewayShape = serviceOver(
-        Effect.all({ clients: SystemActorClients, secrets: PlatformSecret }),
-        makeStepUpGateway
-    )
+    static readonly live = class StepUpGatewayImpl implements StepUpGatewayShape {
+        assertCritical(): ReturnType<StepUpGatewayShape['assertCritical']> {
+            return Effect.gen(function* () {
+                const clients = yield* SystemActorClients
+                const secrets = yield* PlatformSecret
+                const actor = yield* CurrentActor
+                if (actor.kind !== 'user' || actor.sessionId === null) {
+                    return yield* new StepUpRequired({
+                        reason: 'step-up needs a user session',
+                    })
+                }
+                const secret = yield* secrets.get()
+                if (secret === null) return yield* new StepUpUnavailable({})
+
+                const token = signSystemActorClaim(
+                    {
+                        source: 'fleet-secrets',
+                        subject: actor.sessionId,
+                        aud: 'identity',
+                    },
+                    secret
+                )
+                const client = clients.systemActorClientFor(
+                    'identity',
+                    stepUpContract,
+                    token
+                )
+                yield* Effect.tryPromise({
+                    try: () => client.assertCritical({}),
+                    catch: (error) => error,
+                }).pipe(
+                    Effect.mapError((error) =>
+                        codeOf(error) === FORBIDDEN
+                            ? new StepUpRequired({
+                                  reason:
+                                      error instanceof Error
+                                          ? error.message
+                                          : 'step-up required: verify with a passkey and retry',
+                              })
+                            : new StepUpUnavailable({ cause: error })
+                    )
+                )
+            })
+        }
+    }
 }

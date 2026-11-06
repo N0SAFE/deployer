@@ -84,7 +84,7 @@ export class EnrollmentModule extends createModuleContext(
                 }),
                 inject: [SystemMeshClusterRepository],
             },
-            { provide: Enrollment, useValue: Enrollment.live },
+            { provide: Enrollment, useClass: Enrollment.live },
         ],
     },
     JoinTokenVoucher,

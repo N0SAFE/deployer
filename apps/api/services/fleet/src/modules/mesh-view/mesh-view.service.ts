@@ -14,12 +14,7 @@ import {
     type NodeAgentNodesResult,
     type NodeAgentSnapshot,
 } from '@deployer/contracts-entities'
-import {
-    domainError,
-    runPromiseUnwrapped,
-    serviceOver,
-    type Over,
-} from '@deployer/effect-core'
+import { domainError, runPromiseUnwrapped } from '@deployer/effect-core'
 
 import { FleetInvalid } from '../../core/fleet.errors'
 
@@ -134,33 +129,68 @@ const snapshotWith = (agent: MeshAgentShape) =>
         } satisfies NodeAgentSnapshot
     })
 
+export type MeshViewShape = {
+    readonly localNode: () => Effect.Effect<NodeAgentNode, MeshAgentCallFailed, MeshAgent>
+    readonly peers: () => Effect.Effect<NodeAgentNodesResult, MeshAgentCallFailed, MeshAgent>
+    readonly snapshot: () => Effect.Effect<NodeAgentSnapshot, MeshAgentCallFailed, MeshAgent>
+    /** The swarm now, and again each time it differs from what was last sent. */
+    readonly topology: (
+        pollMs?: number
+    ) => Effect.Effect<Observable<NodeAgentSnapshot>, never, MeshAgent>
+    readonly lookup: (
+        input: NodeAgentLookupInput
+    ) => Effect.Effect<NodeAgentLookupResult, MeshAgentCallFailed, MeshAgent>
+    /** A token for a new node. A node with no agent cannot issue one: there is no swarm credential to hand over. */
+    readonly issueToken: (
+        input: NodeAgentJoinTokenInput
+    ) => Effect.Effect<
+        NodeAgentJoinTokenResult,
+        FleetInvalid | MeshAgentCallFailed,
+        MeshAgent
+    >
+}
+
 /**
  * The dashboard's picture of the mesh, read from the agent of this node.
  *
  * Nothing is measured here: the nodes and replicas are what the agents report, and a join token is issued by the agent,
- * which alone holds the swarm's credential. A node without an agent is a swarm of one.
+ * which alone holds the swarm's credential. A node without an agent is a swarm of one. The agent is yielded when a method runs.
  */
-const makeMeshView = ({ agent }: { readonly agent: MeshAgentShape }) => ({
-    localNode: Effect.fn('MeshView.localNode')(function* () {
-        return yield* localNodeWith(agent)
-    }),
+export class MeshView extends Context.Service<MeshView, MeshViewShape>()(
+    'fleet/MeshView'
+) {
+    static readonly live = class MeshViewImpl implements MeshViewShape {
+        localNode(): ReturnType<MeshViewShape['localNode']> {
+            return Effect.gen(function* () {
+                return yield* localNodeWith(yield* MeshAgent)
+            })
+        }
 
-    peers: Effect.fn('MeshView.peers')(function* () {
-        const link = agent.link()
-        const items =
-            link === undefined ? [yield* localNodeWith(agent)] : yield* nodesOf(link)
-        return { items } satisfies NodeAgentNodesResult
-    }),
+        peers(): ReturnType<MeshViewShape['peers']> {
+            return Effect.gen(function* () {
+                const agent = yield* MeshAgent
+                const link = agent.link()
+                const items =
+                    link === undefined
+                        ? [yield* localNodeWith(agent)]
+                        : yield* nodesOf(link)
+                return { items } satisfies NodeAgentNodesResult
+            })
+        }
 
-    snapshot: Effect.fn('MeshView.snapshot')(function* () {
-        return yield* snapshotWith(agent)
-    }),
+        snapshot(): ReturnType<MeshViewShape['snapshot']> {
+            return Effect.gen(function* () {
+                return yield* snapshotWith(yield* MeshAgent)
+            })
+        }
 
-    /** The swarm now, and again each time it differs from what was last sent. */
-    topology: (pollMs: number = TOPOLOGY_POLL_MS) =>
-        Effect.sync(
-            () =>
-                new Observable<NodeAgentSnapshot>((subscriber) => {
+        topology(
+            pollMs: number = TOPOLOGY_POLL_MS
+        ): ReturnType<MeshViewShape['topology']> {
+            return Effect.gen(function* () {
+                // Captured now: the stream outlives this Effect, so it cannot ask the context again.
+                const agent = yield* MeshAgent
+                return new Observable<NodeAgentSnapshot>((subscriber) => {
                     let last = ''
                     let closed = false
                     const look = async () => {
@@ -187,59 +217,65 @@ const makeMeshView = ({ agent }: { readonly agent: MeshAgentShape }) => ({
                         clearInterval(timer)
                     }
                 })
-        ),
-
-    lookup: Effect.fn('MeshView.lookup')(function* (input: NodeAgentLookupInput) {
-        const link = agent.link()
-        const none: NodeAgentLookupResult = { found: false, replica: null, reason: null }
-        if (link === undefined) return none
-        return yield* ask(link, ['directory', 'resolve'], input, resolveSchema).pipe(
-            Effect.map(
-                ({ replica, reason }): NodeAgentLookupResult => ({
-                    found: true,
-                    replica,
-                    reason,
-                })
-            ),
-            // No live replica is an answer, not a failure.
-            Effect.catch((error) =>
-                !(error instanceof MeshAgentCallFailed) && error.code === 'NOT_FOUND'
-                    ? Effect.succeed(none)
-                    : Effect.fail(asCallFailure(error, 'directory.resolve'))
-            )
-        )
-    }),
-
-    /** A token for a new node. A node with no agent cannot issue one: there is no swarm credential to hand over. */
-    issueToken: Effect.fn('MeshView.issueToken')(function* (
-        input: NodeAgentJoinTokenInput
-    ) {
-        const link = agent.link()
-        if (link === undefined) {
-            return yield* new FleetInvalid({
-                reason: 'This node has no mesh agent, so it cannot issue a join token',
             })
         }
-        const token: NodeAgentJoinTokenResult = yield* ask(
-            link,
-            ['roster', 'token'],
-            input,
-            nodeAgentJoinTokenResultSchema
-        ).pipe(Effect.mapError((error) => asCallFailure(error, 'roster.token')))
-        return token
-    }),
-})
 
-export type MeshViewShape = Over<ReturnType<typeof makeMeshView>, MeshAgent>
+        lookup(
+            input: NodeAgentLookupInput
+        ): ReturnType<MeshViewShape['lookup']> {
+            return Effect.gen(function* () {
+                const agent = yield* MeshAgent
+                const link = agent.link()
+                const none: NodeAgentLookupResult = {
+                    found: false,
+                    replica: null,
+                    reason: null,
+                }
+                if (link === undefined) return none
+                return yield* ask(
+                    link,
+                    ['directory', 'resolve'],
+                    input,
+                    resolveSchema
+                ).pipe(
+                    Effect.map(
+                        ({ replica, reason }): NodeAgentLookupResult => ({
+                            found: true,
+                            replica,
+                            reason,
+                        })
+                    ),
+                    // No live replica is an answer, not a failure.
+                    Effect.catch((error) =>
+                        !(error instanceof MeshAgentCallFailed) &&
+                        error.code === 'NOT_FOUND'
+                            ? Effect.succeed(none)
+                            : Effect.fail(asCallFailure(error, 'directory.resolve'))
+                    )
+                )
+            })
+        }
 
-/** Tag and implementation together: the tag is the contract, `live` the one implementation. */
-export class MeshView extends Context.Service<MeshView, MeshViewShape>()(
-    'fleet/MeshView'
-) {
-    /** The agent is yielded when a method runs, so this is a constant the module provides with `useValue`. */
-    static readonly live: MeshViewShape = serviceOver(
-        Effect.all({ agent: MeshAgent }),
-        makeMeshView
-    )
+        issueToken(
+            input: NodeAgentJoinTokenInput
+        ): ReturnType<MeshViewShape['issueToken']> {
+            return Effect.gen(function* () {
+                const link = (yield* MeshAgent).link()
+                if (link === undefined) {
+                    return yield* new FleetInvalid({
+                        reason: 'This node has no mesh agent, so it cannot issue a join token',
+                    })
+                }
+                const token: NodeAgentJoinTokenResult = yield* ask(
+                    link,
+                    ['roster', 'token'],
+                    input,
+                    nodeAgentJoinTokenResultSchema
+                ).pipe(
+                    Effect.mapError((error) => asCallFailure(error, 'roster.token'))
+                )
+                return token
+            })
+        }
+    }
 }
-

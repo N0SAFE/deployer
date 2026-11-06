@@ -41,7 +41,7 @@ function agentAnswering(answers: Record<string, unknown>) {
 /** The service with its agent replaced: `undefined` is a node with no agent. */
 function meshViewOver(link: () => ClientLink<ClientContext> | undefined) {
     return provideTo(
-        MeshView.live,
+        new MeshView.live(),
         (effect) =>
             effect.pipe(
                 Effect.provideService(MeshAgent, {

@@ -56,7 +56,7 @@ const serviceOver = (
     door: Partial<SecretsDoorShape>,
     stored: StoredSecretsShape = nothingStored
 ) =>
-    provideTo(SecretInventory.live, (effect) =>
+    provideTo(new SecretInventory.live(), (effect) =>
         effect.pipe(
             Effect.provideService(StoredSecretsPort, stored),
             Effect.provideService(SecretsDoor, {
