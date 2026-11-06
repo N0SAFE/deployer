@@ -38,15 +38,6 @@ describe('serviceAuthHeaders', () => {
         expect(headers).toEqual({ 'x-api-key': 'dk_abc' })
     })
 
-    it('forwards the mesh internal key', () => {
-        const headers = runWithServiceAuth(
-            { meshInternalKey: 'v2.token' },
-            serviceAuthHeaders
-        )
-
-        expect(headers).toEqual({ 'x-mesh-internal-key': 'v2.token' })
-    })
-
     it('sends nothing outside a request', () => {
         expect(serviceAuthHeaders()).toEqual({})
     })

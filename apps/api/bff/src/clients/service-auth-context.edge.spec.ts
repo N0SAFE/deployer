@@ -31,7 +31,6 @@ describe('serviceAuthContextEdge', () => {
                 cookie: 'session=abc',
                 authorization: 'Bearer t',
                 'x-api-key': 'dk_1',
-                'x-mesh-internal-key': 'v2.k',
             }),
             {} as Response,
             () => {
@@ -43,7 +42,6 @@ describe('serviceAuthContextEdge', () => {
             cookie: 'session=abc',
             authorization: 'Bearer t',
             apiKey: 'dk_1',
-            meshInternalKey: 'v2.k',
         })
     })
 
@@ -67,7 +65,6 @@ describe('serviceAuthContextEdge', () => {
             cookie: undefined,
             authorization: undefined,
             apiKey: undefined,
-            meshInternalKey: undefined,
         })
     })
 

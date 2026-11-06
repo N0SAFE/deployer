@@ -33,8 +33,6 @@ export type ServiceAuthContext = {
     authorization?: string
     /** The caller's API key, from `x-api-key` or a `Bearer dk_…` authorization. */
     apiKey?: string
-    /** The platform-scoped mesh internal key, when the caller holds one. */
-    meshInternalKey?: string
 }
 
 const storage = new AsyncLocalStorage<ServiceAuthContext>()
@@ -55,7 +53,7 @@ export function currentServiceAuth(): ServiceAuthContext {
 /**
  * The headers to send on a fan-out leg.
  *
- * Only the four credentials travel — not the caller's full header set. Relaying
+ * Only the three credentials travel — not the caller's full header set. Relaying
  * everything would push the browser's `accept-encoding`, `user-agent` and
  * conditional headers onto an internal JSON call, where they mean nothing and
  * where `content-length` in particular would make the service wait for bytes that
@@ -68,7 +66,5 @@ export function serviceAuthHeaders(): Record<string, string> {
     if (auth.authorization) headers.authorization = auth.authorization
     // The services' key plugin reads `x-api-key`; forwarding the caller's own keeps a key usable through the BFF.
     if (auth.apiKey) headers['x-api-key'] = auth.apiKey
-    if (auth.meshInternalKey)
-        headers['x-mesh-internal-key'] = auth.meshInternalKey
     return headers
 }

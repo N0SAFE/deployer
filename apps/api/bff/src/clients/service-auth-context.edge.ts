@@ -4,9 +4,6 @@ import { runWithServiceAuth } from './service-auth-context'
 
 import type { NextFunction, Request, Response } from 'express'
 
-/** The header a caller uses to present a platform-scoped mesh internal key. */
-const HDR_MESH_INTERNAL_KEY = 'x-mesh-internal-key'
-
 /** The header (and the bearer prefix) a caller uses to present an API key. */
 const HDR_API_KEY = 'x-api-key'
 const API_KEY_PREFIX = 'dk_'
@@ -63,8 +60,6 @@ export function serviceAuthContextEdge(): HttpEdgeEntry {
     return edgeUse(
         'service-auth-context',
         (req: Request, _res: Response, next: NextFunction): void => {
-            const meshInternalKey = req.headers[HDR_MESH_INTERNAL_KEY]
-
             runWithServiceAuth(
                 {
                     // `req.headers.cookie` is a string on Node's request; Better Auth's session
@@ -72,9 +67,6 @@ export function serviceAuthContextEdge(): HttpEdgeEntry {
                     cookie: req.headers.cookie,
                     authorization: req.headers.authorization,
                     apiKey: apiKeyOf(req),
-                    meshInternalKey: Array.isArray(meshInternalKey)
-                        ? meshInternalKey[0]
-                        : meshInternalKey,
                 },
                 () => {
                     next()
