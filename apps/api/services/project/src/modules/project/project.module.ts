@@ -3,10 +3,11 @@ import {
     EffectHost,
     effectHostProvider,
 } from '@deployer/nest-effect'
+import { ApprovalGuard } from '@deployer/shared/core/modules/approval/approval.guard'
 import {
-    ApprovalGuard,
-    makeApprovalGuard,
-} from '@deployer/shared/core/modules/approval/approval.guard'
+    PlatformSecret,
+    type PlatformSecretShape,
+} from '@deployer/shared/core/modules/auth/orpc/secrets'
 import { ConfigurationCoreModule } from '@deployer/shared/core/modules/configuration/configuration-core.module'
 import { RuntimeConfigurationAccessorService } from '@deployer/shared/core/modules/configuration/services/runtime-configuration-accessor.service'
 import { DatabaseModule } from '@deployer/shared/core/modules/database/database.module'
@@ -17,7 +18,7 @@ import {
 } from '@deployer/shared/core/modules/events/base/index'
 import { EventsModule } from '@deployer/shared/core/modules/events/events.module'
 import { CoreEventSyncService } from '@deployer/shared/core/modules/events/services/core-event-sync.service'
-import { ServiceClient } from '@deployer/shared/server'
+import { ServiceClient, type ServiceClientShape } from '@deployer/shared/server'
 
 import { makeDnsProviderGateway } from '@/modules/network/dns-provider.gateway'
 
@@ -68,8 +69,11 @@ export class ProjectDomainModule extends createModuleContext(
             },
             {
                 provide: ApprovalGuard,
-                useFactory: makeApprovalGuard,
-                inject: [ServiceClient],
+                useFactory: (
+                    services: ServiceClientShape,
+                    secrets: PlatformSecretShape
+                ) => new ApprovalGuard.live(services, secrets),
+                inject: [ServiceClient, PlatformSecret],
             },
             {
                 provide: RuntimeConfigurationAccessor,

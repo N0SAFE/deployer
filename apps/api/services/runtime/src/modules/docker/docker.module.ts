@@ -1,10 +1,11 @@
 import { createModuleContext } from '@deployer/nest-effect'
+import { ApprovalGuard } from '@deployer/shared/core/modules/approval/approval.guard'
 import {
-    ApprovalGuard,
-    makeApprovalGuard,
-} from '@deployer/shared/core/modules/approval/approval.guard'
+    PlatformSecret,
+    type PlatformSecretShape,
+} from '@deployer/shared/core/modules/auth/orpc/secrets'
 import { CoreDockerModule } from '@deployer/shared/core/modules/docker/docker.module'
-import { ServiceClient } from '@deployer/shared/server'
+import { ServiceClient, type ServiceClientShape } from '@deployer/shared/server'
 
 import { DockerCatalogModule } from './catalog/docker-catalog.module'
 import { DockerCommonModule } from './common/docker-common.module'
@@ -32,8 +33,11 @@ export class DockerDomainModule extends createModuleContext(
             // Opening a shell in a container is destructive-adjacent: `container:exec` may need a second person (`SEC-072`).
             {
                 provide: ApprovalGuard,
-                useFactory: makeApprovalGuard,
-                inject: [ServiceClient],
+                useFactory: (
+                    services: ServiceClientShape,
+                    secrets: PlatformSecretShape
+                ) => new ApprovalGuard.live(services, secrets),
+                inject: [ServiceClient, PlatformSecret],
             },
         ],
         exports: [

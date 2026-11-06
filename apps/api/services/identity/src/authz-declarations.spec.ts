@@ -20,7 +20,7 @@ import { UserController } from './modules/user/controllers/user.controller'
 const UNDECLARED = new Map<string, string>([
     [
         'approval.require',
-        'internal mesh route (`requireMesh()`): a peer names the account it authenticated and the real check runs inside, in the approval ledger',
+        'internal system-actor route (`requireSystemActor()`): a peer names the account it authenticated, the claim is bound to it, and the real check runs inside, in the approval ledger',
     ],
     [
         'stepUp.assertCritical',

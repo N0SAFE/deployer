@@ -7,10 +7,11 @@ import { apiServiceUrl, type ApiServiceName } from '@deployer/env'
 import { nodeAgentLink, serviceLink } from '@deployer/mesh-client'
 import { declareModule } from '@deployer/nest-effect'
 
+import { ApprovalGuard } from '../core/modules/approval/approval.guard'
 import {
-    ApprovalGuard,
-    makeApprovalGuard,
-} from '../core/modules/approval/approval.guard'
+    PlatformSecret,
+    type PlatformSecretShape,
+} from '../core/modules/auth/orpc/secrets'
 import { SYSTEM_ACTOR_HEADER } from '../core/modules/auth/system-actor/system-actor'
 
 import type { ContractRouterClient, RouterContract } from '@orpc/contract'
@@ -137,8 +138,11 @@ export class ServiceClientModule {
                     },
                     {
                         provide: ApprovalGuard,
-                        useFactory: makeApprovalGuard,
-                        inject: [ServiceClient],
+                        useFactory: (
+                            services: ServiceClientShape,
+                            secrets: PlatformSecretShape
+                        ) => new ApprovalGuard.live(services, secrets),
+                        inject: [ServiceClient, PlatformSecret],
                     },
                 ],
                 exports: [ServiceClient, ApprovalGuard],

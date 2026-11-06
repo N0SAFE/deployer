@@ -1,6 +1,8 @@
 import { Controller } from '@nestjs/common'
 import { Implement } from '@orpc/nest'
+import { Effect } from 'effect'
 
+import { ForbiddenError } from '@deployer/errors'
 import {
     approvalConsumeContract,
     approvalDecideContract,
@@ -11,7 +13,7 @@ import {
 import { procedure } from '@deployer/nest-effect'
 import {
     requireAuth,
-    requireMesh,
+    requireSystemActor,
 } from '@deployer/shared/core/modules/auth/orpc/middlewares'
 
 import { ApprovalService } from '../approval.service'
@@ -58,16 +60,23 @@ export class ApprovalController {
     }
 
     /**
-     * The guard a PEER service calls (`SEC-069`): mesh-authenticated, and it names the actor the peer verified.
+     * The guard a PEER service calls (`SEC-069`): a system actor, vouched for by a claim signed with the platform secret.
      *
-     * A mesh call carries no browser session, so the anonymous actor is the honest boundary — the identity comes from the
-     * body, and the MESH trust is what makes that claim usable.
+     * The call carries no browser session, so the requester comes from the body, and the claim is what makes that usable: its
+     * `subject` must be the requester the body names, so a claim minted for one requester cannot ask about another.
      */
     @Implement(approvalRequireContract)
     requireApproval() {
         return procedure(approvalRequireContract)
-            .use(requireMesh())
-            .effect(function* ({ input }) {
+            .use(requireSystemActor('identity'))
+            .effect(function* ({ input, context }) {
+                if (context.systemActor.subject !== input.requesterId) {
+                    return yield* Effect.fail(
+                        new ForbiddenError(
+                            'the claim does not name the requester this check is about'
+                        )
+                    )
+                }
                 const approvals = yield* ApprovalService
                 yield* approvals.requireFor(
                     input.requesterId,
