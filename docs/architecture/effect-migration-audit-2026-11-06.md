@@ -68,7 +68,15 @@ Share of source files and lines that import or use Effect (upper bound, see cave
 (`effect-runtime.ts`, `effect-lifecycle.ts`, which stay). Replacement is `ServiceLifecycleShape` bound with `serviceLifecycle(Tag)`, as the cluster events
 hub now does.
 
-### 4.3 Controllers still on `.handler(…)` (66 handlers in 9 files)
+### 4.3 Controllers still on `.handler(…)` (66 handlers in 9 files, **plus 330 generated**)
+
+**Correction (found when starting the BFF):** the scan above skipped `generated/` directories. The BFF's delegation layer,
+`apps/api/bff/src/modules/delegation/generated/*.delegation.ts` (produced by `scripts/gen-bff-delegation.py`), holds **330 handlers**,
+each `implement(contract.x).handler(({ input }) => this.client.x(input))` over a Promise-based `ServiceClientRegistry`
+(`packages/service-client`, an `@Injectable` `BaseClient` hierarchy with interface/class merging). That generated layer, not the
+three hand-written controllers, is the bulk of the BFF's non-Effect surface, and it is migrated by changing the generator, not by
+hand: emit `procedure(contract.x).effect(function* ({ input }) { … })` over an Effect `ServiceClients` tag. Open design questions
+are in the handoff prompt (section 5, item 1).
 
 | File | Handlers | Note |
 |---|---|---|

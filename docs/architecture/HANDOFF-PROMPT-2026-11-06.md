@@ -97,7 +97,21 @@ Everything above is covered by unit/spec tests and type-checks pass. **Not done*
 
 The operator asked to **start the BFF migration** next. The BFF (`apps/api/bff`) is ~15 % Effect and is the only public surface.
 
-1. **BFF migration (L).** Source: `apps/api/bff/src`. Non-Effect today:
+1. **BFF migration (L). Start with a design note, not code.** Reading the BFF at the end of the previous session showed the bulk of it is
+   the **generated delegation layer: 330 handlers** (`apps/api/bff/src/modules/delegation/generated/*.delegation.ts`), each
+   `implement(contract.x).handler(({ input }) => this.client.x(input))` over `ServiceClientRegistry` / `BaseClient`
+   (`packages/service-client`, Promise-based oRPC clients, `@Injectable`, interface/class merging for flattened procedures,
+   per-request credentials through `clients/service-auth-context.ts`). The migration is a **generator change**
+   (`scripts/gen-bff-delegation.py`) plus an Effect client layer, not 330 hand edits. Decide and write down (a short doc, then
+   ask the operator only for what is theirs): (a) an Effect `ServiceClients` tag whose `for(service, contract)` returns the oRPC client and
+   a helper that lifts a client call to an Effect with a typed `ServiceCallFailed` domain error that preserves the service's
+   own error code; (b) the generated handler form `procedure(contract.x).effect(function* ({ input }) { const clients = yield* ServiceClients; return yield* clients.call(…) })`
+   and how it interacts with the legacy `procedure()` gate and `accessRequired` (the generated file header says authorization is
+   enforced by the SERVICE on its own leg, so the BFF must not add a second policy: a pass-through such as `accessDeferred`/a
+   documented exemption may be needed); (c) per-request credential forwarding (`serviceAuthHeaders()`) in an Effect context
+   instead of AsyncLocalStorage if possible; (d) migrating the hand-written pieces after that. Regenerating changes all 21
+   generated files: format them (`bun fmt` in `apps/api/bff`) and run `@deployer/bff` tests plus the e2e/contract specs.
+   Hand-written non-Effect BFF code, for the follow-up:
    - Controllers on `.handler(…)`: `modules/dashboard/controllers/orchestration.controller.ts` (359 lines, 7 handlers), `modules/console/controllers/console-control.controller.ts` (95, 6), `domains/setup/controllers/setup.controller.ts` (263, 1). The `delegation/generated/*` controllers are generated: do not hand-edit.
    - Plain-class services: `cli/services/cli-auth.service.ts` (544, 6 async methods), `modules/shared/services/overview-composer.service.ts` (321), `modules/shared/services/screen-read.service.ts` (148), `modules/dashboard/services/analytics-read.service.ts` (60), `clients/service-registry.ts` (107, `ServiceClientRegistry`), `modules/console/clients/managed-web.client.ts` (61), and the five client classes in `clients/{fleet,health,identity,project,runtime}/` (28-50 lines each). `packages/service-client` has `BaseClient` (`@Injectable`) and its own `ServiceClientRegistry`.
    - Convert each to the `live` class form with ports as tags where it calls a sibling service, typed `domainError`s, `.effect()` handlers. Keep the generated delegation as it is. Write/port specs; keep `bun x turbo run type-check test --filter=@deployer/bff` green; check the BFF e2e/contract specs that exist.
