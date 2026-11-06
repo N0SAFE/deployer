@@ -93,7 +93,6 @@ export const meshGetLocalNodeContract = nodeAgentNodeOps
     .path('/node/local')
     .input(z.object({}))
     .output(() => nodeAgentNodeSchema)
-    .meta(access({ permission: 'mesh:read' }))
     .build()
 
 /**
@@ -127,7 +126,6 @@ export const meshListPeersContract = nodeAgentNodesOps
     .path('/peers')
     .input(z.object({}))
     .output(nodeAgentNodesResultSchema)
-    .meta(access({ permission: 'mesh:read' }))
     .build()
 
 export const meshListEventStreamsContract = meshEventStreamOps
@@ -158,7 +156,6 @@ export const meshMembershipSnapshotContract = nodeAgentSnapshotOps
     .path('/membership/snapshot')
     .input(z.object({}))
     .output(nodeAgentSnapshotSchema)
-    .meta(access({ permission: 'mesh:read' }))
     .build()
 
 /** The swarm as the agents report it, sent again whenever it changes. */
@@ -167,7 +164,6 @@ export const meshTopologyStreamContract = nodeAgentSnapshotOps
     .path('/topology/stream')
     .input(z.object({}))
     .output((b) => b.observable(nodeAgentSnapshotSchema))
-    .meta(access({ permission: 'mesh:read' }))
     .build()
 
 export const meshLookupResourceContract = nodeAgentLookupOps
@@ -175,7 +171,6 @@ export const meshLookupResourceContract = nodeAgentLookupOps
     .path('/lookup')
     .input((b) => b.body(nodeAgentLookupInputSchema))
     .output(nodeAgentLookupResultSchema)
-    .meta(access({ permission: 'mesh:read' }))
     .build()
 
 /**
@@ -187,7 +182,6 @@ export const meshIssueJoinTokenContract = nodeAgentJoinTokenOps
     .path('/enrollment/tokens/issue')
     .input((b) => b.body(nodeAgentJoinTokenInputSchema))
     .output(nodeAgentJoinTokenResultSchema)
-    .meta(access({ permission: 'cluster:join-token:reveal' }))
     .build()
 
 export const meshGetNodeConfigContract = meshNodeConfigOps

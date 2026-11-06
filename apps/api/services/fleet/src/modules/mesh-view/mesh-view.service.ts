@@ -1,35 +1,138 @@
+import { Context, Effect } from 'effect'
 import { Observable } from 'rxjs'
+import z from 'zod/v4'
 
-import type {
-    NodeAgentJoinTokenInput,
-    NodeAgentJoinTokenResult,
-    NodeAgentLookupInput,
-    NodeAgentLookupResult,
-    NodeAgentNode,
-    NodeAgentNodesResult,
-    NodeAgentSnapshot,
+import {
+    nodeAgentLookupResultSchema,
+    nodeAgentReplicaSchema,
+    type NodeAgentJoinTokenInput,
+    type NodeAgentJoinTokenResult,
+    nodeAgentJoinTokenResultSchema,
+    type NodeAgentLookupInput,
+    type NodeAgentLookupResult,
+    type NodeAgentNode,
+    type NodeAgentNodesResult,
+    type NodeAgentSnapshot,
 } from '@deployer/contracts-entities'
+import {
+    domainError,
+    runPromiseUnwrapped,
+    serviceOver,
+    type Over,
+} from '@deployer/effect-core'
 
 import { FleetInvalid } from '../../core/fleet.errors'
+
+import { MeshAgent, type MeshAgentShape } from './mesh-view.ports'
 
 import type { ClientContext, ClientLink } from '@orpc/client'
 
 const CALL = { context: {} } as const
 
-type AgentView = {
-    self: { nodeId: string; address: string }
-    agents: { nodeId: string; address: string }[]
-}
-type AgentReplica = {
-    service: string
-    replicaId: string
-    nodeId: string
-    load: number
-    keys: string[]
+/** How often the topology stream looks again. */
+const TOPOLOGY_POLL_MS = 3_000
+
+/** The agent answered, but with something this service does not understand, or the call failed. */
+export class MeshAgentCallFailed extends domainError(
+    'MeshAgentCallFailed',
+    'dependency_missing'
+)<{ readonly path: string }>() {
+    override publicMessage() {
+        return "This node's mesh agent did not give a usable answer"
+    }
 }
 
-/** What the dashboard asks of a node without an agent: it is a swarm of one, whose node is known by its own id only. */
-export type StandaloneNode = () => Promise<{ nodeId: string }>
+/** The shapes of what an agent answers, parsed instead of trusted: the answer comes over a socket. */
+const agentInfoSchema = z.object({ nodeId: z.string().min(1), address: z.string() })
+const viewSchema = z.object({
+    self: agentInfoSchema,
+    agents: z.array(agentInfoSchema),
+})
+const directorySnapshotSchema = z.object({ replicas: z.array(nodeAgentReplicaSchema) })
+const resolveSchema = z.object({
+    replica: nodeAgentReplicaSchema,
+    reason: nodeAgentLookupResultSchema.shape.reason.unwrap(),
+})
+
+type Link = ClientLink<ClientContext>
+
+/** One call to the agent, answered in the shape `schema` says, or `MeshAgentCallFailed`. */
+const ask = <S extends z.ZodType>(
+    link: Link,
+    path: string[],
+    input: unknown,
+    schema: S
+): Effect.Effect<z.infer<S>, MeshAgentCallFailed | { readonly code: unknown }> =>
+    Effect.tryPromise({
+        try: () => link.call(path, input, CALL),
+        // The caller may need the agent's own code (NOT_FOUND on a lookup): keep a failure that carries one as it is.
+        catch: (error): MeshAgentCallFailed | { readonly code: unknown } =>
+            typeof error === 'object' && error !== null && 'code' in error
+                ? { code: error.code }
+                : new MeshAgentCallFailed({ path: path.join('.'), cause: error }),
+    }).pipe(
+        Effect.flatMap((answer) => {
+            const parsed = schema.safeParse(answer)
+            return parsed.success
+                ? Effect.succeed(parsed.data)
+                : Effect.fail(new MeshAgentCallFailed({ path: path.join('.') }))
+        })
+    )
+
+/** A failure of `ask` that is not the agent's own code is the typed one; the agent's own code is for the caller to read. */
+const asCallFailure = (error: MeshAgentCallFailed | { readonly code: unknown }, path: string) =>
+    error instanceof MeshAgentCallFailed
+        ? error
+        : new MeshAgentCallFailed({ path, cause: error })
+
+const nodesOf = (link: Link) =>
+    ask(link, ['roster', 'view'], {}, viewSchema).pipe(
+        Effect.mapError((error) => asCallFailure(error, 'roster.view')),
+        Effect.map(({ self, agents }): NodeAgentNode[] => [
+            { ...self, local: true },
+            ...agents.map((agent) => ({ ...agent, local: false })),
+        ])
+    )
+
+const localNodeWith = (agent: MeshAgentShape) =>
+    Effect.gen(function* () {
+        const link = agent.link()
+        if (link === undefined) {
+            return {
+                nodeId: (yield* agent.standalone()).nodeId,
+                address: '',
+                local: true,
+            } satisfies NodeAgentNode
+        }
+        const { self } = yield* ask(link, ['roster', 'view'], {}, viewSchema).pipe(
+            Effect.mapError((error) => asCallFailure(error, 'roster.view'))
+        )
+        return { ...self, local: true } satisfies NodeAgentNode
+    })
+
+const snapshotWith = (agent: MeshAgentShape) =>
+    Effect.gen(function* () {
+        const link = agent.link()
+        if (link === undefined) {
+            return {
+                generatedAt: new Date().toISOString(),
+                nodes: [yield* localNodeWith(agent)],
+                replicas: [],
+            } satisfies NodeAgentSnapshot
+        }
+        const nodes = yield* nodesOf(link)
+        const { replicas } = yield* ask(
+            link,
+            ['directory', 'snapshot'],
+            {},
+            directorySnapshotSchema
+        ).pipe(Effect.mapError((error) => asCallFailure(error, 'directory.snapshot')))
+        return {
+            generatedAt: new Date().toISOString(),
+            nodes,
+            replicas,
+        } satisfies NodeAgentSnapshot
+    })
 
 /**
  * The dashboard's picture of the mesh, read from the agent of this node.
@@ -37,159 +140,106 @@ export type StandaloneNode = () => Promise<{ nodeId: string }>
  * Nothing is measured here: the nodes and replicas are what the agents report, and a join token is issued by the agent,
  * which alone holds the swarm's credential. A node without an agent is a swarm of one.
  */
-export class MeshViewService {
-    constructor(
-        private readonly agent: () => ClientLink<ClientContext> | undefined,
-        private readonly standalone: StandaloneNode,
-        /** How often the topology stream looks again. */
-        private readonly pollMs = 3_000
-    ) {}
+const makeMeshView = ({ agent }: { readonly agent: MeshAgentShape }) => ({
+    localNode: Effect.fn('MeshView.localNode')(function* () {
+        return yield* localNodeWith(agent)
+    }),
 
-    async localNode(): Promise<NodeAgentNode> {
-        const link = this.agent()
-        if (link === undefined) {
-            return {
-                nodeId: (await this.standalone()).nodeId,
-                address: '',
-                local: true,
-            }
-        }
-        const { self } = (await link.call(
-            ['roster', 'view'],
-            {},
-            CALL
-        )) as AgentView
-        return { ...self, local: true }
-    }
+    peers: Effect.fn('MeshView.peers')(function* () {
+        const link = agent.link()
+        const items =
+            link === undefined ? [yield* localNodeWith(agent)] : yield* nodesOf(link)
+        return { items } satisfies NodeAgentNodesResult
+    }),
 
-    async peers(): Promise<NodeAgentNodesResult> {
-        const link = this.agent()
-        if (link === undefined) {
-            return { items: [await this.localNode()] }
-        }
-        return { items: await this.nodes(link) }
-    }
-
-    async snapshot(): Promise<NodeAgentSnapshot> {
-        const link = this.agent()
-        if (link === undefined) {
-            return {
-                generatedAt: new Date().toISOString(),
-                nodes: [await this.localNode()],
-                replicas: [],
-            }
-        }
-        const nodes = await this.nodes(link)
-        const { replicas } = (await link.call(
-            ['directory', 'snapshot'],
-            {},
-            CALL
-        )) as { replicas: AgentReplica[] }
-        return {
-            generatedAt: new Date().toISOString(),
-            nodes,
-            replicas: replicas.map(
-                ({ service, replicaId, nodeId, load, keys }) => ({
-                    service,
-                    replicaId,
-                    nodeId,
-                    load,
-                    keys,
-                })
-            ),
-        }
-    }
+    snapshot: Effect.fn('MeshView.snapshot')(function* () {
+        return yield* snapshotWith(agent)
+    }),
 
     /** The swarm now, and again each time it differs from what was last sent. */
-    topology(): Observable<NodeAgentSnapshot> {
-        return new Observable<NodeAgentSnapshot>((subscriber) => {
-            let last = ''
-            let closed = false
-            const look = async () => {
-                try {
-                    const current = await this.snapshot()
-                    const fingerprint = JSON.stringify({
-                        nodes: current.nodes,
-                        replicas: current.replicas,
-                    })
-                    if (!closed && fingerprint !== last) {
-                        last = fingerprint
-                        subscriber.next(current)
+    topology: (pollMs: number = TOPOLOGY_POLL_MS) =>
+        Effect.sync(
+            () =>
+                new Observable<NodeAgentSnapshot>((subscriber) => {
+                    let last = ''
+                    let closed = false
+                    const look = async () => {
+                        try {
+                            const current = await runPromiseUnwrapped(
+                                snapshotWith(agent)
+                            )
+                            const fingerprint = JSON.stringify({
+                                nodes: current.nodes,
+                                replicas: current.replicas,
+                            })
+                            if (!closed && fingerprint !== last) {
+                                last = fingerprint
+                                subscriber.next(current)
+                            }
+                        } catch {
+                            // The agent is not reachable right now: say nothing, and look again.
+                        }
                     }
-                } catch {
-                    // The agent is not reachable right now: say nothing, and look again.
-                }
-            }
-            void look()
-            const timer = setInterval(() => void look(), this.pollMs)
-            return () => {
-                closed = true
-                clearInterval(timer)
-            }
-        })
-    }
+                    void look()
+                    const timer = setInterval(() => void look(), pollMs)
+                    return () => {
+                        closed = true
+                        clearInterval(timer)
+                    }
+                })
+        ),
 
-    async lookup(input: NodeAgentLookupInput): Promise<NodeAgentLookupResult> {
-        const link = this.agent()
-        if (link === undefined) {
-            return { found: false, replica: null, reason: null }
-        }
-        try {
-            const { replica, reason } = (await link.call(
-                ['directory', 'resolve'],
-                input,
-                CALL
-            )) as {
-                replica: AgentReplica
-                reason: NonNullable<NodeAgentLookupResult['reason']>
-            }
-            const { service, replicaId, nodeId, load, keys } = replica
-            return {
-                found: true,
-                replica: { service, replicaId, nodeId, load, keys },
-                reason,
-            }
-        } catch (error) {
-            if (
-                typeof error === 'object' &&
-                error !== null &&
-                'code' in error &&
-                error.code === 'NOT_FOUND'
-            ) {
-                return { found: false, replica: null, reason: null }
-            }
-            throw error
-        }
-    }
+    lookup: Effect.fn('MeshView.lookup')(function* (input: NodeAgentLookupInput) {
+        const link = agent.link()
+        const none: NodeAgentLookupResult = { found: false, replica: null, reason: null }
+        if (link === undefined) return none
+        return yield* ask(link, ['directory', 'resolve'], input, resolveSchema).pipe(
+            Effect.map(
+                ({ replica, reason }): NodeAgentLookupResult => ({
+                    found: true,
+                    replica,
+                    reason,
+                })
+            ),
+            // No live replica is an answer, not a failure.
+            Effect.catch((error) =>
+                !(error instanceof MeshAgentCallFailed) && error.code === 'NOT_FOUND'
+                    ? Effect.succeed(none)
+                    : Effect.fail(asCallFailure(error, 'directory.resolve'))
+            )
+        )
+    }),
 
     /** A token for a new node. A node with no agent cannot issue one: there is no swarm credential to hand over. */
-    async issueToken(
+    issueToken: Effect.fn('MeshView.issueToken')(function* (
         input: NodeAgentJoinTokenInput
-    ): Promise<NodeAgentJoinTokenResult> {
-        const link = this.agent()
+    ) {
+        const link = agent.link()
         if (link === undefined) {
-            throw new FleetInvalid({
+            return yield* new FleetInvalid({
                 reason: 'This node has no mesh agent, so it cannot issue a join token',
             })
         }
-        return (await link.call(
+        const token: NodeAgentJoinTokenResult = yield* ask(
+            link,
             ['roster', 'token'],
             input,
-            CALL
-        )) as NodeAgentJoinTokenResult
-    }
+            nodeAgentJoinTokenResultSchema
+        ).pipe(Effect.mapError((error) => asCallFailure(error, 'roster.token')))
+        return token
+    }),
+})
 
-    private async nodes(
-        link: ClientLink<ClientContext>
-    ): Promise<NodeAgentNode[]> {
-        const { self, agents } = (await link.call(
-            ['roster', 'view'],
-            {},
-            CALL
-        )) as AgentView
-        return [
-            { ...self, local: true },
-            ...agents.map((agent) => ({ ...agent, local: false })),
-        ]
-    }
+export type MeshViewShape = Over<ReturnType<typeof makeMeshView>, MeshAgent>
+
+/** Tag and implementation together: the tag is the contract, `live` the one implementation. */
+export class MeshView extends Context.Service<MeshView, MeshViewShape>()(
+    'fleet/MeshView'
+) {
+    /** The agent is yielded when a method runs, so this is a constant the module provides with `useValue`. */
+    static readonly live: MeshViewShape = serviceOver(
+        Effect.all({ agent: MeshAgent }),
+        makeMeshView
+    )
 }
+

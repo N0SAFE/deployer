@@ -1,4 +1,5 @@
-import { runPromiseUnwrapped } from '@deployer/effect-core'
+import { Effect } from 'effect'
+
 import { nodeAgentLink } from '@deployer/mesh-client'
 import { createModuleContext } from '@deployer/nest-effect'
 import {
@@ -7,30 +8,34 @@ import {
 } from '@deployer/node-state'
 
 import { MeshViewController } from './mesh-view.controller'
-import { MeshViewService } from './mesh-view.service'
+import { MeshAgent, type MeshAgentShape } from './mesh-view.ports'
+import { MeshView } from './mesh-view.service'
 
-/**
- * The agent's link is looked up on each call, not once at boot: the agent can start after this service, and a node
- * that gains an agent should be seen as having one without a restart.
- */
 /** One pooled link for the life of the process, opened the first time the agent's socket is there. */
 const sharedAgentLink = (() => {
     let link: ReturnType<typeof nodeAgentLink>
     return () => (link ??= nodeAgentLink())
 })()
 
-export class MeshViewModule extends createModuleContext({
-    controllers: [MeshViewController],
-    providers: [
-        {
-            provide: MeshViewService,
-            useFactory: (nodeConfig: NodeConfigRepositoryShape) =>
-                new MeshViewService(sharedAgentLink, async () => ({
-                    nodeId:
-                        (await runPromiseUnwrapped(nodeConfig.find()))
-                            ?.nodeId ?? 'standalone',
-                })),
-            inject: [NodeConfigRepository],
-        },
-    ],
-}) {}
+export class MeshViewModule extends createModuleContext(
+    {
+        controllers: [MeshViewController],
+        providers: [
+            {
+                provide: MeshAgent,
+                useFactory: (nodeConfig: NodeConfigRepositoryShape): MeshAgentShape => ({
+                    link: sharedAgentLink,
+                    standalone: () =>
+                        nodeConfig.find().pipe(
+                            Effect.map((row) => ({ nodeId: row?.nodeId ?? 'standalone' })),
+                            Effect.catch(() => Effect.succeed({ nodeId: 'standalone' }))
+                        ),
+                }),
+                inject: [NodeConfigRepository],
+            },
+            { provide: MeshView, useValue: MeshView.live },
+        ],
+    },
+    MeshAgent,
+    MeshView
+) {}

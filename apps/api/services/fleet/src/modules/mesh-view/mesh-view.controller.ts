@@ -1,71 +1,79 @@
-import { Controller, Inject } from '@nestjs/common'
-import { ORPCError } from '@orpc/client'
+import { Controller } from '@nestjs/common'
 import { Implement } from '@orpc/nest'
 
 import { meshContract } from '@deployer/fleet-contracts'
-import { procedure } from '@deployer/nest-effect'
-import { toAsyncIteratorFromObservable } from '@deployer/orpc-utils/utils/observable/contract'
+import { accessRequired, procedure } from '@deployer/nest-effect'
 import { requireAuth } from '@deployer/shared/core/modules/auth/orpc/middlewares'
 
-import { MeshViewService } from './mesh-view.service'
+import { Cluster, Mesh } from './access/mesh.resource'
+import { MeshView } from './mesh-view.service'
 
 /** The mesh as the dashboard sees it: the nodes, their replicas, and how a new node joins. All read from the agent. */
 @Controller()
 export class MeshViewController {
-    constructor(
-        @Inject(MeshViewService) private readonly view: MeshViewService
-    ) {}
-
     @Implement(meshContract.getLocalNode)
     getLocalNode() {
         return procedure(meshContract.getLocalNode)
             .use(requireAuth())
-            .handler(() => this.view.localNode())
+            .use(accessRequired(Mesh.can('read')))
+            .effect(function* () {
+                const view = yield* MeshView
+                return yield* view.localNode()
+            })
     }
 
     @Implement(meshContract.listPeers)
     listPeers() {
         return procedure(meshContract.listPeers)
             .use(requireAuth())
-            .handler(() => this.view.peers())
+            .use(accessRequired(Mesh.can('read')))
+            .effect(function* () {
+                const view = yield* MeshView
+                return yield* view.peers()
+            })
     }
 
     @Implement(meshContract.membershipSnapshot)
     membershipSnapshot() {
         return procedure(meshContract.membershipSnapshot)
             .use(requireAuth())
-            .handler(() => this.view.snapshot())
+            .use(accessRequired(Mesh.can('read')))
+            .effect(function* () {
+                const view = yield* MeshView
+                return yield* view.snapshot()
+            })
     }
 
     @Implement(meshContract.streamTopology)
     streamTopology() {
         return procedure(meshContract.streamTopology)
             .use(requireAuth())
-            .handler(() => this.view.topology())
+            .use(accessRequired(Mesh.can('read')))
+            .effect(function* () {
+                const view = yield* MeshView
+                return yield* view.topology()
+            })
     }
 
     @Implement(meshContract.lookupResource)
     lookupResource() {
         return procedure(meshContract.lookupResource)
             .use(requireAuth())
-            .handler(({ input }) => this.view.lookup(input))
+            .use(accessRequired(Mesh.can('read')))
+            .effect(function* ({ input }) {
+                const view = yield* MeshView
+                return yield* view.lookup(input)
+            })
     }
 
     @Implement(meshContract.issueJoinToken)
     issueJoinToken() {
         return procedure(meshContract.issueJoinToken)
             .use(requireAuth())
-            .handler(async ({ input }) => {
-                try {
-                    return await this.view.issueToken(input)
-                } catch (error) {
-                    throw new ORPCError('BAD_REQUEST', {
-                        message:
-                            error instanceof Error
-                                ? error.message
-                                : 'Cannot issue a join token',
-                    })
-                }
+            .use(accessRequired(Cluster.can('join-token:reveal')))
+            .effect(function* ({ input }) {
+                const view = yield* MeshView
+                return yield* view.issueToken(input)
             })
     }
 }
