@@ -44,12 +44,6 @@ export class NodeDoorController extends MeshController {
             key: 'status',
             contract: node.status,
         },
-        secrets: {
-            door: 'node',
-            group: 'node',
-            key: 'secrets',
-            contract: node.secrets,
-        },
         settings: {
             door: 'node',
             group: 'node',
@@ -71,18 +65,6 @@ export class NodeDoorController extends MeshController {
                     yield* requireNodeDoor(context)
                     const service = yield* NodeState
                     return yield* service.state()
-                })
-            )
-        })
-    }
-
-    secrets() {
-        return procedure(node.secrets).effect(function* ({ context }) {
-            return yield* serveMeshPeer(context)(
-                Effect.gen(function* () {
-                    yield* requireNodeDoor(context)
-                    const service = yield* NodeState
-                    return yield* service.secrets()
                 })
             )
         })

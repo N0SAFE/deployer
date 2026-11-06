@@ -3,6 +3,7 @@ import { createHmac } from 'node:crypto'
 import type {
     MeshNodeConfig,
     MeshNodeSecret,
+    MeshSecretAdoption,
 } from '@deployer/node-agent-contracts'
 
 /** Keyed so a fingerprint is not a bare hash of the secret, and versioned so the scheme can change. */
@@ -62,20 +63,6 @@ export function secretInventoryOf(
     ]
 }
 
-export type NodeAdoption = 'current' | 'stale' | 'missing'
-
-export type SecretAdoption = {
-    readonly id: MeshNodeSecret['id']
-    /** The value most nodes hold (ties go to the most recently adopted), or null when no node holds one. */
-    readonly current: string | null
-    readonly nodes: readonly {
-        readonly nodeId: string
-        readonly fingerprint: string | null
-        readonly adoptedAt: string | null
-        readonly status: NodeAdoption
-    }[]
-}
-
 /**
  * Which nodes hold the value the fleet has settled on, which hold another, and which hold none.
  *
@@ -85,7 +72,7 @@ export type SecretAdoption = {
  */
 export function adoptionOf(
     nodes: readonly { readonly nodeId: string; readonly secrets: readonly MeshNodeSecret[] }[]
-): SecretAdoption[] {
+): MeshSecretAdoption[] {
     const ids = [...new Set(nodes.flatMap((node) => node.secrets.map((secret) => secret.id)))]
     return ids.map((id) => {
         const held = nodes.map((node) => {
@@ -115,13 +102,18 @@ export function adoptionOf(
             current,
             nodes: held.map((entry) => ({
                 ...entry,
-                status:
-                    entry.fingerprint === null
-                        ? 'missing'
-                        : entry.fingerprint === current
-                          ? 'current'
-                          : 'stale',
+                status: statusOf(entry.fingerprint, current),
             })),
         }
     })
 }
+
+const statusOf = (
+    fingerprint: string | null,
+    current: string | null
+): MeshSecretAdoption['nodes'][number]['status'] =>
+    fingerprint === null
+        ? 'missing'
+        : fingerprint === current
+          ? 'current'
+          : 'stale'

@@ -12,6 +12,7 @@ export * from './modules/platform'
 export * from './modules/provider-schema'
 export * from './modules/providers'
 export * from './modules/reachability'
+export * from './modules/secret'
 
 import { oc } from '@orpc/contract'
 
@@ -21,6 +22,7 @@ import { platformContract } from './modules/platform'
 import { providerSchemaContract } from './modules/provider-schema'
 import { providersContract } from './modules/providers'
 import { reachabilityContract } from './modules/reachability'
+import { secretContract } from './modules/secret'
 
 /**
  * The WHOLE fleet service, as one contract.
@@ -41,6 +43,7 @@ export const fleetServiceContract = oc.router({
     providerSchema: providerSchemaContract,
     providers: providersContract,
     reachability: reachabilityContract,
+    secrets: secretContract,
 })
 
 export type FleetServiceContract = typeof fleetServiceContract

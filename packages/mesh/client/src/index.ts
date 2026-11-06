@@ -54,4 +54,6 @@ export {
     type NodeDoorStatus,
     type NodeDoorStatusPeer,
     type NodeDoorView,
+    type NodeDoorFleetSecrets,
+    type NodeDoorSecret,
 } from './node-door'

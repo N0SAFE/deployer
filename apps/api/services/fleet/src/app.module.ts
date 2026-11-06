@@ -55,6 +55,7 @@ import { PlatformModule } from './modules/platform/platform.module'
 import { ProviderSchemaModule } from './modules/provider-schema/provider-schema.module'
 import { ProvidersModule } from './modules/providers/providers.module'
 import { ReachabilityModule } from './modules/reachability/reachability.module'
+import { SecretsModule } from './modules/secrets/secrets.module'
 
 // Module-load, not a lifecycle hook: the column codecs run at QUERY time and the
 // first query can happen during bootstrap — before any `onModuleInit`.
@@ -141,6 +142,7 @@ export class FleetServiceModule extends createModuleContext({
         MeshCoreModule,
         // The mesh as the dashboard sees it, read from the node's agent.
         MeshViewModule,
+        SecretsModule,
         // Takes a node that holds a join token into the fleet.
         EnrollmentModule,
         // Enrolls this node into `cluster_nodes` on boot and keeps the fleet

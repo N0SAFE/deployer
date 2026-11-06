@@ -91,6 +91,34 @@ export type NodeDoorJoinResult = {
     readonly agents: readonly NodeDoorAgent[]
 }
 
+/** What a node says about one secret it holds: a fingerprint, never the value. */
+export type NodeDoorSecret = {
+    readonly id: 'mesh' | 'platform'
+    readonly purpose: string
+    readonly fingerprint: string | null
+    readonly adoptedAt: string | null
+    readonly consumers: readonly string[]
+}
+
+/** The secrets of every node the agent can reach, and where each stands against the value most nodes hold. */
+export type NodeDoorFleetSecrets = {
+    readonly nodes: readonly {
+        readonly nodeId: string
+        readonly reachable: boolean
+        readonly secrets: readonly NodeDoorSecret[]
+    }[]
+    readonly adoption: readonly {
+        readonly id: 'mesh' | 'platform'
+        readonly current: string | null
+        readonly nodes: readonly {
+            readonly nodeId: string
+            readonly fingerprint: string | null
+            readonly adoptedAt: string | null
+            readonly status: 'current' | 'stale' | 'missing'
+        }[]
+    }[]
+}
+
 /** The procedures this uses; the agent serves them on the node door only. */
 type NodeDoorApi = {
     readonly node: {
@@ -103,6 +131,9 @@ type NodeDoorApi = {
         readonly labels: (input: {
             readonly labels: Readonly<Record<string, string>>
         }) => Promise<Readonly<Record<string, string>>>
+        readonly fleetSecrets: (
+            input: Record<string, never>
+        ) => Promise<NodeDoorFleetSecrets>
     }
     readonly roster: {
         readonly view: (input: Record<string, never>) => Promise<NodeDoorView>
@@ -149,6 +180,8 @@ export type NodeDoorClient = {
     labels(
         labels: Readonly<Record<string, string>>
     ): Promise<Readonly<Record<string, string>> | null>
+    /** The secrets of every reachable node, by fingerprint, and who is behind. Never a value. */
+    fleetSecrets(): Promise<NodeDoorFleetSecrets | null>
     /** Stop trusting a node: its agents and replicas are dropped and it cannot be learned again until unblocked. */
     blockNode(nodeId: string): Promise<readonly string[] | null>
     /** Lift a block. */
@@ -213,6 +246,12 @@ export function nodeDoor(options: NodeDoorOptions = {}): NodeDoorClient {
             )?.valid ?? null,
         labels: (labels) =>
             callDoor(options, (client) => client.node.labels({ labels })),
+        fleetSecrets: () =>
+            // A longer wait than the other door calls: the agent asks every peer, each with its own timeout.
+            callDoor(
+                { ...options, timeoutMs: options.timeoutMs ?? 15_000 },
+                (client) => client.node.fleetSecrets({})
+            ),
         blockNode: async (nodeId) =>
             (
                 await callDoor(
@@ -240,19 +279,6 @@ export function nodeDoorFromEnv(env: {
     return typeof socketPath === 'string' && socketPath !== ''
         ? nodeDoor({ socketPath })
         : nodeDoor()
-}
-
-const NO_DOOR: NodeDoorClient = {
-    status: () => Promise.resolve(null),
-    settings: () => Promise.resolve(null),
-    view: () => Promise.resolve(null),
-    writeSetting: () => Promise.resolve(null),
-    issueJoinToken: () => Promise.resolve(null),
-    joinWithToken: () => Promise.resolve(null),
-    checkJoinToken: () => Promise.resolve(null),
-    labels: () => Promise.resolve(null),
-    blockNode: () => Promise.resolve(null),
-    unblockNode: () => Promise.resolve(null),
 }
 
 async function callDoor<A>(

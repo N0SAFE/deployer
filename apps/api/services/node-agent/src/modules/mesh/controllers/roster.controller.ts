@@ -11,7 +11,9 @@ import { AgentStore } from '../../../local/agent-store'
 import { ROTATION_GRACE_MS } from '../../../local/swarm-credential'
 import { OVERLAY_SELF_SECRET, parseOverlaySelf } from '../../../network/overlay'
 import { NodeLabels } from '../../node/services/node-labels.service'
+import { NodeState } from '../../node/services/node-state.service'
 import { CredentialRotation } from '../services/credential-rotation.service'
+import { FleetSecrets } from '../services/fleet-secrets.service'
 import { JoinTokens } from '../services/join-tokens.service'
 import { NodeAgents } from '../services/node-agents.service'
 import { NodeIdentity } from '../services/node-identity.service'
@@ -63,9 +65,43 @@ export class RosterController extends MeshController {
         },
         setting: { door: 'peer', group: 'roster', contract: roster.setting },
         view: { door: 'peer', group: 'roster', contract: roster.view },
+        secrets: { door: 'peer', group: 'roster', contract: roster.secrets },
+        fleetSecrets: {
+            door: 'node',
+            group: 'node',
+            key: 'fleetSecrets',
+            contract: nodeAgentContract.node.fleetSecrets,
+        },
         block: { door: 'peer', group: 'roster', contract: roster.block },
         unblock: { door: 'peer', group: 'roster', contract: roster.unblock },
     })
+
+    /** What this node holds, by fingerprint: how a peer agent assembles the fleet's picture. */
+    secrets() {
+        return procedure(roster.secrets).effect(function* ({ context }) {
+            return yield* serveMeshPeer(context)(
+                Effect.gen(function* () {
+                    const state = yield* NodeState
+                    return yield* state.secrets()
+                })
+            )
+        })
+    }
+
+    /** The fleet's secrets and who is behind: the node door only, because it is this node's own services that ask. */
+    fleetSecrets() {
+        return procedure(nodeAgentContract.node.fleetSecrets).effect(function* ({
+            context,
+        }) {
+            return yield* serveMeshPeer(context)(
+                Effect.gen(function* () {
+                    yield* requireNodeDoor(context)
+                    const fleet = yield* FleetSecrets
+                    return yield* fleet.collect()
+                })
+            )
+        })
+    }
 
     exchange() {
         return procedure(roster.exchange).effect(function* ({

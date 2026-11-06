@@ -25,6 +25,7 @@ const silentDoor: NodeDoorClient = {
     joinWithToken: () => Promise.resolve(null),
     checkJoinToken: () => Promise.resolve(null),
     labels: () => Promise.resolve(null),
+    fleetSecrets: () => Promise.resolve(null),
     blockNode: () => Promise.resolve(null),
     unblockNode: () => Promise.resolve(null),
 }

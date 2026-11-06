@@ -53,6 +53,7 @@ import { AgentLoad } from './services/agent-load.service'
 import { MeshBroker } from './services/broker.service'
 import { CredentialRotation } from './services/credential-rotation.service'
 import { MeshDirectory } from './services/directory.service'
+import { FleetSecrets } from './services/fleet-secrets.service'
 import { JoinTokens } from './services/join-tokens.service'
 import { KeyHints } from './services/key-hints.service'
 import { LeaseSigner, leaseSignerOver } from './services/lease-signer.service'
@@ -148,6 +149,7 @@ export class MeshDomainModule extends createModuleContext({
         },
         { provide: AgentLoad, useClass: AgentLoad.live },
         { provide: RosterGossip, useClass: RosterGossip.live },
+        { provide: FleetSecrets, useClass: FleetSecrets.live },
         { provide: PendingSeeds, useClass: PendingSeeds.live },
         { provide: JoinTokens, useClass: JoinTokens.live },
         { provide: CredentialRotation, useClass: CredentialRotation.live },
