@@ -1,6 +1,6 @@
 'use client'
 
-import { LayoutGrid, Plug, Server, User, Users } from 'lucide-react'
+import { KeyRound, LayoutGrid, Plug, Server, User, Users } from 'lucide-react'
 
 import { SectionNav, type SectionNavItem } from '@/components/dashboard'
 import { useCan } from '@/lib/access/permissions'
@@ -9,6 +9,7 @@ import {
     AuthDashboardSettings,
     AuthDashboardSettingsAccount,
     AuthDashboardSettingsNode,
+    AuthDashboardSettingsSecrets,
     AuthDashboardSettingsUsers,
 } from '@/routes'
 
@@ -21,6 +22,7 @@ export function SettingsNav() {
     // `settings:manage` is what the users/node areas need; it is the catalog's name for "platform admin", so the nav
     // cannot disagree with the API about who may open them.
     const canManageSettings = useCan('settings:manage')
+    const canReadSecrets = useCan('platform.secret:read')
     const items: readonly SectionNavItem[] = [
         {
             title: 'Overview',
@@ -45,6 +47,12 @@ export function SettingsNav() {
             route: AuthDashboardSettingsNode,
             icon: Server,
             visible: canManageSettings,
+        },
+        {
+            title: 'Secrets',
+            route: AuthDashboardSettingsSecrets,
+            icon: KeyRound,
+            visible: canReadSecrets,
         },
     ]
     return <SectionNav label="Settings sections" items={items} />
