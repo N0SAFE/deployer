@@ -6,7 +6,7 @@ import type { MeshTransportOptions } from '@deployer/nest-mesh'
  * The service door is an allowlist, not the peer router minus a few: a procedure is reachable from a service container
  * only by being named here. That is the difference F-06 turns on — `roster.credential`, `roster.rotate`,
  * `roster.token`, `roster.join`, `roster.block`/`unblock` and `node.configure` are absent, so a compromised service
- * cannot read the swarm secret, rotate it, join a swarm, issue itself a token, cut a member off or reconfigure the node.
+ * cannot read the swarm secret, rotate or retire the platform secret (`node.rotatePlatformSecret`, `node.retirePlatformSecret`), rotate it, join a swarm, issue itself a token, cut a member off or reconfigure the node.
  *
  * The admin door serves everything, so adding a procedure here is a decision about exposure, and the resolver fails the
  * boot if an id here names nothing (`serviceProcedures` typo guard).
@@ -28,6 +28,8 @@ export const SERVICE_DOOR_PROCEDURES: NonNullable<
     'roster.setting',
     'roster.view',
     // This node's own facts: status, labels, settings, state. Read-only except labels.
+    // The secrets every node holds, by fingerprint and generation: a read, and never a value.
+    'node.fleetSecrets',
     'node.labels',
     'node.settings',
     'node.state',

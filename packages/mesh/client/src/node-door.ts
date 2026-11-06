@@ -278,14 +278,18 @@ export function nodeDoor(options: NodeDoorOptions = {}): NodeDoorClient {
                 { ...options, timeoutMs: options.timeoutMs ?? 15_000 },
                 (client) => client.node.fleetSecrets({})
             ),
+        // Operator acts: the ADMIN door, like issuing a join token. The service door is an allowlist that leaves them out.
         rotatePlatformSecret: () =>
-            callDoorOutcome(options, (client) =>
-                client.node.rotatePlatformSecret({})
+            callDoorOutcome(
+                options,
+                (client) => client.node.rotatePlatformSecret({}),
+                'admin'
             ),
         retirePlatformSecret: (generation) =>
             callDoorOutcome(
                 { ...options, timeoutMs: options.timeoutMs ?? 15_000 },
-                (client) => client.node.retirePlatformSecret({ generation })
+                (client) => client.node.retirePlatformSecret({ generation }),
+                'admin'
             ),
         blockNode: async (nodeId) =>
             (
