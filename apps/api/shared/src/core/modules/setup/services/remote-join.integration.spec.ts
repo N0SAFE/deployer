@@ -120,6 +120,8 @@ function makeFleet(
                     enrolledAt: new Date().toISOString(),
                     databaseUrl: DB_URL,
                     platformSecret: FLEET_SECRET,
+                    platformSecretGeneration: 2,
+                    platformSecretPrevious: [{ generation: 1, value: 'older-fleet-secret' }],
                     swarmGrant: grant,
                     meshJoinToken: input.token,
                 })
@@ -301,6 +303,8 @@ describe('a new node joining a fleet from its setup', () => {
             databaseUrl: DB_URL,
             // The fleet's secret, so this node verifies what the others sign.
             platformSecret: FLEET_SECRET,
+            platformSecretGeneration: 2,
+            platformSecretPrevious: [{ generation: 1, value: 'older-fleet-secret' }],
             databaseProvisioning: 'external',
             swarmConfig: {
                 mode: 'join',

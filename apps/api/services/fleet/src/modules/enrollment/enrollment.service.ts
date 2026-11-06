@@ -18,8 +18,15 @@ export type EnrollmentPorts = {
     readonly checkToken: (token: string) => Promise<boolean | null>
     /** The shared database URL a joiner points at, or null when this node was never set up. */
     readonly databaseUrl: () => string | null | Promise<string | null>
-    /** The platform secret every node of the fleet shares (generated on first use), or null when this node has no config yet. */
-    readonly platformSecret: () => Promise<string | null>
+    /** The platform secret ring every node of the fleet shares (generated on first use), or null when this node has no config yet. */
+    readonly platformSecret: () => Promise<{
+        readonly generation: number
+        readonly value: string
+        readonly previous: readonly {
+            readonly generation: number
+            readonly value: string
+        }[]
+    } | null>
     /** Records the joiner in the fleet's registry. */
     readonly register: (input: {
         nodeId: string
@@ -56,8 +63,8 @@ export class EnrollmentService {
             })
         }
 
-        const platformSecret = await this.ports.platformSecret()
-        if (platformSecret === null || platformSecret.length === 0) {
+        const ring = await this.ports.platformSecret()
+        if (ring === null || ring.value.length === 0) {
             throw new ORPCError('PRECONDITION_FAILED', {
                 message:
                     'This node has no platform secret to hand over: run its setup first',
@@ -77,7 +84,9 @@ export class EnrollmentService {
             nodeId: registered.nodeId,
             enrolledAt: registered.enrolledAt,
             databaseUrl,
-            platformSecret,
+            platformSecret: ring.value,
+            platformSecretGeneration: ring.generation,
+            platformSecretPrevious: ring.previous.map((entry) => ({ ...entry })),
             swarmGrant,
             // The agent token this fleet's own agent vouched for: the joiner keeps it if it ever has to repeat the join.
             meshJoinToken: input.token,

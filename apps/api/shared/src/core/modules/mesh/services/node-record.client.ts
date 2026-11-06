@@ -41,6 +41,11 @@ export type NodeRecordConfig = {
     readonly meshSharedSecretUpdatedAt: string | null
     readonly platformSecret: string | null
     readonly platformSecretUpdatedAt: string | null
+    readonly platformSecretGeneration: number
+    readonly platformSecretPrevious: readonly {
+        readonly generation: number
+        readonly value: string
+    }[]
     readonly scanConfig: {
         readonly autoScan: boolean
         readonly scanners: readonly ('trivy' | 'grype' | 'dive')[]

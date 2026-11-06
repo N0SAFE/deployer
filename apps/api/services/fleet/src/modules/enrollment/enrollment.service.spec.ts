@@ -16,7 +16,12 @@ function ports(over: Partial<EnrollmentPorts> = {}): EnrollmentPorts {
         swarmGrant: vi.fn(() => Promise.resolve(grant)),
         checkToken: vi.fn(() => Promise.resolve(true)),
         databaseUrl: () => 'postgres://db/deployer',
-        platformSecret: () => Promise.resolve('fleet-platform-secret'),
+        platformSecret: () =>
+            Promise.resolve({
+                generation: 2,
+                value: 'fleet-platform-secret',
+                previous: [{ generation: 1, value: 'older' }],
+            }),
         register: vi.fn((input) =>
             Promise.resolve({
                 nodeId: input.nodeId,
@@ -65,6 +70,8 @@ describe('EnrollmentService', () => {
             enrolledAt: '2026-10-29T00:00:00.000Z',
             databaseUrl: 'postgres://db/deployer',
             platformSecret: 'fleet-platform-secret',
+            platformSecretGeneration: 2,
+            platformSecretPrevious: [{ generation: 1, value: 'older' }],
             swarmGrant: grant,
             meshJoinToken: 't',
         })

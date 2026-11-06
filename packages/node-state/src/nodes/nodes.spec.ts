@@ -163,6 +163,8 @@ const AGENT_ROW: NodeConfigRow = {
     meshSharedSecretUpdatedAt: null,
     platformSecret: null,
     platformSecretUpdatedAt: null,
+    platformSecretGeneration: 1,
+    platformSecretPrevious: null,
     scanConfig: null,
     postSetupFlags: null,
     swarmConfig: null,
@@ -288,6 +290,125 @@ describe('platform secret', () => {
         await run(repository.upsert({ ...rest, platformSecret: 'from-the-mesh' }))
 
         expect(await run(repository.ensurePlatformSecret())).toBe('from-the-mesh')
+    })
+})
+
+describe('platform secret ring', () => {
+    const configured = async () => {
+        await run(
+            makeNodeConfigRepository(database).upsert({
+                nodeId: 'n1',
+                strategy: 'local',
+                updatedAt: '2026-10-30T10:00:00.000Z',
+            })
+        )
+        return makeNodeConfigRepository(database)
+    }
+
+    it('starts at generation 1 with nothing earlier', async () => {
+        const repository = await configured()
+        const value = await run(repository.ensurePlatformSecret())
+
+        expect(await run(repository.platformSecretRing())).toEqual({
+            generation: 1,
+            value,
+            previous: [],
+        })
+    })
+
+    it('rotates to a new current value and keeps the old one accepted, newest first', async () => {
+        const repository = await configured()
+        const first = await run(repository.ensurePlatformSecret())
+
+        const second = await run(repository.rotatePlatformSecret())
+        const third = await run(repository.rotatePlatformSecret())
+
+        expect(second?.generation).toBe(2)
+        expect(second?.value).not.toBe(first)
+        expect(third).toMatchObject({ generation: 3 })
+        expect(third?.previous).toEqual([
+            { generation: 2, value: second?.value },
+            { generation: 1, value: first },
+        ])
+    })
+
+    it('has nothing to rotate before the node holds a secret', async () => {
+        const repository = await configured()
+        expect(await run(repository.rotatePlatformSecret())).toBeNull()
+    })
+
+    it('retires an earlier generation on request, and never the current one', async () => {
+        const repository = await configured()
+        await run(repository.ensurePlatformSecret())
+        await run(repository.rotatePlatformSecret())
+        const rotated = await run(repository.rotatePlatformSecret())
+
+        const retired = await run(repository.retirePlatformSecret(1))
+        expect(retired?.previous.map((entry) => entry.generation)).toEqual([2])
+
+        const attempt = await run(repository.retirePlatformSecret(rotated?.generation ?? 0))
+        expect(attempt?.generation).toBe(3)
+        expect(attempt?.previous.map((entry) => entry.generation)).toEqual([2])
+    })
+
+    it('adopts a higher generation from a peer, keeping its own earlier ones, and never goes back', async () => {
+        const repository = await configured()
+        const own = await run(repository.ensurePlatformSecret())
+
+        const changed = await run(
+            repository.adoptPlatformSecretRing({
+                generation: 3,
+                value: 'peer-current',
+                previous: [{ generation: 2, value: 'peer-two' }],
+            })
+        )
+        expect(changed).toBe(true)
+        expect(await run(repository.platformSecretRing())).toEqual({
+            generation: 3,
+            value: 'peer-current',
+            previous: [
+                { generation: 2, value: 'peer-two' },
+                { generation: 1, value: own },
+            ],
+        })
+
+        expect(
+            await run(
+                repository.adoptPlatformSecretRing({ generation: 2, value: 'old', previous: [] })
+            )
+        ).toBe(false)
+        expect((await run(repository.platformSecretRing()))?.generation).toBe(3)
+    })
+
+    it('does not resolve two nodes on the same generation with different values: it leaves them as they are', async () => {
+        const repository = await configured()
+        const own = await run(repository.ensurePlatformSecret())
+
+        const changed = await run(
+            repository.adoptPlatformSecretRing({ generation: 1, value: 'someone-elses', previous: [] })
+        )
+
+        expect(changed).toBe(false)
+        expect((await run(repository.platformSecretRing()))?.value).toBe(own)
+    })
+
+    it('a peer cannot overwrite an earlier generation this node already holds', async () => {
+        const repository = await configured()
+        await run(repository.ensurePlatformSecret())
+        const second = await run(repository.rotatePlatformSecret())
+
+        await run(
+            repository.adoptPlatformSecretRing({
+                generation: 3,
+                value: 'peer-current',
+                previous: [{ generation: 2, value: 'peer-claims-two-is-this' }],
+            })
+        )
+
+        const ring = await run(repository.platformSecretRing())
+        expect(ring?.previous.find((entry) => entry.generation === 2)?.value).toBe(
+            second?.value
+        )
     })
 })
 

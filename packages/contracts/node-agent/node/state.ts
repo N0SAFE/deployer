@@ -72,6 +72,16 @@ export const meshNodeConfigSchema = z.object({
     /** The platform secret and when this node adopted it. Defaults to null: a record written before they existed still reads. */
     platformSecret: z.string().nullable().default(null),
     platformSecretUpdatedAt: z.string().nullable().default(null),
+    /** Which generation the platform secret is, and the earlier ones still accepted (SEC-101). Defaulted so an old record reads. */
+    platformSecretGeneration: z.number().int().positive().default(1),
+    platformSecretPrevious: z
+        .array(
+            z.object({
+                generation: z.number().int().positive(),
+                value: z.string().min(1),
+            })
+        )
+        .default([]),
     scanConfig: meshNodeScanConfigSchema.nullable(),
     /** The node's mesh wiring, once something configured it. Null on an unconfigured node. */
     mesh: meshNodeMeshConfigSchema.nullable(),

@@ -43,8 +43,10 @@ export class EnrollmentModule extends createModuleContext({
                         (
                             await runPromiseUnwrapped(nodeConfig.find())
                         )?.databaseUrl?.trim() ?? null,
-                    platformSecret: () =>
-                        runPromiseUnwrapped(nodeConfig.ensurePlatformSecret()),
+                    platformSecret: async () => {
+                        await runPromiseUnwrapped(nodeConfig.ensurePlatformSecret())
+                        return runPromiseUnwrapped(nodeConfig.platformSecretRing())
+                    },
                     register: async (input) => {
                         const registered = await runPromiseUnwrapped(
                             clusters.registerOrUpdateNode({

@@ -52,6 +52,16 @@ export const meshEnrollmentEnrollResultSchema = z.object({
      * token. Null only from a fleet that predates it; the joiner then keeps the one it generates itself.
      */
     platformSecret: z.string().min(1).nullable().default(null),
+    /** Which generation that is, and the earlier ones still accepted, so a joiner opens what the fleet already sealed (SEC-101). */
+    platformSecretGeneration: z.number().int().positive().default(1),
+    platformSecretPrevious: z
+        .array(
+            z.object({
+                generation: z.number().int().positive(),
+                value: z.string().min(1),
+            })
+        )
+        .default([]),
     /**
      * The agent join token this node was admitted with, echoed back so the joiner keeps it if it ever has to repeat the
      * join.

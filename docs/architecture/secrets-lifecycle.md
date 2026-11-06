@@ -75,3 +75,26 @@ version (with how long, and whether they are reachable). A rotation can be pause
 - The mesh middleware (`requireMesh`) verifies against `MeshSecret`, backed by the node's own `node_config`, not an environment
   variable.
 - The boot audit's mode is a bootstrap option each app sets in code (`accessAudit`), not an environment variable.
+
+## 6. Rotation of the platform secret (SEC-101), decided 2026-11-06
+
+The platform secret becomes a **ring of generations**: one current value and the previous ones that are still accepted.
+
+- **Generation = version.** The first secret is generation 1. A rotation generates a new value, makes it generation N+1 and moves
+  the old one into `previous`. The generation number is what the key ring already calls a generation (`column:1`, `column:2`) and
+  what Better Auth calls a secret `version`, so each consumer maps onto a mechanism it already has.
+- **Sign with the current, verify with every accepted one.** System-actor claims, the ingress token, sealed columns and Better Auth
+  sessions all open under any accepted generation and are written under the current one. Nothing is cut off while the new value
+  spreads.
+- **A previous generation is retired by an explicit act, not by a clock.** Sealed columns stay readable under it until the reseal
+  has rewritten every row; the operator retires it from the Secrets screen once the inventory shows every node on the new
+  generation and the reseal reports zero rows under the old one. (A time-based grace would silently make old rows unreadable.)
+- **Nodes adopt from peers, nobody is the source of truth.** An agent that sees a peer with a higher generation pulls that peer's
+  ring over the authenticated mesh and adopts it; a joiner receives the ring with the join. Adoption is visible per node (the
+  inventory compares generations, not only fingerprints).
+- **A consumer that cannot hot-swap says so.** Better Auth is built once at boot, so it picks a new generation up at the next
+  restart; the inventory shows the node's stored generation, and the Better Auth restart is the one step an operator still does.
+- **Who rotates:** `platform.secret:rotate` (new action, `platform-danger`, superAdmin). Retiring is `platform.secret:retire` under
+  the same bundle.
+
+Delivery is in four steps, each shippable: the model, the consumers, the distribution between nodes, the operations and their screen.

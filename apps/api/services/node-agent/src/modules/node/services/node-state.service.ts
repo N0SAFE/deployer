@@ -40,6 +40,8 @@ const UNCONFIGURED: Omit<MeshNodeConfig, 'updatedAt'> = {
     meshSharedSecretUpdatedAt: null,
     platformSecret: null,
     platformSecretUpdatedAt: null,
+    platformSecretGeneration: 1,
+    platformSecretPrevious: [],
     scanConfig: null,
     mesh: null,
     postSetupFlags: null,

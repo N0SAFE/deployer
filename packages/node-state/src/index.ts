@@ -27,6 +27,7 @@ export type {
     NodeConfigRepositoryShape,
     NodeConfigRow,
     NewNodeConfigRow,
+    PlatformSecretRing,
 } from './nodes/node-config.repository'
 export {
     ClusterNodeRepository,

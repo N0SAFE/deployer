@@ -75,6 +75,10 @@ export const nodeConfigRowFromRecord = (
               meshSharedSecretUpdatedAt: config.meshSharedSecretUpdatedAt,
               platformSecret: config.platformSecret,
               platformSecretUpdatedAt: config.platformSecretUpdatedAt,
+              platformSecretGeneration: config.platformSecretGeneration,
+              platformSecretPrevious: config.platformSecretPrevious.map(
+                  (entry) => ({ ...entry })
+              ),
               scanConfig:
                   config.scanConfig === null
                       ? null
@@ -114,6 +118,8 @@ export const nodeRecordPatchFromRow = (
     meshSharedSecretUpdatedAt: row.meshSharedSecretUpdatedAt ?? null,
     platformSecret: row.platformSecret ?? null,
     platformSecretUpdatedAt: row.platformSecretUpdatedAt ?? null,
+    platformSecretGeneration: row.platformSecretGeneration ?? 1,
+    platformSecretPrevious: row.platformSecretPrevious ?? [],
     scanConfig: row.scanConfig ?? null,
     postSetupFlags: row.postSetupFlags ?? null,
 })

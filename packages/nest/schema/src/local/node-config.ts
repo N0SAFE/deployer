@@ -144,6 +144,22 @@ export const nodeConfig = sqliteTable('node_config', {
     platformSecretUpdatedAt: text('platform_secret_updated_at'),
 
     /**
+     * Which generation `platformSecret` is. The first is 1; a rotation makes the next one current and keeps the old one in
+     * `platformSecretPrevious`. It is the key ring's generation and Better Auth's secret version (SEC-101).
+     */
+    platformSecretGeneration: integer('platform_secret_generation')
+        .notNull()
+        .default(1),
+
+    /**
+     * The earlier generations that are still accepted, newest first. A generation leaves this list only when an operator
+     * retires it: sealed rows stay readable under it until they are resealed, so no timer may drop it.
+     */
+    platformSecretPrevious: text('platform_secret_previous', {
+        mode: 'json',
+    }).$type<{ generation: number; value: string }[] | null>(),
+
+    /**
      * Scanner configuration as JSON.
      * Stores per-node scanning preferences (auto-scan, scanner types, etc.).
      * Used instead of env var DISABLE_AUTO_SCAN so the config survives restarts.

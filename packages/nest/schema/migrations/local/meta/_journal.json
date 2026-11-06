@@ -99,6 +99,13 @@
       "when": 1793906694899,
       "tag": "0013_secret_alex_power",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1793972868270,
+      "tag": "0014_whole_joystick",
+      "breakpoints": true
     }
   ]
 }
