@@ -13,6 +13,7 @@ const secret = (fingerprint: string | null): MeshNodeSecret => ({
     id: 'platform',
     purpose: 'p',
     fingerprint,
+    generation: null,
     adoptedAt: null,
     consumers: [],
 })

@@ -3,6 +3,8 @@ import { DatabaseSync } from 'node:sqlite'
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
+import { meshNodeConfigureInput } from '@deployer/node-agent-contracts'
+
 import { AgentStore, agentStoreOver } from '../../../local/agent-store'
 import { NodeIdentity } from '../../mesh/services/node-identity.service'
 
@@ -72,6 +74,30 @@ describe('NodeState', () => {
             )
         )
         expect(state.config?.platformSecret).toBeNull()
+    })
+
+    it('keeps the platform secret when a patch does not name it', async () => {
+        const node = nodeFixture()
+        await node.run(
+            new NodeState.live().configure({
+                nodeId: PLATFORM_NODE_ID,
+                strategy: 'local',
+                platformSecret: 'platform-value',
+                platformSecretGeneration: 3,
+                platformSecretPrevious: [{ generation: 2, value: 'two' }],
+            } as never)
+        )
+
+        // What the node door's input schema produces for a patch that names only the setup state.
+        const patch = meshNodeConfigureInput.parse({ setupState: 'setup_done' })
+        expect(patch).not.toHaveProperty('platformSecret')
+        const after = await node.run(new NodeState.live().configure(patch))
+
+        expect(after.config).toMatchObject({
+            platformSecret: 'platform-value',
+            platformSecretGeneration: 3,
+            platformSecretPrevious: [{ generation: 2, value: 'two' }],
+        })
     })
 
     it('reports what the node holds without a value', async () => {

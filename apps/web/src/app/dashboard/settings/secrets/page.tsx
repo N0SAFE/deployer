@@ -114,6 +114,9 @@ export default function SettingsSecretsPage() {
                             <CardHeader>
                                 <CardTitle className="capitalize">
                                     {entry.id} secret
+                                    {entry.currentGeneration === null
+                                        ? ''
+                                        : ` · generation ${String(entry.currentGeneration)}`}
                                 </CardTitle>
                                 <CardDescription>
                                     {described?.purpose}
@@ -128,6 +131,7 @@ export default function SettingsSecretsPage() {
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead>Node</TableHead>
+                                            <TableHead>Generation</TableHead>
                                             <TableHead>Fingerprint</TableHead>
                                             <TableHead>Adopted</TableHead>
                                             <TableHead>State</TableHead>
@@ -138,6 +142,9 @@ export default function SettingsSecretsPage() {
                                             <TableRow key={node.nodeId}>
                                                 <TableCell className="font-mono text-xs">
                                                     {node.nodeId}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {node.generation ?? '—'}
                                                 </TableCell>
                                                 <TableCell className="font-mono text-xs">
                                                     {node.fingerprint ?? '—'}
@@ -173,7 +180,7 @@ export default function SettingsSecretsPage() {
                                                     <TableCell className="font-mono text-xs">
                                                         {node.nodeId}
                                                     </TableCell>
-                                                    <TableCell colSpan={2}>
+                                                    <TableCell colSpan={3}>
                                                         Did not answer
                                                     </TableCell>
                                                     <TableCell>

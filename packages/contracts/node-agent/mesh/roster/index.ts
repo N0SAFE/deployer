@@ -8,6 +8,7 @@ import { meshRosterExchangeContract } from './exchange'
 import { meshJoinContract } from './join'
 import { meshRevokeContract } from './revoke'
 import { meshRotateContract } from './rotate'
+import { meshRosterPlatformSecretContract } from './platform-secret'
 import { meshRosterSecretsContract } from './secrets'
 import { meshSettingContract } from './setting'
 import { meshTokenContract } from './token'
@@ -23,6 +24,7 @@ export const meshRosterContract = oc
         exchange: meshRosterExchangeContract,
         join: meshJoinContract,
         revoke: meshRevokeContract,
+        platformSecret: meshRosterPlatformSecretContract,
         rotate: meshRotateContract,
         secrets: meshRosterSecretsContract,
         setting: meshSettingContract,
@@ -39,6 +41,7 @@ export * from './credential'
 export * from './exchange'
 export * from './join'
 export * from './revoke'
+export * from './platform-secret'
 export * from './rotate'
 export * from './secrets'
 export * from './setting'

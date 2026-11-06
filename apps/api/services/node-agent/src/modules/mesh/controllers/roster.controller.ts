@@ -66,6 +66,11 @@ export class RosterController extends MeshController {
         setting: { door: 'peer', group: 'roster', contract: roster.setting },
         view: { door: 'peer', group: 'roster', contract: roster.view },
         secrets: { door: 'peer', group: 'roster', contract: roster.secrets },
+        platformSecret: {
+            door: 'peer',
+            group: 'roster',
+            contract: roster.platformSecret,
+        },
         fleetSecrets: {
             door: 'node',
             group: 'node',
@@ -83,6 +88,29 @@ export class RosterController extends MeshController {
                 Effect.gen(function* () {
                     const state = yield* NodeState
                     return yield* state.secrets()
+                })
+            )
+        })
+    }
+
+    /** The platform secret ring this node holds, for a peer on an older generation. Values: peer door only, behind the credential. */
+    platformSecret() {
+        return procedure(roster.platformSecret).effect(function* ({ context }) {
+            return yield* serveMeshPeer(context)(
+                Effect.gen(function* () {
+                    const state = yield* NodeState
+                    const { config } = yield* state.state()
+                    const value = config?.platformSecret
+                    return {
+                        ring:
+                            config === null || value === null || value === undefined
+                                ? null
+                                : {
+                                      generation: config.platformSecretGeneration,
+                                      value,
+                                      previous: config.platformSecretPrevious,
+                                  },
+                    }
                 })
             )
         })

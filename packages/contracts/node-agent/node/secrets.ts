@@ -15,6 +15,11 @@ export const meshNodeSecretSchema = z.object({
     id: meshNodeSecretIdSchema,
     purpose: z.string().min(1),
     fingerprint: z.string().min(1).nullable(),
+    /**
+     * Which generation of a rotating secret this node holds (SEC-101); null for a secret that does not rotate yet. Defaulted so
+     * an answer from an older agent still parses.
+     */
+    generation: z.number().int().positive().nullable().default(null),
     /** ISO-8601, when this node generated or received the value it holds. */
     adoptedAt: z.string().nullable(),
     /** What on this node reads it, so a rotation says what it touches. */
@@ -35,10 +40,13 @@ export const meshSecretAdoptionStatusSchema = z.enum(['current', 'stale', 'missi
 export const meshSecretAdoptionSchema = z.object({
     id: meshNodeSecretIdSchema,
     current: z.string().min(1).nullable(),
+    /** The generation `current` is, when the secret rotates. */
+    currentGeneration: z.number().int().positive().nullable().default(null),
     nodes: z.array(
         z.object({
             nodeId: z.string().min(1),
             fingerprint: z.string().min(1).nullable(),
+            generation: z.number().int().positive().nullable().default(null),
             adoptedAt: z.string().nullable(),
             status: meshSecretAdoptionStatusSchema,
         })

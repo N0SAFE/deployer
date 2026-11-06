@@ -11,8 +11,9 @@ import {
 const secret = (
     id: MeshNodeSecret['id'],
     fingerprint: string | null,
-    adoptedAt: string | null = null
-): MeshNodeSecret => ({ id, purpose: 'p', fingerprint, adoptedAt, consumers: [] })
+    adoptedAt: string | null = null,
+    generation: number | null = null
+): MeshNodeSecret => ({ id, purpose: 'p', fingerprint, generation, adoptedAt, consumers: [] })
 
 describe('fingerprintOf', () => {
     it('is stable, short, and not the secret', () => {
@@ -31,12 +32,14 @@ describe('secretInventoryOf', () => {
             meshSharedSecretUpdatedAt: '2026-11-05T10:00:00.000Z',
             platformSecret: 'platform-value',
             platformSecretUpdatedAt: '2026-11-05T10:01:00.000Z',
+            platformSecretGeneration: 1,
         } as never)
 
         expect(inventory.map((entry) => entry.id)).toEqual(['mesh', 'platform'])
         expect(JSON.stringify(inventory)).not.toContain('mesh-value')
         expect(JSON.stringify(inventory)).not.toContain('platform-value')
         expect(inventory[1]).toMatchObject({
+            generation: 1,
             adoptedAt: '2026-11-05T10:01:00.000Z',
             consumers: expect.arrayContaining(['Better Auth sessions', 'column encryption']),
         })
@@ -84,6 +87,33 @@ describe('adoptionOf', () => {
         ])
         expect(platform?.current).toBe('new')
         expect(platform?.nodes.find((node) => node.nodeId === 'a')?.status).toBe('stale')
+    })
+
+    it('judges a rotating secret by generation: a node on a lower one is behind, whatever the majority holds', () => {
+        const [platform] = adoptionOf([
+            { nodeId: 'a', secrets: [secret('platform', 'g2', null, 2)] },
+            { nodeId: 'b', secrets: [secret('platform', 'g1', null, 1)] },
+            { nodeId: 'c', secrets: [secret('platform', 'g1', null, 1)] },
+        ])
+
+        expect(platform?.current).toBe('g2')
+        expect(platform?.currentGeneration).toBe(2)
+        expect(Object.fromEntries(platform?.nodes.map((node) => [node.nodeId, node.status]) ?? [])).toEqual({
+            a: 'current',
+            b: 'stale',
+            c: 'stale',
+        })
+    })
+
+    it('flags two values on the same generation instead of choosing silently', () => {
+        const [platform] = adoptionOf([
+            { nodeId: 'a', secrets: [secret('platform', 'x', '2026-11-01T00:00:00.000Z', 1)] },
+            { nodeId: 'b', secrets: [secret('platform', 'x', '2026-11-01T00:00:00.000Z', 1)] },
+            { nodeId: 'c', secrets: [secret('platform', 'y', '2026-11-05T00:00:00.000Z', 1)] },
+        ])
+
+        expect(platform?.current).toBe('x')
+        expect(platform?.nodes.find((node) => node.nodeId === 'c')?.status).toBe('stale')
     })
 
     it('has no current value when no node holds one', () => {

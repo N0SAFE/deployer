@@ -30,6 +30,7 @@ export type MeshNodeContract = typeof meshNodeContract
 
 export * from './configure'
 export * from './labels'
+export * from './platform-secret-ring'
 export * from './secrets'
 export * from './settings'
 export * from './state'

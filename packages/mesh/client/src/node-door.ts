@@ -96,6 +96,8 @@ export type NodeDoorSecret = {
     readonly id: 'mesh' | 'platform'
     readonly purpose: string
     readonly fingerprint: string | null
+    /** Which generation of a rotating secret the node holds; null for one that does not rotate yet. */
+    readonly generation: number | null
     readonly adoptedAt: string | null
     readonly consumers: readonly string[]
 }
@@ -110,9 +112,11 @@ export type NodeDoorFleetSecrets = {
     readonly adoption: readonly {
         readonly id: 'mesh' | 'platform'
         readonly current: string | null
+        readonly currentGeneration: number | null
         readonly nodes: readonly {
             readonly nodeId: string
             readonly fingerprint: string | null
+            readonly generation: number | null
             readonly adoptedAt: string | null
             readonly status: 'current' | 'stale' | 'missing'
         }[]

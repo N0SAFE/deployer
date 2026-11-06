@@ -7,6 +7,7 @@ import {
     type MeshNodeSecrets,
     type MeshNodeState,
     meshNodeConfigSchema,
+    withLegacyDefaults,
 } from '@deployer/node-agent-contracts'
 
 import { AgentStore, type AgentStoreError } from '../../../local/agent-store'
@@ -148,6 +149,7 @@ export class NodeState extends Context.Service<NodeState, NodeStateShape>()(
 
 const decode = (json: string) =>
     Effect.try({
-        try: () => meshNodeConfigSchema.parse(JSON.parse(json)),
+        try: () =>
+            meshNodeConfigSchema.parse(withLegacyDefaults(JSON.parse(json))),
         catch: () => new NodeConfigUnreadable({}),
     })

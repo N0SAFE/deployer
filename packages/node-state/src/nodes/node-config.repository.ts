@@ -2,6 +2,8 @@ import { randomBytes } from 'node:crypto'
 
 import { Context, Effect, Layer } from 'effect'
 
+import { mergePlatformSecretRing } from '@deployer/node-agent-contracts'
+
 import { nodeConfig } from '@deployer/nest-schema/local'
 
 import {
@@ -272,33 +274,20 @@ function nodeConfigOperations(
             Effect.gen(function* () {
                 const row = yield* ops.find()
                 if (row === null) return false
-                const local = platformSecretRingOf(row)
-                if (local !== null && incoming.generation <= local.generation)
-                    return false
-                const earlier = new Map<number, string>()
-                for (const entry of [
-                    ...(local === null
-                        ? []
-                        : [
-                              { generation: local.generation, value: local.value },
-                              ...local.previous,
-                          ]),
-                    ...incoming.previous,
-                ]) {
-                    // The current generation of the incoming ring is not "earlier"; and the first value seen for a
-                    // generation wins, so a peer cannot overwrite what this node already holds for it.
-                    if (entry.generation < incoming.generation && !earlier.has(entry.generation))
-                        earlier.set(entry.generation, entry.value)
-                }
+                const merged = mergePlatformSecretRing(
+                    platformSecretRingOf(row),
+                    incoming
+                )
+                if (merged === null) return false
                 const { id: _id, ...rest } = row
                 yield* ops.upsert({
                     ...rest,
-                    platformSecret: incoming.value,
+                    platformSecret: merged.value,
                     platformSecretUpdatedAt: new Date().toISOString(),
-                    platformSecretGeneration: incoming.generation,
-                    platformSecretPrevious: [...earlier]
-                        .sort(([a], [b]) => b - a)
-                        .map(([generation, value]) => ({ generation, value })),
+                    platformSecretGeneration: merged.generation,
+                    platformSecretPrevious: merged.previous.map((entry) => ({
+                        ...entry,
+                    })),
                 })
                 return true
             }),

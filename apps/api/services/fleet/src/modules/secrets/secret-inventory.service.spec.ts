@@ -17,6 +17,7 @@ const fleet: NodeDoorFleetSecrets = {
                     id: 'platform',
                     purpose: 'p',
                     fingerprint: 'f1',
+                    generation: 1,
                     adoptedAt: null,
                     consumers: ['Better Auth sessions'],
                 },
@@ -28,7 +29,8 @@ const fleet: NodeDoorFleetSecrets = {
         {
             id: 'platform',
             current: 'f1',
-            nodes: [{ nodeId: 'a', fingerprint: 'f1', adoptedAt: null, status: 'current' }],
+            currentGeneration: 1,
+            nodes: [{ nodeId: 'a', fingerprint: 'f1', generation: 1, adoptedAt: null, status: 'current' }],
         },
     ],
 }

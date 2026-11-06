@@ -41,6 +41,7 @@ import { AgentLinkFactory } from '../modules/mesh/services/agent-link-factory.se
 import { AgentLoad } from '../modules/mesh/services/agent-load.service'
 import { PendingSeeds } from '../modules/mesh/services/pending-seeds.service'
 import { ReplicaLinks } from '../modules/mesh/services/replica-links.service'
+import { PlatformSecretSync } from '../modules/mesh/services/platform-secret-sync.service'
 import { RosterGossip } from '../modules/mesh/services/roster-gossip.service'
 import { DoorsTick } from '../network/doors/doors-tick.service'
 import { WireguardTick } from '../network/wireguard-tick.service'
@@ -313,7 +314,12 @@ export class MeshTransportService
                 ),
             round: () =>
                 this.host.runUnwrapped(
-                    Effect.flatMap(RosterGossip, (g) => g.round())
+                    Effect.gen(function* () {
+                        const changed = yield* (yield* RosterGossip).round()
+                        // A rotation spreads on the same cadence: after the peers are heard, take in a higher generation.
+                        yield* (yield* PlatformSecretSync).round()
+                        return changed
+                    })
                 ),
         })
         this.loops.push(gossip)

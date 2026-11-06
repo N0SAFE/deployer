@@ -15,6 +15,8 @@ export const nodeSecretSchema = z.object({
     id: secretIdSchema,
     purpose: z.string().min(1),
     fingerprint: z.string().min(1).nullable(),
+    /** Which generation of a rotating secret the node holds; null for one that does not rotate yet. */
+    generation: z.number().int().positive().nullable(),
     adoptedAt: z.string().nullable(),
     consumers: z.array(z.string().min(1)),
 })
@@ -23,10 +25,13 @@ export const secretAdoptionSchema = z.object({
     id: secretIdSchema,
     /** The fingerprint most nodes hold, or null when no node holds one. */
     current: z.string().min(1).nullable(),
+    /** The generation `current` is, when the secret rotates. */
+    currentGeneration: z.number().int().positive().nullable(),
     nodes: z.array(
         z.object({
             nodeId: z.string().min(1),
             fingerprint: z.string().min(1).nullable(),
+            generation: z.number().int().positive().nullable(),
             adoptedAt: z.string().nullable(),
             status: z.enum(['current', 'stale', 'missing']),
         })

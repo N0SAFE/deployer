@@ -69,19 +69,21 @@ export const meshNodeConfigSchema = z.object({
     /** The secret peers present to this node, and when it was last rotated. */
     meshSharedSecret: z.string().nullable(),
     meshSharedSecretUpdatedAt: z.string().nullable(),
-    /** The platform secret and when this node adopted it. Defaults to null: a record written before they existed still reads. */
-    platformSecret: z.string().nullable().default(null),
-    platformSecretUpdatedAt: z.string().nullable().default(null),
-    /** Which generation the platform secret is, and the earlier ones still accepted (SEC-101). Defaulted so an old record reads. */
-    platformSecretGeneration: z.number().int().positive().default(1),
-    platformSecretPrevious: z
-        .array(
-            z.object({
-                generation: z.number().int().positive(),
-                value: z.string().min(1),
-            })
-        )
-        .default([]),
+    /**
+     * The platform secret and when this node adopted it, which generation it is, and the earlier generations still accepted
+     * (SEC-101). Deliberately NOT defaulted here: this schema also types the configure PATCH (`.partial()`), where a default
+     * would turn "not named" into "reset to null" and wipe the secret. A record written before these fields existed is
+     * completed where it is read (`withLegacyDefaults`).
+     */
+    platformSecret: z.string().nullable(),
+    platformSecretUpdatedAt: z.string().nullable(),
+    platformSecretGeneration: z.number().int().positive(),
+    platformSecretPrevious: z.array(
+        z.object({
+            generation: z.number().int().positive(),
+            value: z.string().min(1),
+        })
+    ),
     scanConfig: meshNodeScanConfigSchema.nullable(),
     /** The node's mesh wiring, once something configured it. Null on an unconfigured node. */
     mesh: meshNodeMeshConfigSchema.nullable(),
@@ -91,6 +93,22 @@ export const meshNodeConfigSchema = z.object({
     /** ISO-8601, the agent's clock at the last write. */
     updatedAt: z.string(),
 })
+
+/**
+ * A stored record completed with what older agents never wrote: the platform secret fields, empty and at generation 1. The one
+ * place a read is made tolerant, so a patch is never given a default it did not ask for.
+ */
+export function withLegacyDefaults(stored: unknown): unknown {
+    return typeof stored === 'object' && stored !== null
+        ? {
+              platformSecret: null,
+              platformSecretUpdatedAt: null,
+              platformSecretGeneration: 1,
+              platformSecretPrevious: [],
+              ...stored,
+          }
+        : stored
+}
 
 export const meshNodeStateSchema = z.object({
     /** The agent's own identity on the mesh, generated on its first boot. Not the platform node id. */
