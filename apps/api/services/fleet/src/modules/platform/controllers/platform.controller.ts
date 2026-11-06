@@ -97,10 +97,16 @@ export class PlatformController {
         // null-checked in the handler.
         return procedure(heartbeatAppInstanceContract)
             .use(requireAppInstance())
-            .handler(() => ({
-                status: 201,
-                body: { renewUntil: new Date(Date.now() + STALE_AFTER_MS) },
-            }))
+            .effect(function* () {
+                // The clock is read inside the Effect, so a spec that substitutes time sees it.
+                const now = yield* Effect.clockWith((clock) =>
+                    Effect.succeed(clock.currentTimeMillisUnsafe())
+                )
+                return {
+                    status: 201,
+                    body: { renewUntil: new Date(now + STALE_AFTER_MS) },
+                }
+            })
     }
 
     @Implement(listAppInstancesContract)
