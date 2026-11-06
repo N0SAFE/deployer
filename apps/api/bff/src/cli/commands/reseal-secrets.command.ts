@@ -1,10 +1,13 @@
 import { Inject, Logger } from '@nestjs/common'
 import { Command, CommandRunner, Option } from 'nest-commander'
 
+import { encryptSecret } from '@deployer/nest-schema/codecs/codec-registry'
 import {
+    countStoredKeys,
     findEncryptedColumns,
     makePgResealStore,
     resealEncryptedColumns,
+    rewriteToKey,
     type ColumnReport,
 } from '@deployer/nest-schema/codecs/reseal'
 import * as globalSchema from '@deployer/nest-schema/global'
@@ -24,6 +27,7 @@ import type { Pool } from 'pg'
  */
 
 type ResealOptions = {
+    toCurrent?: boolean
     apply?: boolean
     sealPlaintext?: boolean
     batchSize?: number
@@ -64,6 +68,15 @@ export class ResealSecretsCommand extends CommandRunner {
     }
 
     @Option({
+        flags: '--to-current',
+        description:
+            'Instead of upgrading legacy ciphertext, rewrite every value sealed under an EARLIER key generation so it is sealed under the current one: the step between rotating the platform secret and retiring the old generation',
+    })
+    parseToCurrent(): boolean {
+        return true
+    }
+
+    @Option({
         flags: '--seal-plaintext',
         description:
             'Also seal values that are neither sealed nor legacy ciphertext (for example env vars stored before encryption)',
@@ -98,6 +111,11 @@ export class ResealSecretsCommand extends CommandRunner {
                 `${dryRun ? 'DRY RUN' : 'APPLY'}: ${String(targets.length)} encrypted column(s) found`
             )
 
+            if (options?.toCurrent === true) {
+                await this.rewriteToCurrent(targets, dryRun, options.batchSize)
+                return
+            }
+
             const report = await resealEncryptedColumns(
                 makePgResealStore(this.pool),
                 targets,
@@ -130,6 +148,50 @@ export class ResealSecretsCommand extends CommandRunner {
             )
             process.exitCode = 1
         }
+    }
+
+    /** Moves every value to the key generation the codec seals with now, and says what is left under each key. */
+    private async rewriteToCurrent(
+        targets: Parameters<typeof resealEncryptedColumns>[1],
+        dryRun: boolean,
+        batchSize: number | undefined
+    ): Promise<void> {
+        const store = makePgResealStore(this.pool)
+        // The key id the codec writes under now: seal a probe and read it back, rather than assuming a number.
+        const kid = /"kid":"([^"]+)"/.exec(encryptSecret('probe'))?.[1]
+        if (kid === undefined) {
+            throw new Error(
+                'the sealing codec is not configured, so there is no current key to move values to'
+            )
+        }
+        const before = await countStoredKeys(store, targets)
+        this.logger.log(
+            `Stored values by key before: ${JSON.stringify(before.totals)}`
+        )
+
+        const report = await rewriteToKey(store, targets, {
+            kid,
+            dryRun,
+            ...(batchSize === undefined ? {} : { batchSize }),
+        })
+        for (const column of report.columns) {
+            this.logger.log(
+                `${column.table}.${column.column}: scanned=${String(column.scanned)} ${dryRun ? 'would-rewrite' : 'rewritten'}=${String(dryRun ? column.scanned - column.failed.length : column.rewritten)}` +
+                    (column.conflicts > 0
+                        ? ` conflicts=${String(column.conflicts)} (re-run to pick them up)`
+                        : '') +
+                    (column.failed.length > 0
+                        ? ` UNOPENABLE ids=[${column.failed.slice(0, 10).join(',')}]`
+                        : '')
+            )
+        }
+        this.logger.log(
+            report.remaining === 0
+                ? `✅ Every value is sealed under ${kid}. Earlier generations hold no rows and can be retired.`
+                : `${dryRun ? 'ℹ️ ' : '⚠️ '} ${String(report.remaining)} value(s) are not under ${kid} yet.`
+        )
+        if (report.columns.some((c) => c.failed.length > 0))
+            process.exitCode = 1
     }
 
     private line(c: ColumnReport, dryRun: boolean): string {

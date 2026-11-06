@@ -3,7 +3,7 @@ import { Context, Effect } from 'effect'
 import { domainError, serviceOver, type Over } from '@deployer/effect-core'
 import type { SecretInventory as SecretInventoryView } from '@deployer/fleet-contracts'
 
-import { SecretsDoor } from './secrets.ports'
+import { SecretsDoor, StoredSecretsPort } from './secrets.ports'
 
 /** The agent did not answer, so the fleet's secrets cannot be listed. Said plainly: an empty list would look healthy. */
 export class SecretInventoryUnavailable extends domainError(
@@ -12,6 +12,16 @@ export class SecretInventoryUnavailable extends domainError(
 )() {
     override publicMessage() {
         return "This node's agent did not answer, so the secrets of the fleet cannot be listed"
+    }
+}
+
+/** The database could not be read, so the stored values could not be counted. */
+export class StoredSecretsUnavailable extends domainError(
+    'StoredSecretsUnavailable',
+    'dependency_missing'
+)() {
+    override publicMessage() {
+        return 'The stored secrets could not be counted right now'
     }
 }
 
@@ -33,9 +43,26 @@ export class SecretRotationNotAllowed extends domainError(
  */
 const makeSecretInventory = ({
     door,
+    stored,
 }: {
     readonly door: Context.Service.Shape<typeof SecretsDoor>
+    readonly stored: Context.Service.Shape<typeof StoredSecretsPort>
 }) => ({
+    /** How many stored values sit under each key generation. Counts only. */
+    stored: Effect.fn('SecretInventory.stored')(function* () {
+        const report = yield* stored.report().pipe(
+            Effect.mapError((cause) => new StoredSecretsUnavailable({ cause }))
+        )
+        return {
+            totals: { ...report.totals },
+            columns: report.columns.map((column) => ({
+                table: column.table,
+                column: column.column,
+                byKey: { ...column.byKey },
+            })),
+        }
+    }),
+
     inventory: Effect.fn('SecretInventory.inventory')(function* () {
         const fleet = yield* door.fleetSecrets()
         if (fleet === null) return yield* new SecretInventoryUnavailable({})
@@ -69,6 +96,17 @@ const makeSecretInventory = ({
 
     /** An earlier generation stops being accepted on every reachable node. */
     retire: Effect.fn('SecretInventory.retire')(function* (generation: number) {
+        // Retiring makes what is sealed under the generation unreadable, so it is refused while any row still is. The figure
+        // is read first and the act comes second: a refusal changes nothing.
+        const report = yield* stored.report().pipe(
+            Effect.mapError((cause) => new StoredSecretsUnavailable({ cause }))
+        )
+        const left = report.totals[`column:${String(generation)}`] ?? 0
+        if (left > 0) {
+            return yield* new SecretRotationNotAllowed({
+                reason: `${String(left)} stored value(s) are still sealed under generation ${String(generation)}. Rewrite them to the current generation first (reseal-secrets --to-current), then retire it.`,
+            })
+        }
         const outcome = yield* door.retire(generation)
         if (outcome.kind === 'absent') return yield* new SecretInventoryUnavailable({})
         if (outcome.kind === 'refused') {
@@ -84,7 +122,7 @@ const makeSecretInventory = ({
 
 export type SecretInventoryShape = Over<
     ReturnType<typeof makeSecretInventory>,
-    SecretsDoor
+    SecretsDoor | StoredSecretsPort
 >
 
 /** Tag and implementation together: the tag is the contract, `live` the one implementation. */
@@ -94,7 +132,7 @@ export class SecretInventory extends Context.Service<
 >()('fleet/SecretInventory') {
     /** The door is yielded when a method runs, so this is a constant the module provides with `useValue`. */
     static readonly live: SecretInventoryShape = serviceOver(
-        Effect.all({ door: SecretsDoor }),
+        Effect.all({ door: SecretsDoor, stored: StoredSecretsPort }),
         makeSecretInventory
     )
 }

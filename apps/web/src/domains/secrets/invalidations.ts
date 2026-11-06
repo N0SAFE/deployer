@@ -13,5 +13,5 @@ export const secretsInvalidations: ReturnType<
     >
 > = defineInvalidations(secretsEndpoints, {
     rotate: ({ keys }) => [keys.inventory()],
-    retire: ({ keys }) => [keys.inventory()],
+    retire: ({ keys }) => [keys.inventory(), keys.stored()],
 })

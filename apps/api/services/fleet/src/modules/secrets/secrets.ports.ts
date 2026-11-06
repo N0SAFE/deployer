@@ -1,5 +1,7 @@
 import { Context, type Effect } from 'effect'
 
+import type { StoredKeyReport } from '@deployer/nest-schema/codecs/reseal'
+
 import type {
     DoorOutcome,
     NodeDoorFleetSecrets,
@@ -18,6 +20,19 @@ export type SecretsDoorShape = {
         generation: number
     ) => Effect.Effect<DoorOutcome<NodeDoorSecretRetirement>>
 }
+
+/**
+ * The stored encrypted values, counted by key. Counts only: the values are never read. Fails with whatever the database
+ * failed with; the service turns that into a typed error.
+ */
+export type StoredSecretsShape = {
+    readonly report: () => Effect.Effect<StoredKeyReport, unknown>
+}
+
+export class StoredSecretsPort extends Context.Service<
+    StoredSecretsPort,
+    StoredSecretsShape
+>()('fleet/StoredSecretsPort') {}
 
 export class SecretsDoor extends Context.Service<SecretsDoor, SecretsDoorShape>()(
     'fleet/SecretsDoor'

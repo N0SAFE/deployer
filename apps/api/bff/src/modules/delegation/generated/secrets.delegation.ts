@@ -63,4 +63,11 @@ export class SecretsDelegationController {
             this.client.rotate(input)
         )
     }
+
+    @Implement(secretContract.stored)
+    stored() {
+        return implement(secretContract.stored).handler(({ input }) =>
+            this.client.stored(input)
+        )
+    }
 }

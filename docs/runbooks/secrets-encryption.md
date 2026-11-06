@@ -11,6 +11,11 @@ Applies to every secret the platform stores in Postgres through an `encryptedTex
 > the way the steps below say to back up the root. The legacy reader still uses `AUTH_SECRET` until `reseal-secrets` reports zero
 > legacy rows. The rest of this page describes the original change; read "root secret" as "platform secret".
 
+> **Rotating the platform secret (SEC-101).** Order: rotate (Settings → Secrets); wait until every node shows the new generation;
+> `reseal-secrets --to-current` (dry-run first, then `--apply`) rewrites every value sealed under an earlier generation so it is
+> sealed under the current one; the Secrets screen's retire dialog shows how many values still sit under the generation and
+> refuses to retire it until that is zero. Retiring makes anything still under it unreadable, which is why the count gates it.
+
 ## What was wrong
 
 The old codec derived its key as `Buffer.from(AUTH_SECRET, "hex")`. For any `AUTH_SECRET` that is not a hex string (the value in `.env.example` is base64) that buffer is **empty**, and the per-value salt that feeds scrypt is stored inside the ciphertext. Such rows could be decrypted by anyone with read access to the database, without any secret. If your `AUTH_SECRET` is not exactly 64 hex characters, **everything written before this change was effectively unprotected**:

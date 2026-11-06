@@ -63,6 +63,32 @@ export const secretInventoryContract = secretOps
     .errors((e) => [...standardDomainErrorContracts(e)])
     .build()
 
+/** Where the stored (encrypted) values are, by key. Counts only. A key with a non-zero count still has rows only it can open. */
+export const storedSecretsSchema = z.object({
+    /** Every column added up, keyed by key id (`column:2`), `legacy` or `plaintext`. */
+    totals: z.record(z.string(), z.number().int().nonnegative()),
+    columns: z.array(
+        z.object({
+            table: z.string().min(1),
+            column: z.string().min(1),
+            byKey: z.record(z.string(), z.number().int().nonnegative()),
+        })
+    ),
+})
+
+export type StoredSecrets = z.infer<typeof storedSecretsSchema>
+
+const storedSecretsOps = standard.zod(storedSecretsSchema, 'storedSecrets')
+
+/** How many stored values sit under each key generation: the figure to read before retiring one. */
+export const secretStoredContract = storedSecretsOps
+    .list()
+    .path('/stored')
+    .input(z.object({}))
+    .output(storedSecretsSchema)
+    .errors((e) => [...standardDomainErrorContracts(e)])
+    .build()
+
 export const secretRotationSchema = z.object({
     /** The generation that is current after the call. Never a value. */
     generation: z.number().int().positive(),
@@ -106,6 +132,7 @@ export const secretContract = oc
         inventory: secretInventoryContract,
         retire: secretRetireContract,
         rotate: secretRotateContract,
+        stored: secretStoredContract,
     })
 
 export type SecretContract = typeof secretContract

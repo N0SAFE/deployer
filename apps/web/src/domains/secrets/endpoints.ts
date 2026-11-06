@@ -10,4 +10,5 @@ export const secretsEndpoints = {
     inventory: orpc.secrets.inventory,
     rotate: orpc.secrets.rotate,
     retire: orpc.secrets.retire,
+    stored: orpc.secrets.stored,
 } as const

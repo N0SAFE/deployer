@@ -41,6 +41,7 @@ import {
     useRetirePlatformSecret,
     useRotatePlatformSecret,
     useSecretInventory,
+    useStoredSecrets,
 } from '@/domains/secrets/hooks'
 import { useCan } from '@/lib/access/permissions'
 import { getErrorMessage } from '@/lib/orpc/typed-errors'
@@ -78,6 +79,16 @@ export default function SettingsSecretsPage() {
     const [confirming, setConfirming] = useState<
         { kind: 'rotate' } | { kind: 'retire'; generation: number } | null
     >(null)
+    // Read only while a retirement is being confirmed: it counts every encrypted column in the database.
+    const stored = useStoredSecrets({
+        enabled: canRetire && confirming?.kind === 'retire',
+    })
+    /** How many stored values are still sealed under a key generation (zero when it is not in the count at all). */
+    const rowsUnder = (generation: number): number => {
+        const totals: Partial<Record<string, number>> | undefined =
+            stored.data?.totals
+        return totals?.[`column:${String(generation)}`] ?? 0
+    }
 
     if (!canRead) {
         return (
@@ -317,6 +328,22 @@ export default function SettingsSecretsPage() {
                                 ? `Retire generation ${String(confirming.generation)}?`
                                 : 'Rotate the platform secret?'}
                         </DialogTitle>
+                        {confirming?.kind === 'retire' ? (
+                            <p className="text-sm">
+                                {stored.isPending
+                                    ? 'Counting the stored values…'
+                                    : stored.isError
+                                      ? 'The stored values could not be counted, so this cannot be retired now.'
+                                      : (() => {
+                                            const left = rowsUnder(
+                                                confirming.generation
+                                            )
+                                            return left === 0
+                                                ? `No stored value is sealed under generation ${String(confirming.generation)}.`
+                                                : `${String(left)} stored value(s) are still sealed under generation ${String(confirming.generation)}. Rewrite them first: reseal-secrets --to-current --apply.`
+                                        })()}
+                            </p>
+                        ) : null}
                         <DialogDescription>
                             {confirming?.kind === 'retire'
                                 ? 'Values sealed under this generation, and sessions and claims signed with it, stop being accepted on every node. Do this only once every node holds the current generation and the stored credentials have been resealed. A passkey verification in the last five minutes is required (Settings → Account).'
@@ -338,7 +365,14 @@ export default function SettingsSecretsPage() {
                                     ? 'destructive'
                                     : 'default'
                             }
-                            disabled={rotate.isPending || retire.isPending}
+                            disabled={
+                                rotate.isPending ||
+                                retire.isPending ||
+                                (confirming?.kind === 'retire' &&
+                                    (stored.isPending ||
+                                        stored.isError ||
+                                        rowsUnder(confirming.generation) > 0))
+                            }
                             onClick={() => void confirm()}
                         >
                             {confirming?.kind === 'retire'

@@ -26,6 +26,18 @@ export class SecretInventoryController {
             })
     }
 
+    /** How many stored values sit under each key generation: the figure to read before retiring one. Counts only. */
+    @Implement(secretContract.stored)
+    stored() {
+        return procedure(secretContract.stored)
+            .use(requireAuth())
+            .use(accessRequired(PlatformSecretResource.can('read')))
+            .effect(function* () {
+                const secrets = yield* SecretInventory
+                return yield* secrets.stored()
+            })
+    }
+
     /** Makes a new generation current. Nothing is cut off: the earlier generation stays accepted until it is retired. */
     @Implement(secretContract.rotate)
     rotate() {

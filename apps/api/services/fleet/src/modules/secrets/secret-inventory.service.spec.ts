@@ -1,5 +1,5 @@
 import { Cause, Effect, Exit } from 'effect'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { provideTo } from '@deployer/effect-core'
 import type { NodeDoorFleetSecrets } from '@deployer/mesh-client'
@@ -8,8 +8,14 @@ import {
     SecretInventory,
     SecretInventoryUnavailable,
     SecretRotationNotAllowed,
+    StoredSecretsUnavailable,
 } from './secret-inventory.service'
-import { SecretsDoor, type SecretsDoorShape } from './secrets.ports'
+import {
+    SecretsDoor,
+    StoredSecretsPort,
+    type SecretsDoorShape,
+    type StoredSecretsShape,
+} from './secrets.ports'
 
 const fleet: NodeDoorFleetSecrets = {
     nodes: [
@@ -42,9 +48,17 @@ const fleet: NodeDoorFleetSecrets = {
 
 const absent = { kind: 'absent' } as const
 
-const serviceOver = (door: Partial<SecretsDoorShape>) =>
+const nothingStored: StoredSecretsShape = {
+    report: () => Effect.succeed({ totals: {}, columns: [] }),
+}
+
+const serviceOver = (
+    door: Partial<SecretsDoorShape>,
+    stored: StoredSecretsShape = nothingStored
+) =>
     provideTo(SecretInventory.live, (effect) =>
         effect.pipe(
+            Effect.provideService(StoredSecretsPort, stored),
             Effect.provideService(SecretsDoor, {
                 fleetSecrets: () => Effect.succeed(null),
                 rotate: () => Effect.succeed(absent),
@@ -109,6 +123,66 @@ describe('SecretInventory rotation', () => {
         expect(Exit.isFailure(exit)).toBe(true)
         if (Exit.isFailure(exit)) {
             expect(Cause.squash(exit.cause)).toBeInstanceOf(SecretInventoryUnavailable)
+        }
+    })
+})
+
+describe('SecretInventory: the stored values', () => {
+    const storedUnder = (totals: Record<string, number>): StoredSecretsShape => ({
+        report: () =>
+            Effect.succeed({
+                totals,
+                columns: [{ table: 'github_apps', column: 'private_key', byKey: totals }],
+            }),
+    })
+
+    it('serves the counts by key', async () => {
+        const service = serviceOver({}, storedUnder({ 'column:1': 2, 'column:2': 5 }))
+
+        const result = await Effect.runPromise(service.stored())
+
+        expect(result.totals).toEqual({ 'column:1': 2, 'column:2': 5 })
+        expect(result.columns[0]).toMatchObject({ table: 'github_apps', column: 'private_key' })
+    })
+
+    it('refuses to retire a generation that still holds rows, and does not ask the agent', async () => {
+        const retire = vi.fn(() => Effect.succeed({ kind: 'absent' as const }))
+        const service = serviceOver({ retire }, storedUnder({ 'column:1': 3, 'column:2': 5 }))
+
+        const exit = await Effect.runPromiseExit(service.retire(1))
+
+        expect(Exit.isFailure(exit)).toBe(true)
+        if (Exit.isFailure(exit)) {
+            const error = Cause.squash(exit.cause)
+            expect(error).toBeInstanceOf(SecretRotationNotAllowed)
+            expect((error as SecretRotationNotAllowed).publicMessage()).toContain('3 stored value(s)')
+        }
+        expect(retire).not.toHaveBeenCalled()
+    })
+
+    it('retires a generation no row is sealed under any more', async () => {
+        const service = serviceOver(
+            {
+                retire: () =>
+                    Effect.succeed({
+                        kind: 'ok' as const,
+                        value: { generation: 2, reached: ['b'], unreachable: [] },
+                    }),
+            },
+            storedUnder({ 'column:2': 5 })
+        )
+
+        expect(await Effect.runPromise(service.retire(1))).toMatchObject({ generation: 2, reached: ['b'] })
+    })
+
+    it('fails closed when the rows cannot be counted: retiring on a guess could lose data', async () => {
+        const service = serviceOver({}, { report: () => Effect.fail(new Error('db down')) })
+
+        const exit = await Effect.runPromiseExit(service.retire(1))
+
+        expect(Exit.isFailure(exit)).toBe(true)
+        if (Exit.isFailure(exit)) {
+            expect(Cause.squash(exit.cause)).toBeInstanceOf(StoredSecretsUnavailable)
         }
     })
 })

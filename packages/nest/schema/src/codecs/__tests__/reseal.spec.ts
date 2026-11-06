@@ -42,18 +42,20 @@ function memoryStore(
     return {
         rows,
         replaceCalls: [] as string[],
-        readUnsealed: async (
+        readUnsealed: (
             _t: unknown,
             afterId: string | null,
             limit: number
         ) =>
-            [...rows.entries()]
-                .filter(unsealed)
-                .filter(([id]) => afterId === null || id > afterId)
-                .sort(([a], [b]) => (a < b ? -1 : 1))
-                .slice(0, limit)
-                .map(([id, value]) => ({ id, value })),
-        replace: async function (
+            Promise.resolve(
+                [...rows.entries()]
+                    .filter(unsealed)
+                    .filter(([id]) => afterId === null || id > afterId)
+                    .sort(([a], [b]) => (a < b ? -1 : 1))
+                    .slice(0, limit)
+                    .map(([id, value]) => ({ id, value }))
+            ),
+        replace: function (
             this: { replaceCalls: string[] },
             _t: unknown,
             id: string,
@@ -62,11 +64,38 @@ function memoryStore(
         ) {
             this.replaceCalls.push(id)
             hooks.beforeReplace?.(id)
-            if (rows.get(id) !== expected) return false
+            if (rows.get(id) !== expected) return Promise.resolve(false)
             rows.set(id, next)
-            return true
+            return Promise.resolve(true)
         },
-        countUnsealed: async () => [...rows.entries()].filter(unsealed).length,
+        countUnsealed: () => Promise.resolve([...rows.entries()].filter(unsealed).length),
+        countByKey: () => {
+            const counts: Record<string, number> = {}
+            for (const value of rows.values()) {
+                if (value === '') continue
+                const key = value.startsWith('enc:v1:')
+                    ? (/"kid":"([^"]+)"/.exec(value)?.[1] ?? 'sealed-unknown')
+                    : value.split(':').length === 4
+                      ? 'legacy'
+                      : 'plaintext'
+                counts[key] = (counts[key] ?? 0) + 1
+            }
+            return Promise.resolve(counts)
+        },
+        readNotUnderKey: (
+            _t: unknown,
+            kid: string,
+            afterId: string | null,
+            limit: number
+        ) =>
+            Promise.resolve(
+                [...rows.entries()]
+                    .filter(([, value]) => value !== '' && !value.includes(`"kid":"${kid}"`))
+                    .filter(([id]) => afterId === null || id > afterId)
+                    .sort(([a], [b]) => (a < b ? -1 : 1))
+                    .slice(0, limit)
+                    .map(([id, value]) => ({ id, value }))
+            ),
     }
 }
 
@@ -373,12 +402,41 @@ describe('resealEncryptedColumns', () => {
     })
 })
 
+describe('makePgResealStore: counting by key (SEC-101)', () => {
+    const calls: { text: string; params: readonly unknown[] | undefined }[] = []
+    const respond = (rows: Record<string, unknown>[]) => ({
+        query: (text: string, params?: readonly unknown[]) => {
+            calls.push({ text, params })
+            return Promise.resolve({ rows })
+        },
+    })
+
+    it('groups by key id in SQL and reads counts, never values', async () => {
+        const { reseal } = await fresh()
+        const store = reseal.makePgResealStore(respond([{ key: 'column:1', n: 3 }, { key: 'legacy', n: 1 }]))
+
+        expect(await store.countByKey(target)).toEqual({ 'column:1': 3, legacy: 1 })
+        expect(calls.at(-1)?.text).toContain('GROUP BY 1')
+        expect(calls.at(-1)?.text).not.toMatch(/SELECT\s+"token"/)
+    })
+
+    it('passes the key id as a parameter, not into the SQL text', async () => {
+        const { reseal } = await fresh()
+        const store = reseal.makePgResealStore(respond([]))
+
+        await store.readNotUnderKey(target, 'column:2', null, 10)
+
+        expect(calls.at(-1)?.params).toEqual([null, 10, 'column:2'])
+        expect(calls.at(-1)?.text).not.toContain('column:2')
+    })
+})
+
 describe('makePgResealStore', () => {
     const calls: { text: string; params: readonly unknown[] | undefined }[] = []
     const respond = (rows: Record<string, unknown>[]) => ({
-        query: async (text: string, params?: readonly unknown[]) => {
+        query: (text: string, params?: readonly unknown[]) => {
             calls.push({ text, params })
-            return { rows }
+            return Promise.resolve({ rows })
         },
     })
 
@@ -429,5 +487,103 @@ describe('makePgResealStore', () => {
 
         expect(n).toBe(3)
         expect(calls[0]?.text).toContain('FROM "app"."we""ird"')
+    })
+})
+
+/** A sealer that writes under whichever key id is current and opens any: what a ring with an earlier generation does. */
+function ringSealer() {
+    const state = { current: 'column:1' }
+    return {
+        state,
+        sealer: {
+            seal: (plaintext: string) =>
+                `enc:v1:${JSON.stringify({ v: 1, kid: state.current, d: Buffer.from(plaintext).toString('base64') })}`,
+            open: (stored: string) =>
+                Buffer.from(
+                    (JSON.parse(stored.slice('enc:v1:'.length)) as { d: string }).d,
+                    'base64'
+                ).toString('utf8'),
+        },
+    }
+}
+
+describe('countStoredKeys and rewriteToKey: moving rows to the current generation (SEC-101)', () => {
+    let m: Modules
+    let ring: ReturnType<typeof ringSealer>
+
+    beforeEach(async () => {
+        m = await fresh()
+        ring = ringSealer()
+        m.codec.configureSchemaCodecs({ encryption: { resolveKey: () => LEGACY_KEY }, sealing: ring.sealer })
+    })
+
+    /** Three rows sealed under generation 1; then the ring rotates to 2. */
+    const rotated = () => {
+        const rows = new Map<string, string>()
+        for (const [id, text] of [['1', 'alpha'], ['2', 'beta'], ['3', 'gamma']] as const) {
+            rows.set(id, m.codec.encryptSecret(text))
+        }
+        rows.set('4', '')
+        ring.state.current = 'column:2'
+        rows.set('5', m.codec.encryptSecret('delta'))
+        return rows
+    }
+
+    it('counts the values under each key, and never reads one', async () => {
+        const report = await m.reseal.countStoredKeys(memoryStore(rotated()), [target])
+
+        expect(report.totals).toEqual({ 'column:1': 3, 'column:2': 1 })
+        expect(report.columns[0]).toMatchObject({ table: 'secrets', byKey: { 'column:1': 3, 'column:2': 1 } })
+    })
+
+    it('rewrites every row not under the current key, keeps the plaintext, and ends with nothing remaining', async () => {
+        const store = memoryStore(rotated())
+
+        const report = await m.reseal.rewriteToKey(store, [target], { kid: 'column:2', dryRun: false })
+
+        expect(report.remaining).toBe(0)
+        expect(report.columns[0]).toMatchObject({ scanned: 3, rewritten: 3, failed: [], conflicts: 0 })
+        expect((await m.reseal.countStoredKeys(store, [target])).totals).toEqual({ 'column:2': 4 })
+        expect(m.codec.decryptSecret(store.rows.get('1') ?? '')).toBe('alpha')
+    })
+
+    it('a dry run changes nothing and still reports what is left', async () => {
+        const store = memoryStore(rotated())
+        const before = new Map(store.rows)
+
+        const report = await m.reseal.rewriteToKey(store, [target], { kid: 'column:2', dryRun: true })
+
+        expect(store.rows).toEqual(before)
+        expect(report.remaining).toBe(3)
+    })
+
+    it('never overwrites a row another writer changed, and a re-run picks it up', async () => {
+        const rows = rotated()
+        const store = memoryStore(rows, { beforeReplace: (id) => { if (id === '2') rows.set('2', m.codec.encryptSecret('changed')) } })
+
+        const first = await m.reseal.rewriteToKey(store, [target], { kid: 'column:2', dryRun: false })
+        expect(first.columns[0]?.conflicts).toBe(1)
+
+        // The concurrent writer sealed under the current key already, so nothing is left for the re-run.
+        const second = await m.reseal.rewriteToKey(store, [target], { kid: 'column:2', dryRun: false })
+        expect(second.remaining).toBe(0)
+    })
+
+    it('leaves a row it cannot open and says which', async () => {
+        const rows = rotated()
+        rows.set('1', 'enc:v1:{not json')
+        const report = await m.reseal.rewriteToKey(memoryStore(rows), [target], { kid: 'column:2', dryRun: false })
+
+        expect(report.columns[0]?.failed).toEqual(['1'])
+        expect(report.remaining).toBeGreaterThan(0)
+    })
+
+    it('refuses a key id that is not one, and a codec that would not seal under it', async () => {
+        await expect(
+            m.reseal.rewriteToKey(memoryStore(rotated()), [target], { kid: "column:1' OR 1=1", dryRun: false })
+        ).rejects.toThrow('not a key id')
+        await expect(
+            m.reseal.rewriteToKey(memoryStore(rotated()), [target], { kid: 'column:9', dryRun: false })
+        ).rejects.toThrow('does not seal under column:9')
     })
 })

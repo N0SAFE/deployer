@@ -24,6 +24,14 @@ export function useSecretInventory(options: { enabled?: boolean } = {}) {
     })
 }
 
+/** How many stored values sit under each key generation: read before retiring one. Counts only. */
+export function useStoredSecrets(options: { enabled?: boolean } = {}) {
+    return useQuery({
+        ...secretsEndpoints.stored.queryOptions({ input: {} }),
+        enabled: options.enabled ?? true,
+    })
+}
+
 /** Makes a new generation of the platform secret current. The earlier one stays accepted until it is retired. */
 export function useRotatePlatformSecret() {
     return useMutation(
