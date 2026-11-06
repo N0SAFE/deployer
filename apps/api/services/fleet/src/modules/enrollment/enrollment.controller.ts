@@ -1,30 +1,30 @@
-import { Controller, Inject } from '@nestjs/common'
+import { Controller } from '@nestjs/common'
 import { Implement } from '@orpc/nest'
 
 import { meshEnrollmentContract } from '@deployer/fleet-contracts'
 import { procedure } from '@deployer/nest-effect'
 
-import { EnrollmentService } from './enrollment.service'
+import { Enrollment } from './enrollment.service'
 
-/** Anonymous on purpose: the caller is a node that is not in the fleet yet, and its join token is its authorization. */
+/**
+ * Anonymous on purpose: the caller is a node that is not in the fleet yet, and its join token is its authorization. There is
+ * no session middleware, and the service refuses a token its agent does not vouch for before it does anything else.
+ */
 @Controller()
 export class EnrollmentController {
-    constructor(
-        @Inject(EnrollmentService)
-        private readonly enrollment: EnrollmentService
-    ) {}
-
     @Implement(meshEnrollmentContract.describe)
     describe() {
-        return procedure(meshEnrollmentContract.describe).handler(({ input }) =>
-            this.enrollment.describe(input.token)
-        )
+        return procedure(meshEnrollmentContract.describe).effect(function* ({ input }) {
+            const enrollment = yield* Enrollment
+            return yield* enrollment.describe(input.token)
+        })
     }
 
     @Implement(meshEnrollmentContract.enroll)
     enroll() {
-        return procedure(meshEnrollmentContract.enroll).handler(({ input }) =>
-            this.enrollment.enroll(input)
-        )
+        return procedure(meshEnrollmentContract.enroll).effect(function* ({ input }) {
+            const enrollment = yield* Enrollment
+            return yield* enrollment.enroll(input)
+        })
     }
 }

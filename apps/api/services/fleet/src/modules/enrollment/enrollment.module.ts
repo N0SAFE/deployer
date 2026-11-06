@@ -1,4 +1,5 @@
-import { runPromiseUnwrapped } from '@deployer/effect-core'
+import { Effect } from 'effect'
+
 import { nodeDoorFromEnv } from '@deployer/mesh-client'
 import { createModuleContext } from '@deployer/nest-effect'
 import {
@@ -12,60 +13,83 @@ import {
     type SystemMeshClusterRepositoryShape,
 } from '@deployer/shared/core/modules/mesh/repositories/system-mesh-cluster.repository'
 import { SwarmCoreModule } from '@deployer/shared/core/modules/swarm/swarm.module'
-import { DEPLOYER_VERSION } from '@deployer/shared/core/utils/deployer-version'
 import { SwarmJoinGrant, type SwarmJoinGrantShape } from '@deployer/swarm'
 
 import { EnrollmentController } from './enrollment.controller'
-import { EnrollmentService } from './enrollment.service'
+import {
+    FleetConfig,
+    JoinTokenVoucher,
+    NodeRegistry,
+    SwarmGrants,
+    type FleetConfigShape,
+    type JoinTokenVoucherShape,
+    type NodeRegistryShape,
+    type SwarmGrantsShape,
+} from './enrollment.ports'
+import { Enrollment } from './enrollment.service'
 
-export class EnrollmentModule extends createModuleContext({
-    // This node's agent vouches for the token, the fleet's swarm role decision is the grant, and the registry of nodes is
-    // what an enrollment writes to.
-    imports: [MeshCoreModule, SwarmCoreModule, EnvModule],
-    controllers: [EnrollmentController],
-    providers: [
-        {
-            provide: EnrollmentService,
-            useFactory: (
-                clusters: SystemMeshClusterRepositoryShape,
-                nodeConfig: NodeConfigRepositoryShape,
-                grants: SwarmJoinGrantShape,
-                env: EnvService
-            ) =>
-                new EnrollmentService({
-                    version: DEPLOYER_VERSION,
-                    // The token is checked by THIS node's agent, over the node door; an absent door answers null.
-                    checkToken: (token) =>
-                        nodeDoorFromEnv(env).checkJoinToken(token),
-                    swarmGrant: (policy) =>
-                        runPromiseUnwrapped(grants.buildGrant(policy)),
-                    databaseUrl: async () =>
-                        (
-                            await runPromiseUnwrapped(nodeConfig.find())
-                        )?.databaseUrl?.trim() ?? null,
-                    platformSecret: async () => {
-                        await runPromiseUnwrapped(nodeConfig.ensurePlatformSecret())
-                        return runPromiseUnwrapped(nodeConfig.platformSecretRing())
-                    },
-                    register: async (input) => {
-                        const registered = await runPromiseUnwrapped(
+export class EnrollmentModule extends createModuleContext(
+    {
+        // This node's agent vouches for the token, the fleet's swarm role decision is the grant, and the registry of nodes is
+        // what an enrollment writes to.
+        imports: [MeshCoreModule, SwarmCoreModule, EnvModule],
+        controllers: [EnrollmentController],
+        providers: [
+            {
+                provide: JoinTokenVoucher,
+                // Checked by THIS node's agent, over the admin door; an absent door answers null.
+                useFactory: (env: EnvService): JoinTokenVoucherShape => ({
+                    check: (token) =>
+                        Effect.promise(() => nodeDoorFromEnv(env).checkJoinToken(token)),
+                }),
+                inject: [EnvService],
+            },
+            {
+                provide: SwarmGrants,
+                useFactory: (grants: SwarmJoinGrantShape): SwarmGrantsShape => ({
+                    grantFor: (policy) => grants.buildGrant(policy),
+                }),
+                inject: [SwarmJoinGrant],
+            },
+            {
+                provide: FleetConfig,
+                useFactory: (nodeConfig: NodeConfigRepositoryShape): FleetConfigShape => ({
+                    databaseUrl: () =>
+                        Effect.map(
+                            nodeConfig.find(),
+                            (row) => row?.databaseUrl?.trim() ?? null
+                        ),
+                    // Generated on first use, so a fleet node that never needed it yet still has one to hand over.
+                    platformSecretRing: () =>
+                        nodeConfig
+                            .ensurePlatformSecret()
+                            .pipe(Effect.andThen(nodeConfig.platformSecretRing())),
+                }),
+                inject: [NodeConfigRepository],
+            },
+            {
+                provide: NodeRegistry,
+                useFactory: (clusters: SystemMeshClusterRepositoryShape): NodeRegistryShape => ({
+                    register: (input) =>
+                        Effect.map(
                             clusters.registerOrUpdateNode({
                                 ...input,
                                 metadata: { enrolledVia: 'join_token' },
+                            }),
+                            (registered) => ({
+                                nodeId: registered.nodeId,
+                                enrolledAt: registered.enrolledAt,
                             })
-                        )
-                        return {
-                            nodeId: registered.nodeId,
-                            enrolledAt: registered.enrolledAt,
-                        }
-                    },
+                        ),
                 }),
-            inject: [
-                SystemMeshClusterRepository,
-                NodeConfigRepository,
-                SwarmJoinGrant,
-                EnvService,
-            ],
-        },
-    ],
-}) {}
+                inject: [SystemMeshClusterRepository],
+            },
+            { provide: Enrollment, useValue: Enrollment.live },
+        ],
+    },
+    JoinTokenVoucher,
+    SwarmGrants,
+    FleetConfig,
+    NodeRegistry,
+    Enrollment
+) {}
