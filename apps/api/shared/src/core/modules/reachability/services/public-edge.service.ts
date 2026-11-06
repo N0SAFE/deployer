@@ -134,10 +134,7 @@ export function makePublicEdgeService({
         provider: EdgeProvider
         ctx: EdgeContext
     }): Effect.Effect<EdgeStatus> =>
-        Effect.tryPromise({
-            try: () => provider.status(ctx),
-            catch: (cause) => cause,
-        }).pipe(
+        provider.status(ctx).pipe(
             Effect.catch((cause) =>
                 Effect.succeed({
                     provisioned: false,
@@ -153,17 +150,18 @@ export function makePublicEdgeService({
     const providerCall = <A>(
         provider: EdgeProvider,
         operation: string,
-        run: () => Promise<A>
+        run: () => Effect.Effect<A, unknown>
     ) =>
-        Effect.tryPromise({
-            try: run,
-            catch: (cause) =>
-                new EdgeProviderFailure({
-                    providerId: provider.descriptor.id,
-                    operation,
-                    cause,
-                }),
-        })
+        run().pipe(
+            Effect.mapError(
+                (cause) =>
+                    new EdgeProviderFailure({
+                        providerId: provider.descriptor.id,
+                        operation,
+                        cause,
+                    })
+            )
+        )
 
     return {
         ingressTarget,

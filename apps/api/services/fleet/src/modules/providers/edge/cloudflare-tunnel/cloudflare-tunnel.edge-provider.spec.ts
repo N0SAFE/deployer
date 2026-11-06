@@ -1,4 +1,4 @@
-import { Cause, Effect, Exit } from 'effect'
+import { Cause, Context, Effect, Exit } from 'effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PublicLane } from '@deployer/contracts-entities/entities/ingress/index'
@@ -79,10 +79,14 @@ function setup(initial: unknown = null) {
             Effect.provideService(CloudflaredSettings, settings)
         ) as Effect.Effect<A, E>
     const edge = provideTo(CloudflareTunnelEdge.live, (effect) => world(effect))
-    // The host the registered adapter runs the service on, over the same fakes.
+    // The host the registered adapter takes its context from: the app's, which holds every service over the same fakes.
+    const appContext = Context.make(CloudflareTunnelEdge, CloudflareTunnelEdge.live).pipe(
+        Context.add(CloudflareTunnelService, tunnels),
+        Context.add(EdgeStateStore, store),
+        Context.add(CloudflaredSettings, settings)
+    )
     const host = {
-        runUnwrapped: (effect: Effect.Effect<unknown, unknown, unknown>) =>
-            Effect.runPromise(world(effect)),
+        context: () => Promise.resolve(appContext),
     } as unknown as EffectHostShape
     const registry = makeEdgeProviderRegistry()
     Effect.runSync(registry.register(edgeProviderOver(host)))
@@ -240,9 +244,9 @@ describe('CloudflareTunnelEdge', () => {
         expect(store.write).not.toHaveBeenCalled()
     })
 
-    it('lets the registered Promise adapter provision, and reject with the original error', async () => {
+    it('lets the registered provider provision on the app context, and fail with the original error', async () => {
         const ok = setup()
-        await ok.provider.provision(ctx(lane('acc-1')))
+        await Effect.runPromise(ok.provider.provision(ctx(lane('acc-1'))))
         expect(ok.getState()).toMatchObject({ tunnelId: 'tun-new' })
 
         const boom = new Error('cloudflare down')
@@ -250,6 +254,8 @@ describe('CloudflareTunnelEdge', () => {
         vi.mocked(failing.tunnels.createTunnel).mockImplementationOnce(
             () => Effect.fail(boom) as never
         )
-        await expect(failing.provider.provision(ctx(lane('acc-1')))).rejects.toBe(boom)
+        const exit = await Effect.runPromiseExit(failing.provider.provision(ctx(lane('acc-1'))))
+        expect(Exit.isFailure(exit)).toBe(true)
+        if (Exit.isFailure(exit)) expect(Cause.squash(exit.cause)).toBe(boom)
     })
 })

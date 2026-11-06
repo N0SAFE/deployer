@@ -11,7 +11,7 @@
  * per-node declarations (`node_network_config.publicAddress`).
  */
 
-import { Context } from 'effect'
+import { Context, Effect } from 'effect'
 
 import type {
     EdgeProviderDescriptor,
@@ -89,23 +89,23 @@ export function makeDirectEdgeProvider(): EdgeProvider {
         },
 
         /** Nothing to create: the nodes ARE the edge (the Traefik supervisor publishes `ingress()`'s ports). */
-        provision(): Promise<void> {
-            return Promise.resolve()
+        provision() {
+            return Effect.void
         },
 
         /** Nothing to remove: no provider-side resource, no state. */
-        teardown(): Promise<void> {
-            return Promise.resolve()
+        teardown() {
+            return Effect.void
         },
 
-        connector(): Promise<null> {
-            return Promise.resolve(null)
+        connector() {
+            return Effect.succeed(null)
         },
 
-        dnsRecords(ctx: EdgeContext): Promise<EdgeDnsRecord[]> {
+        dnsRecords(ctx: EdgeContext): Effect.Effect<EdgeDnsRecord[]> {
             const addresses = publicIps(ctx)
-            if (addresses.length === 0) return Promise.resolve([])
-            return Promise.resolve([
+            if (addresses.length === 0) return Effect.succeed([])
+            return Effect.succeed([
                 {
                     name: `*.${ctx.lane.domain}`,
                     type: 'A',
@@ -116,14 +116,14 @@ export function makeDirectEdgeProvider(): EdgeProvider {
             ])
         },
 
-        status(ctx: EdgeContext): Promise<EdgeStatus> {
+        status(ctx: EdgeContext): Effect.Effect<EdgeStatus> {
             const addresses = publicIps(ctx)
             const hostnames = ctx.nodes.filter(
                 (node) =>
                     node.addressKind === 'hostname' &&
                     node.publicAddress !== null
             )
-            return Promise.resolve({
+            return Effect.succeed({
                 provisioned: addresses.length > 0,
                 health: addresses.length > 0 ? 'unknown' : 'down',
                 detail:

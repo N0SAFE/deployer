@@ -340,29 +340,42 @@ export class CloudflareTunnelEdge extends Context.Service<
 }
 
 /**
- * The tunnel edge as the shared plugin contract wants it.
+ * The tunnel edge as the shared plugin contract wants it: Effects with an empty requirement channel.
  *
- * `EdgeProvider` (in `shared`) is Promise-based and registered into a registry both `shared` and `fleet` read, so this is
- * the ONE place the Effect service meets that boundary: each method runs the service's Effect on the host and rejects with the
- * original error. Nothing else in this file is Promise-shaped; moving the contract to Effects deletes this function.
+ * The registry and its callers live in `shared` and know nothing of this module's services, so the provider supplies them
+ * itself: each operation provides the app's Effect context (`host.context()`) to the service's Effect. It is the provider's
+ * own wiring, an Effect all the way through, with no Promise in it.
  */
 export function edgeProviderOver(host: EffectHostShape): EdgeProvider {
-    const run = <A, E, R>(
-        use: (edge: CloudflareTunnelEdgeShape) => Effect.Effect<A, E, R>
-    ): Promise<A> =>
-        host.runUnwrapped(
+    const withContext = <A, E, R>(
+        effect: Effect.Effect<A, E, R>
+    ): Effect.Effect<A, E> =>
+        Effect.promise(() => host.context()).pipe(
+            // The context is the app's: it holds every service of every module, so the service's requirements are met.
+            Effect.flatMap(
+                (context) =>
+                    Effect.provideContext(
+                        effect,
+                        context as Context.Context<R>
+                    )
+            )
+        )
+    const use = <A, E, R>(
+        run: (edge: CloudflareTunnelEdgeShape) => Effect.Effect<A, E, R>
+    ): Effect.Effect<A, E> =>
+        withContext(
             Effect.gen(function* () {
-                return yield* use(yield* CloudflareTunnelEdge)
+                return yield* run(yield* CloudflareTunnelEdge)
             })
         )
     return {
         descriptor: DESCRIPTOR,
         ingress: ingressPlan,
         joinPath: joinPathOf,
-        provision: (ctx) => run((edge) => edge.provision(ctx)),
-        teardown: () => run((edge) => edge.teardown()),
-        connector: (ctx) => run((edge) => edge.connector(ctx)),
-        dnsRecords: (ctx) => run((edge) => edge.dnsRecords(ctx)),
-        status: (ctx) => run((edge) => edge.status(ctx)),
+        provision: (ctx) => use((edge) => edge.provision(ctx)),
+        teardown: () => use((edge) => edge.teardown()),
+        connector: (ctx) => use((edge) => edge.connector(ctx)),
+        dnsRecords: (ctx) => use((edge) => edge.dnsRecords(ctx)),
+        status: (ctx) => use((edge) => edge.status(ctx)),
     }
 }

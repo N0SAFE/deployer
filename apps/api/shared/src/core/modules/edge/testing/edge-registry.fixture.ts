@@ -55,22 +55,22 @@ export class TestTunnelEdgeProvider implements EdgeProvider {
     provisionCalls = 0
     teardownCalls = 0
 
-    provision(_ctx: EdgeContext): Promise<void> {
+    provision(_ctx: EdgeContext): Effect.Effect<void, unknown> {
         this.provisionCalls += 1
-        return Promise.resolve()
+        return Effect.void
     }
 
-    teardown(): Promise<void> {
+    teardown(): Effect.Effect<void, unknown> {
         this.teardownCalls += 1
-        return Promise.resolve()
+        return Effect.void
     }
 
     ingress(): EdgeIngressPlan {
         return { publishedPorts: [], tls: 'edge' }
     }
 
-    connector(): Promise<EdgeConnectorSpec | null> {
-        return Promise.resolve(
+    connector(): Effect.Effect<EdgeConnectorSpec | null, unknown> {
+        return Effect.succeed(
             this.provisioned
                 ? {
                       image: 'tunnel:1',
@@ -83,12 +83,12 @@ export class TestTunnelEdgeProvider implements EdgeProvider {
         )
     }
 
-    dnsRecords(): Promise<EdgeDnsRecord[]> {
-        return Promise.resolve([])
+    dnsRecords(): Effect.Effect<EdgeDnsRecord[], unknown> {
+        return Effect.succeed([])
     }
 
-    status(): Promise<EdgeStatus> {
-        return Promise.resolve({
+    status(): Effect.Effect<EdgeStatus, unknown> {
+        return Effect.succeed({
             provisioned: this.provisioned,
             health: 'healthy',
             detail: null,

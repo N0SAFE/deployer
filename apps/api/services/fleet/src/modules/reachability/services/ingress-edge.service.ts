@@ -330,7 +330,7 @@ function makeIngressEdgeService(ports: Ports): IngressEdgeServiceShape {
     ): Effect.Effect<void, unknown> => {
         const provider = edges.find(providerId)
         if (provider === null) return Effect.void
-        return attempt(() => provider.teardown()).pipe(
+        return provider.teardown().pipe(
             Effect.catch((error) =>
                 strict
                     ? Effect.fail(error)
@@ -445,7 +445,7 @@ function makeIngressEdgeService(ports: Ports): IngressEdgeServiceShape {
                         reason: `Unknown edge provider '${lanes.public.provider}'`,
                     })
                 }
-                yield* attempt(() => resolved.provider.provision(resolved.ctx))
+                yield* resolved.provider.provision(resolved.ctx)
             }
             // 2. The switch.
             yield* lanesPort.setLanes(lanes)

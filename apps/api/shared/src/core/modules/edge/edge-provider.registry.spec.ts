@@ -181,7 +181,7 @@ describe('DirectEdgeProvider', () => {
     const provider = () => testEdgeRegistry().registry.find('direct')!
 
     it('points the wildcard at every declared public IP — never at a hostname', async () => {
-        const records = await provider().dnsRecords(
+        const records = await Effect.runPromise(provider().dnsRecords(
             ctx([
                 {
                     nodeId: 'a',
@@ -199,7 +199,7 @@ describe('DirectEdgeProvider', () => {
                     addressKind: 'hostname',
                 },
             ])
-        )
+        ))
         expect(records).toEqual([
             {
                 name: '*.apps.example.com',
@@ -213,13 +213,13 @@ describe('DirectEdgeProvider', () => {
 
     it('is not provisioned, and offers no join path, until a node declares a public IP', async () => {
         const edge = provider()
-        const status = await edge.status(ctx([]))
+        const status = await Effect.runPromise(edge.status(ctx([])))
         expect(status).toMatchObject({ provisioned: false, health: 'down' })
         expect(edge.joinPath(ctx([]), status).available).toBe(false)
-        expect(await edge.dnsRecords(ctx([]))).toEqual([])
+        expect(await Effect.runPromise(edge.dnsRecords(ctx([])))).toEqual([])
     })
 
     it('runs no connector', async () => {
-        expect(await provider().connector(ctx([]))).toBeNull()
+        expect(await Effect.runPromise(provider().connector(ctx([])))).toBeNull()
     })
 })

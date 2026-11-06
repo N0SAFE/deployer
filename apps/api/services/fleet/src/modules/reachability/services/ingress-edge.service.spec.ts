@@ -122,14 +122,14 @@ function setup(initial: IngressLanes = defaultIngressLanes()) {
     tunnel.provisioned = true
     vi.spyOn(tunnel, 'provision').mockImplementation((ctx: EdgeContext) => {
         order.push(`provision:${ctx.lane.provider}`)
-        return Promise.resolve()
+        return Effect.void
     })
     vi.spyOn(tunnel, 'teardown').mockImplementation(() => {
         order.push('teardown:test-tunnel')
-        return Promise.resolve()
+        return Effect.void
     })
     vi.spyOn(tunnel, 'dnsRecords').mockImplementation(() =>
-        Promise.resolve(
+        Effect.succeed(
             lanes.public?.provider === TEST_TUNNEL_ID
                 ? [
                       {
@@ -164,7 +164,7 @@ function setup(initial: IngressLanes = defaultIngressLanes()) {
         view: vi.fn((): Promise<NodeDoorView | null> =>
             Promise.resolve(doorView)
         ),
-        blockNode: vi.fn(async () => ['m2'] as readonly string[]),
+        blockNode: vi.fn(() => Promise.resolve(['m2'] as readonly string[])),
     } as unknown as NodeDoorClient
     const refresher = {
         refresh: vi.fn(),
@@ -306,8 +306,8 @@ describe('IngressEdgeService', () => {
 
         it('leaves the lanes untouched when the new edge cannot be provisioned', async () => {
             const { service, tunnel, lanesService } = setup()
-            vi.mocked(tunnel.provision).mockRejectedValueOnce(
-                new Error('account refused')
+            vi.mocked(tunnel.provision).mockReturnValueOnce(
+                Effect.fail(new Error('account refused'))
             )
             await expect(
                 run(service.update({ public: tunnelInput }))
@@ -337,8 +337,8 @@ describe('IngressEdgeService', () => {
                 ...defaultIngressLanes(),
                 public: { ...tunnelInput, acknowledgedInboundPorts: false },
             })
-            vi.mocked(tunnel.teardown).mockRejectedValueOnce(
-                new Error('provider down')
+            vi.mocked(tunnel.teardown).mockReturnValueOnce(
+                Effect.fail(new Error('provider down'))
             )
             await run(service.update({ public: null }))
             expect(getLanes().public).toBeNull()
@@ -475,8 +475,8 @@ describe('IngressEdgeService', () => {
                 ...defaultIngressLanes(),
                 public: { ...tunnelInput, acknowledgedInboundPorts: false },
             })
-            vi.mocked(tunnel.teardown).mockRejectedValueOnce(
-                new Error('provider down')
+            vi.mocked(tunnel.teardown).mockReturnValueOnce(
+                Effect.fail(new Error('provider down'))
             )
             await expect(run(service.teardownPublicEdge())).rejects.toThrow(
                 'provider down'

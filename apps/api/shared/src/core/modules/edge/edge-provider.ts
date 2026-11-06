@@ -12,19 +12,23 @@
  *   EdgeDnsService               converges whatever `dnsRecords()` returns
  *
  * ── ADDING A PROVIDER ───────────────────────────────────────────────────────
- * Implement this interface in an @Injectable and register it from its constructor:
+ * Implement this interface and register it from a module factory:
  *
- *   constructor(registry: EdgeProviderRegistry, …) { registry.register(this) }
+ *   { provide: TOKEN, useFactory: (registry) => { const provider = make…(); Effect.runSync(registry.register(provider)); return provider }, inject: [EdgeProviderRegistry] }
  *
- * then add the class to any module's providers. Nest instantiates every provider
- * before any lifecycle hook runs, so registering from the constructor guarantees
- * the provider is known before the first supervisor sweep. Nothing else changes:
- * the web renders the provider from its `descriptor`.
+ * Nest builds every provider before any lifecycle hook runs, so registering in the factory guarantees the provider is known
+ * before the first supervisor sweep. Nothing else changes: the web renders the provider from its `descriptor`.
+ *
+ * Every operation is an Effect that fails with whatever the provider's own collaborators failed with (the registry and its
+ * callers turn that into a typed `EdgeProviderFailure`). The requirement channel is empty on purpose: a provider supplies
+ * the services it needs itself, so the registry and everything above it stay ignorant of them.
  *
  * Providers keep their own replicated state through `EdgeStateStore` (one cluster
  * setting per provider) — never in a node-local store: the API can be rescheduled
  * to any node and must find the edge where it left it.
  */
+
+import type { Effect } from 'effect'
 
 import type {
     EdgeProviderDescriptor,
@@ -101,17 +105,17 @@ export type EdgeProvider = {
     validate?(lane: PublicLane): void
 
     /** Make the provider side exist and route `*.<domain>` to `ctx.ingressTarget`. Idempotent. */
-    provision(ctx: EdgeContext): Promise<void>
+    provision(ctx: EdgeContext): Effect.Effect<void, unknown>
 
     /** Remove everything the provider created, and its state. Idempotent. */
-    teardown(): Promise<void>
+    teardown(): Effect.Effect<void, unknown>
 
     /** The process the cluster must run, or null when this edge needs none (or is not provisioned). */
-    connector(ctx: EdgeContext): Promise<EdgeConnectorSpec | null>
+    connector(ctx: EdgeContext): Effect.Effect<EdgeConnectorSpec | null, unknown>
 
-    dnsRecords(ctx: EdgeContext): Promise<EdgeDnsRecord[]>
+    dnsRecords(ctx: EdgeContext): Effect.Effect<EdgeDnsRecord[], unknown>
 
-    status(ctx: EdgeContext): Promise<EdgeStatus>
+    status(ctx: EdgeContext): Effect.Effect<EdgeStatus, unknown>
 
     /** Whether, and how, a node that is not a member yet can join through this edge. */
     joinPath(ctx: EdgeContext, status: EdgeStatus): PublicJoinPath
