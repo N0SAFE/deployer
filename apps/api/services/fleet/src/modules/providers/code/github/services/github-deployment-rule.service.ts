@@ -18,14 +18,28 @@ function globMatch(pattern: string, value: string): boolean {
             starP = p
             starV = v
             p += 1
-        } else if (
-            p < tokens.length &&
-            (tokens[p]! === parts[v]! ||
-                (tokens[p]!.includes('*') &&
-                    segmentMatch(tokens[p]!, parts[v]!)))
-        ) {
-            p += 1
-            v += 1
+        } else if (p < tokens.length) {
+            // `v < parts.length` is the loop condition, so both lookups are in range here.
+            const token = tokens[p]
+            const part = parts[v]
+            if (
+                token === part ||
+                (token !== undefined &&
+                    token.includes('*') &&
+                    part !== undefined &&
+                    segmentMatch(token, part))
+            ) {
+                p += 1
+                v += 1
+                continue
+            }
+            if (starP !== -1) {
+                p = starP + 1
+                starV += 1
+                v = starV
+                continue
+            }
+            return false
         } else if (starP !== -1) {
             p = starP + 1
             starV += 1

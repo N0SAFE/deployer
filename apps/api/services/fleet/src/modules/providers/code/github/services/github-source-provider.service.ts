@@ -54,7 +54,7 @@ export class GithubSourceProviderService extends Context.Service<
                 const resolvedBranch =
                     branch ??
                     (pullRequestNumber
-                        ? `refs/pull/${pullRequestNumber}/head`
+                        ? `refs/pull/${String(pullRequestNumber)}/head`
                         : 'main')
 
                 const git = yield* Git

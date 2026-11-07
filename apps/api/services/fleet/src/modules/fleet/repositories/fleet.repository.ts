@@ -71,7 +71,7 @@ export class FleetRepository extends Context.Service<
                         )
                         .orderBy(
                             asc(
-                                clusterNodes.displayName ?? clusterNodes.serverUrl
+                                clusterNodes.displayName
                             )
                         )
                 })

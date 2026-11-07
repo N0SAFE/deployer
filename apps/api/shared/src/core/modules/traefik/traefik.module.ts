@@ -1,4 +1,3 @@
-import { DockerEngine, type DockerEngineShape } from '@deployer/docker'
 import { createModuleContext, effectHostProvider } from '@deployer/nest-effect'
 import {
     SupervisorOrchestrator,
@@ -7,12 +6,7 @@ import {
 
 import { EnvModule, EnvService } from '../../../config/env/env.module'
 import { DatabaseModule } from '../database/database.module'
-import { DatabasePort } from '../database/storage'
 import { CoreDockerModule } from '../docker/docker.module'
-import {
-    EdgeProviderRegistry,
-    type EdgeProviderRegistryShape,
-} from '../edge/edge-provider.registry'
 import { CoreEdgeModule } from '../edge/edge.module'
 import {
     CoreEventStreamPoolService,
@@ -21,22 +15,6 @@ import {
 import { EventsModule } from '../events/events.module'
 import { CorePlatformIngressModule } from '../platform-ingress/platform-ingress.module'
 import { HostnameService } from '../platform-ingress/services/hostname.service'
-import {
-    IngressLanesService,
-    type IngressLanesServiceShape,
-} from '../platform-ingress/services/ingress-lanes.service'
-import {
-    PlatformConfigService,
-    type PlatformConfigServiceShape,
-} from '../platform-ingress/services/platform-config.service'
-import {
-    PlatformRoutesSource,
-    type PlatformRoutesSourceShape,
-} from '../platform-ingress/services/platform-routes-source.service'
-import {
-    PlatformWebTargetService,
-    type PlatformWebTargetServiceShape,
-} from '../platform-ingress/services/platform-web-target.service'
 import { SupervisorsModule } from '../supervision/index'
 
 import { TraefikIngressConfigController } from './controllers/traefik-ingress-config.controller'

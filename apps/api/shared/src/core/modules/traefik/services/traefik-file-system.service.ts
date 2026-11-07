@@ -9,29 +9,31 @@ import type { traefikServiceConfigs } from '@deployer/nest-schema/global/traefik
 import { TRAEFIK_CONFIG_PATH } from '../../platform-ingress/services/ingress-provider-token'
 import { LANE_ENTRYPOINTS } from '../../platform-ingress/services/lane-traefik-config'
 import { TraefikFileNotFound, TraefikFileWriteRefused } from '../errors'
+import { TraefikRepository } from '../repositories/traefik.repository'
 
-import type { StorageFailure } from '../../database/storage'
+import type {
+    DatabasePort,
+    StorageFailure,
+} from '../../database/storage'
 import type {
     VirtualFileItem,
     VirtualDirectoryTree,
     TraefikFileSystemPaths,
     FileSystemNamingConventions,
     FileOperationResult,
-    FileContentResult,
-    DownloadResult,
     ParsedServiceConfigFileName,
 } from '../interfaces'
-import { TraefikRepository } from '../repositories/traefik.repository'
-
 import type { TraefikRepositoryShape } from '../repositories/traefik.repository'
 import type { InferSelectModel } from 'drizzle-orm'
 
 type TraefikServiceConfig = InferSelectModel<typeof traefikServiceConfigs>
 
-/** One row of `traefikServiceConfigs`, as `getServiceConfigsByProject` returns it. */
-type ServiceConfigRow = InferSelectModel<typeof traefikServiceConfigs>
-
-type Failure = StorageFailure | TraefikFileNotFound
+/** A virtual tree read: yields `DatabasePort` (the repository's own requirement), fails with `StorageFailure`. */
+type VirtualTreeEffect = Effect.Effect<
+    VirtualDirectoryTree,
+    StorageFailure,
+    DatabasePort
+>
 
 /**
  * Where Traefik's dynamic configuration lives, how its files are named, and the database-backed "virtual filesystem"
@@ -306,7 +308,7 @@ const getVirtualMainConfig = (
 const buildVirtualProjectTree = (
     repository: TraefikRepositoryShape,
     projectName: string
-) =>
+): VirtualTreeEffect =>
     Effect.gen(function* () {
         const treePath = `/dynamic/projects/${projectName}`
         const projectId = yield* repository.getProjectIdByName(projectName)
@@ -358,7 +360,7 @@ const getVirtualFilesForPath = (
 ) => {
     const orNothing = (
         what: string,
-        run: Effect.Effect<VirtualFileItem[], StorageFailure, unknown>
+        run: Effect.Effect<VirtualFileItem[], StorageFailure, DatabasePort>
     ) =>
         run.pipe(
             Effect.catch((error) =>
@@ -437,7 +439,7 @@ const getVirtualFilesForPath = (
 const buildVirtualDirectoryTree = (
     repository: TraefikRepositoryShape,
     path: string
-) =>
+): VirtualTreeEffect =>
     Effect.gen(function* () {
         const name =
             path === '/' ? 'traefik-configs' : (path.split('/').pop() ?? '')

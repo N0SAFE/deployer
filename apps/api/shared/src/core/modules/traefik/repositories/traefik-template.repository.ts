@@ -4,11 +4,9 @@ import { Context, Effect } from 'effect'
 import {
     providerTraefikTemplates,
     serviceTraefikTemplates,
-    type ProviderTraefikTemplate,
-    type ServiceTraefikTemplate,
 } from '@deployer/nest-schema/global/traefik/index'
 
-import { DatabasePort, storage, type StorageFailure } from '../../database/storage'
+import { DatabasePort, storage } from '../../database/storage'
 
 class TraefikTemplateRepositoryImpl {
     findProviderByType(

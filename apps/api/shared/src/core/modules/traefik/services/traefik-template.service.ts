@@ -2,8 +2,6 @@ import { Context, Effect } from 'effect'
 import { nanoid } from 'nanoid'
 
 import {
-    type ProviderTraefikTemplate,
-    type ServiceTraefikTemplate,
     type CreateProviderTraefikTemplate,
     type CreateServiceTraefikTemplate,
 } from '@deployer/nest-schema/global'
@@ -13,8 +11,6 @@ import {
     TraefikTemplateNotFound,
     TraefikTemplateVariablesMissing,
 } from '../errors'
-
-import type { StorageFailure } from '../../database/storage'
 import { TraefikTemplateRepository } from '../repositories/traefik-template.repository'
 
 import type { TemplateVariable, TemplateVariables } from '../interfaces'

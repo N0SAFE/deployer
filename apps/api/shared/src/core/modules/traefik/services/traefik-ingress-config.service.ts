@@ -29,17 +29,17 @@ import { DockerEngine } from '@deployer/docker'
 
 import { EdgeProviderRegistry } from '../../edge/edge-provider.registry'
 import { IngressLanesService } from '../../platform-ingress/services/ingress-lanes.service'
-import { PlatformConfigService } from '../../platform-ingress/services/platform-config.service'
-import { PlatformRoutesSource } from '../../platform-ingress/services/platform-routes-source.service'
-import { PlatformWebTargetService } from '../../platform-ingress/services/platform-web-target.service'
 import {
     buildLaneTraefikConfig,
     TRAEFIK_ACME_RESOLVER,
     type LaneRoute,
 } from '../../platform-ingress/services/lane-traefik-config'
+import { PlatformConfigService } from '../../platform-ingress/services/platform-config.service'
 import { PLATFORM_WEB_INTERNAL_PORT } from '../../platform-ingress/services/platform-names'
 import { PlatformPaths } from '../../platform-ingress/services/platform-paths'
+import { PlatformRoutesSource } from '../../platform-ingress/services/platform-routes-source.service'
 import { resolveSelfContainerName } from '../../platform-ingress/services/platform-self-resolver'
+import { PlatformWebTargetService } from '../../platform-ingress/services/platform-web-target.service'
 import { TraefikRepository } from '../repositories/traefik.repository'
 
 import type { EnvService } from '../../../../config/env/env.module'

@@ -17,28 +17,9 @@ import type {
     CreateServiceTargetInput,
     CreateSSLCertificateInput,
     CreateMiddlewareInput,
-    SyncSummary,
     ValidationError,
     ValidationResult,
 } from '../interfaces'
-
-/** The shapes this facade answers with, read off the collaborators instead of restated. */
-type RepositoryShape = Context.Service.Shape<typeof TraefikRepository>
-type FileSystemShape = Context.Service.Shape<typeof TraefikFileSystemService>
-type SyncShape = Context.Service.Shape<typeof TraefikSyncService>
-
-type ConfigResult = Effect.Success<
-    ReturnType<RepositoryShape['createServiceConfig']>
->
-type MiddlewareList = Effect.Success<
-    ReturnType<RepositoryShape['getMiddlewares']>
->
-type HealthSummary = Effect.Success<
-    ReturnType<RepositoryShape['getHealthCheckSummary']>
->
-type SyncResult = Effect.Success<
-    ReturnType<SyncShape['syncServiceConfiguration']>
->
 
 /**
  * Tag and implementation together: the tag is the contract, `live` the one implementation.

@@ -17,7 +17,6 @@ import {
 
 import { EnvService } from '../../../../config/env/env.module'
 import { ClusterSettings } from '../../mesh-node/cluster-settings'
-import { PlatformConfigService } from '../../platform-ingress/services/platform-config.service'
 import { HostnameService } from '../../platform-ingress/services/hostname.service'
 import { buildNodeDoors } from '../../platform-ingress/services/ingress-doors'
 import {
@@ -30,6 +29,7 @@ import {
     LANE_ENTRYPOINTS,
     TRAEFIK_ACME_RESOLVER,
 } from '../../platform-ingress/services/lane-traefik-config'
+import { PlatformConfigService } from '../../platform-ingress/services/platform-config.service'
 import {
     PLATFORM_WEB_INTERNAL_PORT,
     platformApiServiceName,

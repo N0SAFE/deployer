@@ -34,6 +34,10 @@ import {
     ClusterSettings,
     type ClusterSettingsShape,
 } from '../../mesh-node/cluster-settings'
+import {
+    NodeConfigSnapshot,
+    type NodeConfigSnapshotShape,
+} from '../../node-state/node-config.snapshot'
 import { CorePlatformIngressModule } from '../../platform-ingress/platform-ingress.module'
 import {
     AppInstanceService,
@@ -52,10 +56,6 @@ import {
     PlatformWebTargetService,
     type PlatformWebTargetServiceShape,
 } from '../../platform-ingress/services/platform-web-target.service'
-import {
-    NodeConfigSnapshot,
-    type NodeConfigSnapshotShape,
-} from '../../node-state/node-config.snapshot'
 import { CoreReachabilityModule } from '../../reachability/core-reachability.module'
 import {
     NodeNetworkConfigRepository,

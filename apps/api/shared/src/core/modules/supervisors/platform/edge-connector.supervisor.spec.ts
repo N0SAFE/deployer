@@ -5,6 +5,7 @@ import { defaultIngressLanes } from '@deployer/contracts-entities/entities/ingre
 import type { DockerEngineShape } from '@deployer/docker'
 import { makeSupervisorOrchestrator } from '@deployer/supervision'
 
+import { testEdgeRegistry } from '../../edge/testing/edge-registry.fixture'
 import { harness, testBus } from '../supervisor-test-harness'
 
 import {
@@ -14,7 +15,6 @@ import {
 
 import type { EnvService } from '../../../../config/env/env.module'
 import type { EdgeConnectorSpec } from '../../edge/edge-provider'
-import { testEdgeRegistry } from '../../edge/testing/edge-registry.fixture'
 import type { ClusterSettingsShape } from '../../mesh-node/cluster-settings'
 import type { IngressLanesServiceShape } from '../../platform-ingress/services/ingress-lanes.service'
 import type { NodeNetworkConfigRepositoryShape } from '../../reachability/repositories/node-network-config.repository'

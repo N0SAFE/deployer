@@ -1,3 +1,4 @@
+import { Effect } from 'effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // The ingress's local entrypoint is dialed with `node:http`; these tests are about the service the
@@ -23,9 +24,6 @@ import {
     type IngressLanes,
 } from '@deployer/contracts-entities/entities/ingress/index'
 import { DockerNotFound, toDockerServiceSpec } from '@deployer/docker'
-
-import { Effect } from 'effect'
-
 import type { DockerEngineShape } from '@deployer/docker'
 
 import {
@@ -41,8 +39,8 @@ import { makeTraefikRegistration } from './traefik.supervisor'
 import type { EnvService } from '../../../../config/env/env.module'
 import type { ClusterSettingsShape } from '../../mesh-node/cluster-settings'
 import type { IngressLanesServiceShape } from '../../platform-ingress/services/ingress-lanes.service'
-import type { PlatformWebTargetServiceShape } from '../../platform-ingress/services/platform-web-target.service'
 import type { PlatformConfigServiceShape } from '../../platform-ingress/services/platform-config.service'
+import type { PlatformWebTargetServiceShape } from '../../platform-ingress/services/platform-web-target.service'
 
 /**
  * The ingress is one GLOBAL swarm service with one entrypoint per lane. These tests

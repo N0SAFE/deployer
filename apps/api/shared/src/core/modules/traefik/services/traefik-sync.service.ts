@@ -6,10 +6,11 @@ import * as yaml from 'yaml'
 
 import { isRecord } from '@deployer/type-guards'
 
-import { TraefikFileSystemService } from './traefik-file-system.service'
+import { ConfigFileWriteFailure, ConfigSyncFailure } from '../errors'
 import { TraefikRepository } from '../repositories/traefik.repository'
 
-import { ConfigFileWriteFailure, ConfigSyncFailure } from '../errors'
+import { TraefikFileSystemService } from './traefik-file-system.service'
+
 import type {
     SyncResult,
     SyncSummary,

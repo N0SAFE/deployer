@@ -21,7 +21,6 @@ import { resolveSwarmNodeRole } from '@deployer/docker'
 import {
     runPromiseUnwrapped,
     runSyncUnwrapped,
-    type RequirementsOf,
 } from '@deployer/effect-core'
 import { type ClusterMasterView } from '@deployer/fleet-contracts'
 import { clusterNodeInventoryRowSchema } from '@deployer/fleet-contracts'

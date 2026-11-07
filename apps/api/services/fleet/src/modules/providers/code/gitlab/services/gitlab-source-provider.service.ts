@@ -55,7 +55,7 @@ export class GitlabSourceProviderService extends Context.Service<
                 const resolvedBranch =
                     branch ??
                     (mergeRequestIid
-                        ? `refs/merge-requests/${mergeRequestIid}/head`
+                        ? `refs/merge-requests/${String(mergeRequestIid)}/head`
                         : 'main')
 
                 const git = yield* Git

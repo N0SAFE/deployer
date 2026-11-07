@@ -42,7 +42,6 @@ import type {
 } from '@deployer/mesh-client'
 import type { RequirementsOf } from '@deployer/effect-core'
 import { EdgeProviderRegistry } from '@deployer/shared/core/modules/edge/edge-provider.registry'
-import type { EdgeProviderRegistryShape } from '@deployer/shared/core/modules/edge/edge-provider.registry'
 import {
     IngressLanesService,
     type IngressLanesServiceShape,
@@ -51,10 +50,7 @@ import {
     PublicEdgeService,
     type PublicEdgeServiceShape,
 } from '@deployer/shared/core/modules/reachability/services/public-edge.service'
-import {
-    TraefikConfigRefresher,
-    type TraefikConfigRefresherShape,
-} from '@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service'
+import { TraefikConfigRefresher } from '@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service'
 
 import type { DnsProviderRegistryServices } from '@/modules/providers/dns/shared/dns-provider-registry.service'
 
@@ -96,13 +92,11 @@ type IngressEdgePorts =
     | IngressLanesService
     | RequirementsOf<IngressLanesServiceShape>
     | EdgeProviderRegistry
-    | RequirementsOf<EdgeProviderRegistryShape>
     | PublicEdgeService
     | RequirementsOf<PublicEdgeServiceShape>
     | NodeAgentPort
     | HostnamesPort
     | TraefikConfigRefresher
-    | RequirementsOf<TraefikConfigRefresherShape>
     | EdgeDnsService
     | DnsProviderRegistryServices
 

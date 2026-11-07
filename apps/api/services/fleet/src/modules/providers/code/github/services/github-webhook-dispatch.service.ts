@@ -9,9 +9,7 @@ import {
 } from '@/core/ports/domain-routing.port'
 import {
     PreviewCleanupPolicy,
-    type PreviewCleanupPolicyShape,
     PreviewNaming,
-    type PreviewNamingShape,
 } from '@/core/ports/preview-policy.port'
 
 import {
@@ -57,8 +55,11 @@ export type PreviewDispatchResult = {
     resolvedUrl?: string
 }
 
-/** What the naming step reads: the naming policy and what it reads in turn. */
-type NamingRequirements = PreviewNaming | RequirementsOf<PreviewNamingShape>
+/**
+ * What the naming step reads. `PreviewNaming` is a pure policy (its members are synchronous), so it
+ * declares no requirement of its own and the tag alone is the whole channel.
+ */
+type NamingRequirements = PreviewNaming
 
 /** What the audit step reads: the lifecycle bus (no requirement of its own). */
 type LifecycleRequirements = PreviewLifecycleEventService
@@ -97,7 +98,6 @@ export type GithubWebhookDispatchServiceShape = {
         | NamingRequirements
         | LifecycleRequirements
         | PreviewCleanupPolicy
-        | RequirementsOfShape<PreviewCleanupPolicyShape>
         | DomainRouting
         | RequirementsOfShape<DomainRoutingShape>
         | ProvisioningRequirements
@@ -176,7 +176,7 @@ export class GithubWebhookDispatchService extends Context.Service<
                         }
                     )
                     yield* Effect.logInfo(
-                        `Preview created: ${previewNaming.previewName} for PR #${input.prNumber} (service=${input.serviceId})`
+                        `Preview created: ${previewNaming.previewName} for PR #${String(input.prNumber)} (service=${input.serviceId})`
                     )
                 } else {
                     yield* lifecycle.emitEffect(
@@ -337,7 +337,7 @@ export class GithubWebhookDispatchService extends Context.Service<
                     })
                     if (rule.action === 'skip') {
                         yield* Effect.logInfo(
-                            `PR #${prNumber} skipped by rule (${rule.reason})`
+                            `PR #${String(prNumber)} skipped by rule (${rule.reason})`
                         )
                         return {
                             action: 'skipped',

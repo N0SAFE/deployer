@@ -38,95 +38,15 @@ import {
 
 import { DatabasePort, storage } from '../../database/storage'
 
-export type CreateServiceConfigInput = {
-    serviceId: string
-    domain: string
-    subdomain?: string
-    port: number
-    sslEnabled?: boolean
-    sslProvider?: 'letsencrypt' | 'selfsigned' | 'custom'
-    pathPrefix?: string
-    middleware?: any
-    healthCheck?: {
-        enabled: boolean
-        path: string
-        interval?: number
-        timeout?: number
-    }
-    isActive?: boolean
-}
-
-export type UpdateServiceConfigInput = {
-    id: string
-    fullDomain?: string
-    updatedAt?: Date
-} & Partial<CreateServiceConfigInput>
-
-export type CreateDomainRouteInput = {
-    configId: string
-    hostRule: string
-    pathRule?: string
-    method?: string
-    headers?: any
-    priority?: number
-    entryPoint?: string
-    middleware?: any
-    isActive?: boolean
-}
-
-export type CreateServiceTargetInput = {
-    configId: string
-    url: string
-    weight?: number
-    healthCheck?: {
-        enabled: boolean
-        path: string
-        interval?: number
-        timeout?: number
-        retries?: number
-    }
-    isActive?: boolean
-}
-
-export type CreateSSLCertificateInput = {
-    configId: string
-    domain: string
-    subjectAltNames?: string[]
-    issuer?: string
-    serialNumber?: string
-    fingerprint?: string
-    notBefore?: Date
-    notAfter?: Date
-    certificateData?: string
-    privateKeyData?: string
-    autoRenew?: boolean
-    renewalThreshold?: number
-    isActive?: boolean
-}
-
-export type CreateConfigFileInput = {
-    configId: string
-    fileName: string
-    filePath: string
-    relativePath: string
-    fileType?: 'traefik' | 'ssl' | 'middleware' | 'config'
-    contentType?: string
-    size?: number
-    checksum?: string
-    content?: string
-    isActive?: boolean
-}
-
-export type CreateMiddlewareInput = {
-    name: string
-    type:
-        'auth' | 'compression' | 'headers' | 'ratelimit' | 'redirect' | 'custom'
-    config: any
-    description?: string
-    isGlobal?: boolean
-    serviceId?: string
-    isActive?: boolean
-}
+import type {
+    CreateServiceConfigInput,
+    UpdateServiceConfigInput,
+    CreateDomainRouteInput,
+    CreateServiceTargetInput,
+    CreateSSLCertificateInput,
+    CreateConfigFileInput,
+    CreateMiddlewareInput,
+} from '../interfaces'
 
 /** The Traefik tables' data access. Every method yields `DatabasePort` when it runs and
  * fails with `StorageFailure`. */
