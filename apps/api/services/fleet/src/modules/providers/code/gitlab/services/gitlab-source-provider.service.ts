@@ -19,7 +19,7 @@ const gitlabSourceContextSchema = z.object({
 })
 
 /** The provider for a GitLab repository: validates it is reachable, then names the ref to check out. */
-export type GitlabSourceProviderServiceShape = CodeProvider<Git>
+export type GitlabSourceProviderServiceShape = CodeProvider
 
 /** Tag and implementation together: the tag is the contract, `live` the one implementation. */
 export class GitlabSourceProviderService extends Context.Service<

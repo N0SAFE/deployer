@@ -19,7 +19,7 @@ const githubSourceContextSchema = z.object({
 })
 
 /** The provider for a GitHub repository: validates it is reachable, then names the ref to check out. */
-export type GithubSourceProviderServiceShape = CodeProvider<Git>
+export type GithubSourceProviderServiceShape = CodeProvider
 
 /** Tag and implementation together: the tag is the contract, `live` the one implementation. */
 export class GithubSourceProviderService extends Context.Service<

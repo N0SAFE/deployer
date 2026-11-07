@@ -76,7 +76,7 @@ function buildRuntimeRunnerOptionsFallback(input: {
 }
 
 /** The provider for an uploaded archive: the bundle is on disk, the trigger names it. */
-export type UploadSourceProviderServiceShape = CodeProvider<UploadBundleRegistryService>
+export type UploadSourceProviderServiceShape = CodeProvider
 
 /** Tag and implementation together: the tag is the contract, `live` the one implementation. */
 export class UploadSourceProviderService extends Context.Service<

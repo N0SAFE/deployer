@@ -68,10 +68,23 @@ function buildRuntimeRunnerOptionsFallback(input: {
 }
 
 /** The provider for a ready-made container image: nothing to fetch, the trigger names the image. */
-function makeCustomSourceProviderService() {
-    return {
-        resolveSourceCheckout: (input: DeploymentTriggerInput) =>
-            Effect.gen(function* () {
+export type CustomSourceProviderServiceShape = CodeProvider
+
+/** Tag and implementation together: the tag is the contract, `live` the one implementation. */
+export class CustomSourceProviderService extends Context.Service<
+    CustomSourceProviderService,
+    CustomSourceProviderServiceShape
+>()('fleet/CustomSourceProviderService') {
+    /** Reads nothing from the context, so the module provides it with `useClass`. */
+    static readonly live = class CustomSourceProviderServiceImpl
+        implements CustomSourceProviderServiceShape
+    {
+        resolveSourceCheckout(
+            input: DeploymentTriggerInput
+        ): ReturnType<
+            CustomSourceProviderServiceShape['resolveSourceCheckout']
+        > {
+            return Effect.gen(function* () {
                 if (input.source.sourceType !== 'custom') return null
 
                 const parsed = customSourceContextSchema.safeParse(input.source)
@@ -131,20 +144,7 @@ function makeCustomSourceProviderService() {
                             : {}),
                     })
                 )
-            }),
-    } satisfies CodeProvider
-}
-
-export type CustomSourceProviderServiceShape = ReturnType<
-    typeof makeCustomSourceProviderService
->
-
-/** Tag and implementation together: the tag is the contract, `live` the one implementation. */
-export class CustomSourceProviderService extends Context.Service<
-    CustomSourceProviderService,
-    CustomSourceProviderServiceShape
->()('fleet/CustomSourceProviderService') {
-    /** Needs nothing from the context, so this is a constant the module provides with `useValue`. */
-    static readonly live: CustomSourceProviderServiceShape =
-        makeCustomSourceProviderService()
+            })
+        }
+    }
 }

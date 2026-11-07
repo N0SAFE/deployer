@@ -72,7 +72,7 @@ function setup(
         ) as Effect.Effect<unknown>
 
     const upload = provideTo(new UploadSourceProviderService.live(), ports)
-    const custom = provideTo(CustomSourceProviderService.live, ports)
+    const custom = provideTo(new CustomSourceProviderService.live(), ports)
     const github = provideTo(new GithubSourceProviderService.live(), ports)
     const gitlab = provideTo(new GitlabSourceProviderService.live(), ports)
     const registry = provideTo(
