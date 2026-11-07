@@ -5,20 +5,15 @@ import { join } from 'node:path'
 import { Effect } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
 
-import { StorageFailure } from '../../database/storage'
+import { DatabasePort, StorageFailure } from '../../database/storage'
 import { ConfigNotFoundError, ConfigSyncFailure } from '../errors'
+import { TraefikRepository } from '../repositories/traefik.repository'
 
-import { makeTraefikFileSystem as makeFs } from './traefik-file-system.service'
-import { makeTraefikSync } from './traefik-sync.service'
-import { makeTraefikService } from './traefik.service'
+import { TraefikFileSystemService } from './traefik-file-system.service'
+import { TraefikSyncService } from './traefik-sync.service'
+import { TraefikService } from './traefik.service'
 
 import type { TraefikRepositoryShape } from '../repositories/traefik.repository'
-
-/** The file system over a fake repository (the pure conventions never read it). */
-const makeTraefikFileSystem = (
-    env: { basePath: string; backupPath: string },
-    repository?: TraefikRepositoryShape
-) => makeFs(env, repository ?? repoWith())
 
 const config = {
     id: 'cfg-12345678',
@@ -51,18 +46,72 @@ function repoWith(overrides: Record<string, unknown> = {}) {
     } as unknown as TraefikRepositoryShape
 }
 
+/**
+ * The real filesystem over a base path: its virtual tree is read from whatever `TraefikRepository` the
+ * run provides, so a spec supplies that one tag and nothing else.
+ */
+const fileSystemOver = (env: { basePath: string; backupPath: string }) =>
+    new TraefikFileSystemService.live(env)
+
+const sync = new TraefikSyncService.live()
+const facade = new TraefikService.live()
+
+/** The fake repository answers every read, so the port behind it is never reached. */
+const databasePort = {} as never
+
+/** One sync/filesystem operation, over the repository fake. */
+const runSync = <A, E>(
+    effect: Effect.Effect<
+        A,
+        E,
+        TraefikRepository | TraefikFileSystemService | DatabasePort
+    >,
+    repository: TraefikRepositoryShape,
+    fileSystem: ReturnType<typeof fileSystemOver>
+): Promise<A> =>
+    Effect.runPromise(
+        effect.pipe(
+            Effect.provideService(TraefikRepository, repository),
+            Effect.provideService(TraefikFileSystemService, fileSystem),
+            Effect.provideService(DatabasePort, databasePort)
+        )
+    )
+
+/** One facade operation: it also reaches the sync service. */
+const runFacade = <A, E>(
+    effect: Effect.Effect<
+        A,
+        E,
+        | TraefikRepository
+        | TraefikFileSystemService
+        | TraefikSyncService
+        | DatabasePort
+    >,
+    repository: TraefikRepositoryShape,
+    fileSystem: ReturnType<typeof fileSystemOver>
+): Promise<A> =>
+    Effect.runPromise(
+        effect.pipe(
+            Effect.provideService(TraefikRepository, repository),
+            Effect.provideService(TraefikFileSystemService, fileSystem),
+            Effect.provideService(TraefikSyncService, sync),
+            Effect.provideService(DatabasePort, databasePort)
+        )
+    )
+
 describe('TraefikSync', () => {
     it('writes the generated YAML under the project folder and records the sync', async () => {
         const basePath = await mkdtemp(join(tmpdir(), 'traefik-'))
-        const fileSystem = makeTraefikFileSystem({
+        const repository = repoWith()
+        const fileSystem = fileSystemOver({
             basePath,
             backupPath: join(basePath, 'backup'),
         })
-        const repository = repoWith()
-        const sync = makeTraefikSync({ repository, fileSystem })
 
-        const result = await Effect.runPromise(
-            sync.syncServiceConfiguration('cfg-12345678')
+        const result = await runSync(
+            sync.syncServiceConfiguration('cfg-12345678'),
+            repository,
+            fileSystem
         )
 
         expect(result).toMatchObject({
@@ -85,17 +134,18 @@ describe('TraefikSync', () => {
     })
 
     it('answers an unknown configuration as a failed result, not an error', async () => {
-        const sync = makeTraefikSync({
-            repository: repoWith({
-                getCompleteServiceConfig: () => Effect.succeed(null),
-            }),
-            fileSystem: makeTraefikFileSystem({
-                basePath: '/nowhere',
-                backupPath: '/nowhere',
-            }),
+        const repository = repoWith({
+            getCompleteServiceConfig: () => Effect.succeed(null),
         })
         expect(
-            await Effect.runPromise(sync.syncServiceConfiguration('x'))
+            await runSync(
+                sync.syncServiceConfiguration('x'),
+                repository,
+                fileSystemOver({
+                    basePath: '/nowhere',
+                    backupPath: '/nowhere',
+                })
+            )
         ).toMatchObject({
             success: false,
             message: 'Configuration not found in database',
@@ -107,16 +157,11 @@ describe('TraefikSync', () => {
         const blocker = join(dir, 'file')
         await writeFile(blocker, '')
         const repository = repoWith()
-        const sync = makeTraefikSync({
-            repository,
-            fileSystem: makeTraefikFileSystem({
-                basePath: blocker,
-                backupPath: blocker,
-            }),
-        })
 
-        const result = await Effect.runPromise(
-            sync.syncServiceConfiguration('cfg-12345678')
+        const result = await runSync(
+            sync.syncServiceConfiguration('cfg-12345678'),
+            repository,
+            fileSystemOver({ basePath: blocker, backupPath: blocker })
         )
 
         expect(result).toMatchObject({ success: false, action: 'error' })
@@ -124,57 +169,50 @@ describe('TraefikSync', () => {
     })
 
     it('fails with the typed storage failure when the database cannot be read', async () => {
-        const sync = makeTraefikSync({
-            repository: repoWith({
-                getCompleteServiceConfig: () =>
-                    Effect.fail(new StorageFailure({})),
-            }),
-            fileSystem: makeTraefikFileSystem({
-                basePath: '/nowhere',
-                backupPath: '/nowhere',
-            }),
+        const repository = repoWith({
+            getCompleteServiceConfig: () => Effect.fail(new StorageFailure({})),
         })
-        expect(
-            await Effect.runPromise(
-                Effect.flip(sync.syncServiceConfiguration('x'))
+        await expect(
+            runSync(
+                Effect.flip(sync.syncServiceConfiguration('x')),
+                repository,
+                fileSystemOver({
+                    basePath: '/nowhere',
+                    backupPath: '/nowhere',
+                })
             )
-        ).toBeInstanceOf(StorageFailure)
+        ).resolves.toBeInstanceOf(StorageFailure)
     })
 })
 
 describe('TraefikService', () => {
-    const fileSystem = makeTraefikFileSystem({
+    const fileSystem = fileSystemOver({
         basePath: '/nowhere',
         backupPath: '/nowhere',
     })
-    const sync = makeTraefikSync({ repository: repoWith(), fileSystem })
 
     it('fails with ConfigNotFoundError when the service has no Traefik config', async () => {
-        const service = makeTraefikService({
-            repository: repoWith({
-                getServiceConfigByServiceId: () => Effect.succeed(undefined),
-            }),
-            fileSystem,
-            sync,
+        const repository = repoWith({
+            getServiceConfigByServiceId: () => Effect.succeed(undefined),
         })
-        expect(
-            await Effect.runPromise(
-                Effect.flip(service.syncServiceConfiguration('svc'))
+        await expect(
+            runFacade(
+                facade.syncServiceConfiguration('svc'),
+                repository,
+                fileSystem
             )
-        ).toBeInstanceOf(ConfigNotFoundError)
+        ).rejects.toBeInstanceOf(ConfigNotFoundError)
     })
 
     it('validates a stored configuration', async () => {
-        const service = makeTraefikService({
-            repository: repoWith({
-                getCompleteServiceConfig: () =>
-                    Effect.succeed({ ...config, port: 0, serviceTargets: [] }),
-            }),
-            fileSystem,
-            sync,
+        const repository = repoWith({
+            getCompleteServiceConfig: () =>
+                Effect.succeed({ ...config, port: 0, serviceTargets: [] }),
         })
-        const result = await Effect.runPromise(
-            service.validateConfiguration('cfg')
+        const result = await runFacade(
+            facade.validateConfiguration('cfg'),
+            repository,
+            fileSystem
         )
         expect(result.isValid).toBe(false)
         expect(result.errors.map((e) => e.code)).toEqual(['INVALID_PORT'])
@@ -207,15 +245,12 @@ describe('TraefikSync batches and cleanup', () => {
                     : Effect.succeed(undefined),
             markTraefikConfigSyncFailed,
         })
-        const sync = makeTraefikSync({
-            repository,
-            fileSystem: makeTraefikFileSystem(
-                { basePath, backupPath: basePath },
-                repository
-            ),
-        })
 
-        const summary = await Effect.runPromise(sync.syncAllConfigurations())
+        const summary = await runSync(
+            sync.syncAllConfigurations(),
+            repository,
+            fileSystemOver({ basePath, backupPath: basePath })
+        )
 
         expect(summary).toMatchObject({ total: 2, successful: 1, failed: 1 })
         expect(markTraefikConfigSyncFailed).toHaveBeenCalledOnce()
@@ -236,24 +271,26 @@ describe('TraefikSync batches and cleanup', () => {
         await writeFile(orphan, 'x')
         await writeFile(kept, 'x')
         const repository = repoWith({
-            getAllServiceConfigs: () => Effect.succeed([{ id: 'dddddddd-1' }]),
-        })
-        const fileSystem = makeTraefikFileSystem(
-            { basePath, backupPath: basePath },
-            repository
-        )
-        // The virtual listing the cleanup scans: both files, as the config browser would show them.
-        const listing = [orphan, kept].map((f) => f.replace(basePath, ''))
-        const sync = makeTraefikSync({
-            repository,
-            fileSystem: {
-                ...fileSystem,
-                getAllConfigFiles: () =>
-                    Effect.succeed(listing.map((f) => join(basePath, f))),
-            },
+            // The virtual listing scans every config; the active set owns only one of them.
+            getAllServiceConfigs: (isActive?: boolean) =>
+                Effect.succeed(
+                    isActive === true
+                        ? [{ id: 'dddddddd-1', serviceId: 'cccccccc-1' }]
+                        : [
+                              { id: 'bbbbbbbb-1', serviceId: 'aaaaaaaa-1' },
+                              { id: 'dddddddd-1', serviceId: 'cccccccc-1' },
+                          ]
+                ),
+            getAllNewSslCertificates: () => Effect.succeed([]),
+            getAllNewMiddleware: () => Effect.succeed([]),
+            getAllStaticFiles: () => Effect.succeed([]),
         })
 
-        const summary = await Effect.runPromise(sync.cleanupOrphanedFiles())
+        const summary = await runSync(
+            sync.cleanupOrphanedFiles(),
+            repository,
+            fileSystemOver({ basePath, backupPath: basePath })
+        )
 
         expect(summary.results.map((r) => r.action)).toEqual(['deleted'])
         await expect(access(orphan)).rejects.toThrow()
@@ -264,18 +301,12 @@ describe('TraefikSync batches and cleanup', () => {
         const repository = repoWith({
             getAllServiceConfigs: () => Effect.fail(new StorageFailure({})),
         })
-        const sync = makeTraefikSync({
-            repository,
-            fileSystem: {
-                ...makeTraefikFileSystem(
-                    { basePath: '/x', backupPath: '/x' },
-                    repository
-                ),
-                getAllConfigFiles: () => Effect.succeed([]),
-            },
-        })
-        expect(
-            await Effect.runPromise(Effect.flip(sync.cleanupOrphanedFiles()))
-        ).toBeInstanceOf(ConfigSyncFailure)
+        await expect(
+            runSync(
+                sync.cleanupOrphanedFiles(),
+                repository,
+                fileSystemOver({ basePath: '/x', backupPath: '/x' })
+            )
+        ).rejects.toBeInstanceOf(ConfigSyncFailure)
     })
 })

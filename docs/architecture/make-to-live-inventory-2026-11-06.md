@@ -9,9 +9,22 @@ grep -rnE '^export (async )?function make[A-Z]|^export const make[A-Z]' --includ
 
 **Totals:** 52 files use `serviceOver(…)`; 194 exported `make<…>` functions (some in the same files).
 
+**Progress (2026-11-07):** 32 files still use `serviceOver(…)` (was 52), 173 exported `make<…>` functions remain (was 194), and
+**29 files still carry a `Ports` record / `portsOf` / `implOverX` / a single-use `<X>Ports` union** (banned by
+`docs/architecture/service-implementation-rule.md`). Converted that day: `shared` `reachability`, `platform-ingress`, `traefik`
+and `domain` (including `domain-routing`, the last `serviceOver` in that package), plus fleet `IngressEdgeService` and
+`NodeReachabilityService`, whose port wrappers were deleted because the shared services are tags now.
+
 ## Conversion recipe
 
-Target form (reference: `apps/api/services/health/.../health.service.ts`, node-agent `NodeState`, fleet `SecretInventory`, `Enrollment`):
+**The conversion produces real bodies, not a second indirection.** A `serviceOver(Effect.all({…}), makeX)` file converts to a `live`
+class whose methods **contain** the logic — not to a `type Ports` record plus `portsOf` plus `implOverPorts(ports)`. That intermediate
+shape (a class that builds a record of collaborators and delegates every method to a free function returning the same shape) is
+banned by `docs/architecture/service-implementation-rule.md`; `IngressEdgeService` was converted the wrong way first and rewritten on
+2026-11-07. When converting, `yield*` each collaborator inside the method that reads it.
+
+Target form (reference: `apps/api/services/health/.../health.service.ts`, node-agent `NodeState`, fleet `SecretInventory`,
+`Enrollment`, and fleet `IngressEdgeService` for a service with many collaborators):
 
 ```ts
 export type XShape = {
@@ -39,6 +52,10 @@ Cases:
 4. **`packages/docker` `make…` engine sub-APIs** (`makeContainers`, `makeImages`, `makeSwarmServices`, …): they compose the `DockerEngine` shape. Convert last and only together (one PR), because they share their `dockerode` client by closure.
 5. A method that references the class itself makes the whole `live` type `any`: annotate the return type `: ReturnType<XShape['m']>` (and keep self-references out of the body).
 6. Run `bun x turbo run type-check test lint --filter=<the workspace>` for every converted file; the hook lints whole files, so fix pre-existing lint errors in files you touch.
+7. **Never leave a `Ports` record, `portsOf`, `implOverX(deps)` or an `<X>Ports` union behind.** A `Ports` record is what the closure
+   in `serviceOver` becomes when a conversion is done mechanically, and it reintroduces the coupling the migration removes: every
+   operation depends on every collaborator, and a spec must provide all of them. Check with
+   `grep -nE "^type Ports = \{|satisfies Ports|function implOver|const portsOf" <file>`; it must print nothing.
 
 ## Inventory by workspace (largest first)
 

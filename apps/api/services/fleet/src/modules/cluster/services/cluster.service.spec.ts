@@ -13,7 +13,7 @@ import {
     SwarmParticipationPort,
 } from '../cluster.ports'
 
-import { ClusterService } from './cluster.service'
+import { ClusterService, type ClusterServiceShape } from './cluster.service'
 
 /** Run an Effect and reject with the ORIGINAL failure, so `rejects` assertions read the real error. */
 async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
@@ -85,7 +85,7 @@ const nodeRow = {
 }
 
 describe('ClusterService', () => {
-    let service: ReturnType<typeof provideTo<typeof ClusterService.live>>
+    let service: ReturnType<typeof provideTo<ClusterServiceShape>>
     let swarm: {
         getLocalClusterSnapshot: ReturnType<typeof vi.fn>
         listSwarmNodes: ReturnType<typeof vi.fn>
@@ -192,7 +192,7 @@ describe('ClusterService', () => {
             view: vi.fn().mockReturnValue(Effect.succeed({})),
             applyConfig: vi.fn().mockReturnValue(Effect.succeed({})),
         }
-        service = provideTo(ClusterService.live, (effect) =>
+        service = provideTo(new ClusterService.live(), (effect) =>
             effect.pipe(
                 Effect.provideService(SwarmClusterPort, swarm as never),
                 Effect.provideService(SwarmFleetPort, fleet as never),

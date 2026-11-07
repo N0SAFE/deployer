@@ -58,7 +58,7 @@ export const CoreDomainModule = createGlobalModule({
             provide: DomainConflictService,
             useValue: DomainConflictService.live,
         },
-        { provide: DomainRoutingService, useValue: DomainRoutingService.live },
+        { provide: DomainRoutingService, useClass: DomainRoutingService.live },
         {
             provide: DomainVerificationService,
             useFactory: (

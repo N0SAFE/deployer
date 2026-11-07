@@ -9,14 +9,22 @@ import {
     type IngressLanes,
 } from '@deployer/contracts-entities/entities/ingress/index'
 import type { DockerEngineShape } from '@deployer/docker'
+import { DockerEngine } from '@deployer/docker'
+import { provideTo } from '@deployer/effect-core'
 
+import { EdgeProviderRegistry } from '../../edge/edge-provider.registry'
 import {
     TEST_TUNNEL_ID,
     testEdgeRegistry,
 } from '../../edge/testing/edge-registry.fixture'
 import { EnvHostnameService } from '../../platform-ingress/services/hostname.service'
+import { IngressLanesService } from '../../platform-ingress/services/ingress-lanes.service'
+import { PlatformConfigService } from '../../platform-ingress/services/platform-config.service'
+import { PlatformRoutesSource } from '../../platform-ingress/services/platform-routes-source.service'
+import { PlatformWebTargetService } from '../../platform-ingress/services/platform-web-target.service'
+import { TraefikRepository } from '../repositories/traefik.repository'
 
-import { makeTraefikIngressConfigService } from './traefik-ingress-config.service'
+import { TraefikIngressConfigService } from './traefik-ingress-config.service'
 
 import type { EnvService } from '../../../../config/env/env.module'
 import type { PlatformConfigServiceShape } from '../../platform-ingress/services/platform-config.service'
@@ -45,38 +53,46 @@ async function makeService(
     const env = {
         get: vi.fn((key: string) => values[key]),
     } as unknown as EnvService
-    const service = makeTraefikIngressConfigService({
-        env,
-        // `DEPLOYER_API_TARGET` is set, so the self-resolver never inspects a container; the tests
-        // touch no Docker API and an empty engine is asserted to the interface.
-        dockerEngine: { containers: {} } as unknown as DockerEngineShape,
-        hostnames: new EnvHostnameService(env),
-        lanes: {
-            getLanes: () =>
-                Effect.succeed(options.lanes ?? defaultIngressLanes()),
-            setLanes: () => Effect.die('unused'),
-        },
-        webTarget: {
-            resolveWebTarget: () =>
-                Effect.succeed(
-                    options.webTarget === undefined
-                        ? 'deployer-managed-web'
-                        : options.webTarget
-                ),
-        },
-        routesSource: {
-            listSupervisedRoutes: () => Effect.succeed(options.routes ?? []),
-        },
-        traefikRepository: {
-            getAllServiceConfigs: () => Effect.succeed([]),
-            getServiceTargetsByConfigId: () => Effect.succeed([]),
-        } as unknown as TraefikRepositoryShape,
-        platformConfig: {
-            getManagedWebOrigin: () => Effect.succeed(null),
-            getManagedWebTunnel: () => Effect.succeed(null),
-        } as unknown as PlatformConfigServiceShape,
-        edges: testEdgeRegistry().registry,
-    })
+    const service = provideTo(
+        new TraefikIngressConfigService.live(env, new EnvHostnameService(env)),
+        (effect) =>
+            effect.pipe(
+                // `DEPLOYER_API_TARGET` is set, so the self-resolver never inspects a container; the tests
+                // touch no Docker API and an empty engine is asserted to the interface.
+                Effect.provideService(DockerEngine, {
+                    containers: {},
+                } as unknown as DockerEngineShape),
+                Effect.provideService(IngressLanesService, {
+                    getLanes: () =>
+                        Effect.succeed(options.lanes ?? defaultIngressLanes()),
+                    setLanes: () => Effect.die('unused'),
+                }),
+                Effect.provideService(PlatformWebTargetService, {
+                    resolveWebTarget: () =>
+                        Effect.succeed(
+                            options.webTarget === undefined
+                                ? 'deployer-managed-web'
+                                : options.webTarget
+                        ),
+                }),
+                Effect.provideService(PlatformRoutesSource, {
+                    listSupervisedRoutes: () =>
+                        Effect.succeed(options.routes ?? []),
+                }),
+                Effect.provideService(TraefikRepository, {
+                    getAllServiceConfigs: () => Effect.succeed([]),
+                    getServiceTargetsByConfigId: () => Effect.succeed([]),
+                } as unknown as TraefikRepositoryShape),
+                Effect.provideService(PlatformConfigService, {
+                    getManagedWebOrigin: () => Effect.succeed(null),
+                    getManagedWebTunnel: () => Effect.succeed(null),
+                } as unknown as PlatformConfigServiceShape),
+                Effect.provideService(
+                    EdgeProviderRegistry,
+                    testEdgeRegistry().registry
+                )
+            ) as Effect.Effect<unknown>
+    )
     // The service's Effects, run to Promises: the assertions below read like the calls they check.
     return {
         buildDynamicConfig: () =>

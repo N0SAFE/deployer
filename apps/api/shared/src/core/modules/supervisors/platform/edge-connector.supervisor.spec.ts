@@ -14,7 +14,10 @@ import {
 
 import type { EnvService } from '../../../../config/env/env.module'
 import type { EdgeConnectorSpec } from '../../edge/edge-provider'
+import { testEdgeRegistry } from '../../edge/testing/edge-registry.fixture'
+import type { ClusterSettingsShape } from '../../mesh-node/cluster-settings'
 import type { IngressLanesServiceShape } from '../../platform-ingress/services/ingress-lanes.service'
+import type { NodeNetworkConfigRepositoryShape } from '../../reachability/repositories/node-network-config.repository'
 import type { PublicEdgeServiceShape } from '../../reachability/services/public-edge.service'
 
 const connector: EdgeConnectorSpec = {
@@ -72,6 +75,9 @@ function make(
             engine: engine as unknown as DockerEngineShape,
             env: { get: vi.fn(() => '') } as unknown as EnvService,
             lanes,
+            settings: { write: vi.fn(() => Effect.void) } as unknown as ClusterSettingsShape,
+            nodeConfigs: { list: vi.fn(() => Effect.succeed([])) } as unknown as NodeNetworkConfigRepositoryShape,
+            edges: testEdgeRegistry().registry,
             edge,
             bus: testBus(),
         })

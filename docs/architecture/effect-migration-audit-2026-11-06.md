@@ -26,10 +26,15 @@ export class HealthService extends Context.Service<HealthService, HealthServiceS
 ```
 
 Collaborators are yielded inside the methods, the module provides `{ provide: X, useClass: X.live }`, errors are `domainError`
-tags, controllers are `procedure(contract).use(…).effect(function* …)`, and there is no exported `make<X>()` factory
-(`apps/api/AGENTS.md`, "A service is a constant its own module provides"). That file keeps `serviceOver(Collaborator, make)` as an
-allowed form for a stateless bag of closures; the operator's instruction of 2026-11-06 is to stop writing `make` functions, so
-section 5 treats every `serviceOver(…, make…)` as a conversion target (convert when a file is touched, not as a sweep).
+tags, controllers are `procedure(contract).use(…).effect(function* …)`, and there is no exported `make<X>()` factory, no
+`serviceOver(...)` and no forwarding layer (`apps/api/AGENTS.md`).
+
+**The bodies are the logic** (`docs/architecture/service-implementation-rule.md`, normative): a `live` class may not be a façade
+over a `type Ports` record plus `implOverPorts(ports)` / `implOverX(deps)` returning the same shape. Measured 2026-11-07: **42
+files still carry a `type Ports = { … }` record and 61 files export an `<X>Ports` union**, nearly all of them produced by converting
+`serviceOver(…, make…)` mechanically. Those are part of the migration, not a separate style sweep: a file is finished only when its
+methods contain their logic and `grep -nE "^type Ports = \{|satisfies Ports|function implOver|const portsOf" <file>` prints
+nothing. `fleet/.../reachability/services/ingress-edge.service.ts` is the reference (rewritten that way on 2026-11-07).
 
 ## 3. Scoreboard
 

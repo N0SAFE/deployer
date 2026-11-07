@@ -25,7 +25,6 @@ import {
     type TraefikIngressConfigServiceShape,
 } from '../services/traefik-ingress-config.service'
 
-import type { IngressLanesUnavailable } from '../../platform-ingress/platform-ingress.errors'
 import type { LaneTraefikConfig } from '../../platform-ingress/services/lane-traefik-config'
 import type { Response } from 'express'
 
@@ -59,10 +58,7 @@ export class TraefikIngressConfigController {
         @Res({ passthrough: true }) response: Pick<Response, 'status'>
     ): Promise<LaneTraefikConfig | { error: string }> {
         const { config, secrets } = this
-        const program: Effect.Effect<
-            LaneTraefikConfig,
-            IngressTokenInvalid | IngressLanesUnavailable
-        > = Effect.gen(function* () {
+        const program = Effect.gen(function* () {
             // A node with no platform secret fails loudly: an ingress poll must never be accepted against an empty key.
             const accepted = (yield* secrets.accepted()).map((secret) =>
                 requireIngressSecret(secret)

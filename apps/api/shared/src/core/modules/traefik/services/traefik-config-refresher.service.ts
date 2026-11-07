@@ -27,12 +27,25 @@ export type TraefikConfigRefresherShape = {
     readonly refresh: () => void
 }
 
-export function makeTraefikConfigRefresher(
-    orchestrator: SupervisorOrchestratorShape
-): TraefikConfigRefresherShape {
-    const logger = new Logger('TraefikConfigRefresher')
-    return {
-        refresh() {
+/**
+ * Tag and implementation together. `refresh` returns `void` because its callers are fire-and-forget
+ * (`ingressEdgeService.update` does not await it), so it cannot yield the orchestrator: the
+ * orchestrator arrives as a constructor argument, which is the only thing `new .live(...)` needs.
+ */
+export class TraefikConfigRefresher extends Context.Service<
+    TraefikConfigRefresher,
+    TraefikConfigRefresherShape
+>()('shared/TraefikConfigRefresher') {
+    static readonly live = class TraefikConfigRefresherImpl
+        implements TraefikConfigRefresherShape
+    {
+        private readonly logger = new Logger('TraefikConfigRefresher')
+
+        constructor(
+            private readonly orchestrator: SupervisorOrchestratorShape
+        ) {}
+
+        refresh(): void {
             void (async () => {
                 for (const id of [
                     PLATFORM_INGRESS_SUPERVISOR_ID,
@@ -40,24 +53,19 @@ export function makeTraefikConfigRefresher(
                 ]) {
                     try {
                         const state = await runPromiseUnwrapped(
-                            orchestrator.convergeNow(id)
+                            this.orchestrator.convergeNow(id)
                         )
                         if (state === 'degraded')
-                            logger.warn(
+                            this.logger.warn(
                                 `${id} DEGRADED after an ingress refresh — see supervisor health`
                             )
                     } catch (error) {
-                        logger.warn(
+                        this.logger.warn(
                             `${id} re-converge failed: ${error instanceof Error ? error.message : String(error)}`
                         )
                     }
                 }
             })()
-        },
+        }
     }
 }
-
-export class TraefikConfigRefresher extends Context.Service<
-    TraefikConfigRefresher,
-    TraefikConfigRefresherShape
->()('shared/TraefikConfigRefresher') {}

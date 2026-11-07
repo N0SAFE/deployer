@@ -71,12 +71,12 @@ function setup(
             Effect.provideService(Git, git as unknown as GitShape)
         ) as Effect.Effect<unknown>
 
-    const upload = provideTo(UploadSourceProviderService.live, ports)
+    const upload = provideTo(new UploadSourceProviderService.live(), ports)
     const custom = provideTo(CustomSourceProviderService.live, ports)
-    const github = provideTo(GithubSourceProviderService.live, ports)
-    const gitlab = provideTo(GitlabSourceProviderService.live, ports)
+    const github = provideTo(new GithubSourceProviderService.live(), ports)
+    const gitlab = provideTo(new GitlabSourceProviderService.live(), ports)
     const registry = provideTo(
-        CodeProviderRegistryService.live,
+        new CodeProviderRegistryService.live(),
         (effect) =>
             effect.pipe(
                 Effect.provideService(

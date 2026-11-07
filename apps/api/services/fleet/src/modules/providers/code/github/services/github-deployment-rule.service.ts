@@ -1,12 +1,6 @@
 import { Context, Effect } from 'effect'
 
-import { serviceOver, type Over } from '@deployer/effect-core'
-
-import { attempt } from '@/core/effects'
-import {
-    GithubDeploymentRules,
-    type GithubDeploymentRulesShape,
-} from '@/core/ports/github-deployment-rules.port'
+import { GithubDeploymentRules } from '@/core/ports/github-deployment-rules.port'
 
 /**
  * Minimal glob matcher supporting `*` (within a path segment), `**` (any
@@ -111,80 +105,93 @@ type GithubDeploymentRuleRecord = {
  * This wires the rules table into the webhook decision flow so per-project, per-branch Github events
  * can gate/route deployments.
  */
-function makeGithubDeploymentRuleService(
-    rulesRepository: GithubDeploymentRulesShape
-) {
-    const matchesPathConditions = (
-        conditions: {
-            include?: string[]
-            exclude?: string[]
-            requireAll?: boolean
-        },
-        changedFiles: string[]
-    ): boolean => {
-        const { include = [], exclude = [], requireAll = false } = conditions
-        if (
-            exclude.length > 0 &&
-            changedFiles.some((file) => include.some((p) => globMatch(p, file)))
-        ) {
-            return false
-        }
-        if (include.length === 0) {
-            return true
-        }
-        const matched = changedFiles.filter((file) =>
-            include.some((p) => globMatch(p, file))
-        )
-        return requireAll
-            ? matched.length === include.length
-            : matched.length > 0
-    }
-
-    const matchesEvent = (
-        rule: GithubDeploymentRuleRecord,
+export type GithubDeploymentRuleServiceShape = {
+    /**
+     * Resolve the action for an event by evaluating the project's active rules in priority order.
+     * Answers the default `deploy` when no rule matches.
+     */
+    readonly resolveAction: (
         input: GithubRuleEvaluationInput
-    ): boolean => {
-        if (rule.event !== input.event) {
-            return false
-        }
-        if (rule.branchPattern && input.branch) {
-            if (!branchMatches(rule.branchPattern, input.branch)) {
-                return false
-            }
-        }
-        if (rule.tagPattern && input.tag) {
-            if (!globMatch(rule.tagPattern, input.tag)) {
-                return false
-            }
-        }
-        if (rule.pathConditions && input.changedFiles) {
-            if (
-                !matchesPathConditions(rule.pathConditions, input.changedFiles)
-            ) {
-                return false
-            }
-        }
+    ) => Effect.Effect<
+        GithubRuleEvaluationResult,
+        unknown,
+        GithubDeploymentRules
+    >
+}
+
+function matchesPathConditions(
+    conditions: {
+        include?: string[]
+        exclude?: string[]
+        requireAll?: boolean
+    },
+    changedFiles: string[]
+): boolean {
+    const { include = [], exclude = [], requireAll = false } = conditions
+    if (
+        exclude.length > 0 &&
+        changedFiles.some((file) => include.some((p) => globMatch(p, file)))
+    ) {
+        return false
+    }
+    if (include.length === 0) {
         return true
     }
+    const matched = changedFiles.filter((file) =>
+        include.some((p) => globMatch(p, file))
+    )
+    return requireAll ? matched.length === include.length : matched.length > 0
+}
 
-    const toAction = (raw: string): GithubRuleAction => {
-        if (raw === 'preview') return 'preview'
-        if (raw === 'skip') return 'skip'
-        return 'deploy'
+function matchesEvent(
+    rule: GithubDeploymentRuleRecord,
+    input: GithubRuleEvaluationInput
+): boolean {
+    if (rule.event !== input.event) {
+        return false
     }
+    if (rule.branchPattern && input.branch) {
+        if (!branchMatches(rule.branchPattern, input.branch)) {
+            return false
+        }
+    }
+    if (rule.tagPattern && input.tag) {
+        if (!globMatch(rule.tagPattern, input.tag)) {
+            return false
+        }
+    }
+    if (rule.pathConditions && input.changedFiles) {
+        if (!matchesPathConditions(rule.pathConditions, input.changedFiles)) {
+            return false
+        }
+    }
+    return true
+}
 
-    return {
-        /**
-         * Resolve the action for an event by evaluating the project's active rules in priority order.
-         * Answers the default `deploy` when no rule matches.
-         */
-        resolveAction: Effect.fn('GithubDeploymentRuleService.resolveAction')(
-            function* (input: GithubRuleEvaluationInput) {
-                const rules = yield* rulesRepository.findActiveByProjectId(
+function toAction(raw: string): GithubRuleAction {
+    if (raw === 'preview') return 'preview'
+    if (raw === 'skip') return 'skip'
+    return 'deploy'
+}
+
+/** Tag and implementation together: the tag is the contract, `live` the one implementation. */
+export class GithubDeploymentRuleService extends Context.Service<
+    GithubDeploymentRuleService,
+    GithubDeploymentRuleServiceShape
+>()('fleet/GithubDeploymentRuleService') {
+    static readonly live = class GithubDeploymentRuleServiceImpl
+        implements GithubDeploymentRuleServiceShape
+    {
+        resolveAction(
+            input: GithubRuleEvaluationInput
+        ): ReturnType<GithubDeploymentRuleServiceShape['resolveAction']> {
+            return Effect.gen(function* () {
+                const rules = yield* GithubDeploymentRules
+                const active = yield* rules.findActiveByProjectId(
                     input.projectId
                 )
 
-                for (const rule of rules) {
+                for (const rule of active) {
                     if (!matchesEvent(rule, input)) {
                         continue
                     }
@@ -209,26 +216,9 @@ function makeGithubDeploymentRuleService(
                     action: 'deploy',
                     reason: 'no_rule_matched',
                 } satisfies GithubRuleEvaluationResult
-            }
-        ),
+            })
+        }
     }
-}
-
-export type GithubDeploymentRuleServiceShape = Over<
-    ReturnType<typeof makeGithubDeploymentRuleService>,
-    GithubDeploymentRules
->
-
-/** Tag and implementation together: the tag is the contract, `live` the one implementation. */
-export class GithubDeploymentRuleService extends Context.Service<
-    GithubDeploymentRuleService,
-    GithubDeploymentRuleServiceShape
->()('fleet/GithubDeploymentRuleService') {
-    /** The rules repository is yielded when a method runs, so this is a constant the module provides with `useValue`. */
-    static readonly live: GithubDeploymentRuleServiceShape = serviceOver(
-        GithubDeploymentRules,
-        makeGithubDeploymentRuleService
-    )
 }
 
 function branchMatches(pattern: string, branch: string): boolean {

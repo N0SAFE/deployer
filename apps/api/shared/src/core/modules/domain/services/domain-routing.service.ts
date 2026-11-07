@@ -12,15 +12,15 @@
  */
 import { Context, Effect } from 'effect'
 
-import { serviceOver, type Over } from '@deployer/effect-core'
-
-import { DatabasePort, type StorageFailure } from '../../database/storage'
 import { TraefikRepository } from '../../traefik/repositories/traefik.repository'
 import { TraefikSyncService } from '../../traefik/services/traefik-sync.service'
 import { TraefikVariableResolverService } from '../../traefik/services/traefik-variable-resolver.service'
 import { TraefikService } from '../../traefik/services/traefik.service'
 import { DomainRoutingFailure } from '../errors'
 import { ServiceDomainMappingRepository } from '../repositories/service-domain-mapping.repository'
+
+import type { DatabasePort, StorageFailure } from '../../database/storage'
+import type { TraefikFileSystemService } from '../../traefik/services/traefik-file-system.service'
 
 export type ResolvedServiceUrl = {
     mappingId: string
@@ -53,11 +53,19 @@ export type DomainRoutingServiceShape = {
     /** Every reachable URL of a service, from its domain mappings. Pure read. */
     readonly resolveServiceUrls: (
         serviceId: string
-    ) => Effect.Effect<ResolvedServiceUrl[], StorageFailure, DatabasePort>
+    ) => Effect.Effect<
+        ResolvedServiceUrl[],
+        StorageFailure,
+        ServiceDomainMappingRepository | DatabasePort
+    >
     /** The primary URL (isPrimary mapping, else the first); `null` when the service has no mapping. */
     readonly resolvePrimaryUrl: (
         serviceId: string
-    ) => Effect.Effect<string | null, StorageFailure, DatabasePort>
+    ) => Effect.Effect<
+        string | null,
+        StorageFailure,
+        ServiceDomainMappingRepository | DatabasePort
+    >
     /** Traefik template variables for a service's primary URL context (raw → resolved). */
     readonly buildVariableMap: (
         serviceId: string,
@@ -66,19 +74,35 @@ export type DomainRoutingServiceShape = {
             pathPrefix?: string | null
             healthCheckPath?: string | null
         }
-    ) => Effect.Effect<Record<string, string>>
+    ) => Effect.Effect<
+        Record<string, string>,
+        never,
+        TraefikVariableResolverService
+    >
     /** Upsert the traefik service config and domain routes from the mappings, then sync to the filesystem. Idempotent. */
     readonly syncServiceRoutes: (
         serviceId: string,
         options?: { port?: number; healthCheckPath?: string | null }
-    ) => Effect.Effect<RouteSyncResult, Failure, DatabasePort>
+    ) => Effect.Effect<
+        RouteSyncResult,
+        Failure,
+        | ServiceDomainMappingRepository
+        | TraefikRepository
+        | TraefikSyncService
+        | TraefikVariableResolverService
+        | TraefikFileSystemService
+        | DatabasePort
+    >
     /** Register an SSL certificate for the primary host when its mapping has SSL on. Idempotent. */
     readonly provisionTlsCertificate: (
         serviceId: string
     ) => Effect.Effect<
         { provisioned: boolean; host: string | null; reason?: string },
         Failure,
-        DatabasePort
+        | ServiceDomainMappingRepository
+        | TraefikRepository
+        | TraefikService
+        | DatabasePort
     >
     /** Add a temporary preview route without touching the stable ones. `null` when there is nowhere to put it. */
     readonly addPreviewRoute: (
@@ -87,13 +111,18 @@ export type DomainRoutingServiceShape = {
         options?: { sslEnabled?: boolean }
     ) => Effect.Effect<
         { configId: string; routeId: string } | null,
-        StorageFailure
+        StorageFailure,
+        TraefikRepository | DatabasePort
     >
     /** Deactivate a preview route; whether one was found. */
     readonly removePreviewRoute: (
         serviceId: string,
         host: string
-    ) => Effect.Effect<boolean, StorageFailure>
+    ) => Effect.Effect<
+        boolean,
+        StorageFailure,
+        TraefikRepository | DatabasePort
+    >
     /** Turn a preview into a permanent mapping (subdomain = preview name) and re-sync. Idempotent. */
     readonly promotePreviewToStable: (
         serviceId: string,
@@ -106,19 +135,12 @@ export type DomainRoutingServiceShape = {
             mappingId?: string
         },
         Failure,
-        DatabasePort
-    >
-}
-
-type Ports = {
-    readonly mappings: Context.Service.Shape<
-        typeof ServiceDomainMappingRepository
-    >
-    readonly traefikRepository: Context.Service.Shape<typeof TraefikRepository>
-    readonly traefikSync: Context.Service.Shape<typeof TraefikSyncService>
-    readonly certificates: Context.Service.Shape<typeof TraefikService>
-    readonly variables: Context.Service.Shape<
-        typeof TraefikVariableResolverService
+        | ServiceDomainMappingRepository
+        | TraefikRepository
+        | TraefikSyncService
+        | TraefikVariableResolverService
+        | TraefikFileSystemService
+        | DatabasePort
     >
 }
 
@@ -135,207 +157,244 @@ const pickPrimary = (
     urls: ResolvedServiceUrl[]
 ): ResolvedServiceUrl | undefined => urls.find((u) => u.isPrimary) ?? urls[0]
 
-function makeDomainRoutingService({
-    mappings,
-    traefikRepository,
-    traefikSync,
-    certificates,
-    variables,
-}: Ports): DomainRoutingServiceShape {
-    const resolveServiceUrls: DomainRoutingServiceShape['resolveServiceUrls'] =
-        (serviceId) =>
-            mappings.findServiceUrlRows(serviceId).pipe(
-                Effect.map((rows) =>
-                    rows.map((row): ResolvedServiceUrl => {
-                        const subdomain = row.subdomain?.trim()
-                            ? row.subdomain.trim()
-                            : null
-                        const basePath = row.basePath?.trim()
-                            ? normalizeBasePath(row.basePath)
-                            : null
-                        const host = subdomain
-                            ? `${subdomain}.${row.orgDomain}`
-                            : row.orgDomain
-                        return {
-                            mappingId: row.mappingId,
-                            host,
-                            domain: row.orgDomain,
-                            subdomain,
-                            basePath,
-                            fullUrl: `https://${host}${basePath ?? ''}`,
-                            isPrimary: row.isPrimary,
-                            sslEnabled: row.sslEnabled,
-                            sslProvider:
-                                row.sslProvider === 'custom' ||
-                                row.sslProvider === 'none'
-                                    ? row.sslProvider
-                                    : 'letsencrypt',
-                        }
-                    })
+/**
+ * Tag and implementation together: the tag is the contract, `live` the one implementation.
+ *
+ * Every method yields the collaborator it needs from the Effect context while it runs, so the class carries no
+ * constructor dependency and the module provides it with `useClass`.
+ */
+export class DomainRoutingService extends Context.Service<
+    DomainRoutingService,
+    DomainRoutingServiceShape
+>()('shared/DomainRoutingService') {
+    static readonly live = class DomainRoutingServiceImpl
+        implements DomainRoutingServiceShape
+    {
+        resolveServiceUrls(
+            serviceId: string
+        ): ReturnType<DomainRoutingServiceShape['resolveServiceUrls']> {
+            return Effect.gen(function* () {
+                const mappings = yield* ServiceDomainMappingRepository
+                return yield* mappings.findServiceUrlRows(serviceId).pipe(
+                    Effect.map((rows) =>
+                        rows.map((row): ResolvedServiceUrl => {
+                            const subdomain = row.subdomain?.trim()
+                                ? row.subdomain.trim()
+                                : null
+                            const basePath = row.basePath?.trim()
+                                ? normalizeBasePath(row.basePath)
+                                : null
+                            const host = subdomain
+                                ? `${subdomain}.${row.orgDomain}`
+                                : row.orgDomain
+                            return {
+                                mappingId: row.mappingId,
+                                host,
+                                domain: row.orgDomain,
+                                subdomain,
+                                basePath,
+                                fullUrl: `https://${host}${basePath ?? ''}`,
+                                isPrimary: row.isPrimary,
+                                sslEnabled: row.sslEnabled,
+                                sslProvider:
+                                    row.sslProvider === 'custom' ||
+                                    row.sslProvider === 'none'
+                                        ? row.sslProvider
+                                        : 'letsencrypt',
+                            }
+                        })
+                    )
                 )
-            )
-
-    const buildVariableMap: DomainRoutingServiceShape['buildVariableMap'] = (
-        _serviceId,
-        primary,
-        options
-    ) =>
-        Effect.sync(() =>
-            variables.buildVariableMap({
-                domain: primary
-                    ? {
-                          domain: primary.domain,
-                          subdomain: primary.subdomain ?? undefined,
-                          fullDomain: primary.host,
-                          baseDomain: primary.domain,
-                      }
-                    : undefined,
-                path: {
-                    prefix:
-                        options?.pathPrefix ?? primary?.basePath ?? undefined,
-                    healthCheck: options?.healthCheckPath ?? '/health',
-                },
             })
-        )
+        }
 
-    const syncServiceRoutes: DomainRoutingServiceShape['syncServiceRoutes'] = (
-        serviceId,
-        options
-    ) =>
-        Effect.gen(function* () {
-            const urls = yield* resolveServiceUrls(serviceId)
-            const primary = pickPrimary(urls)
-            if (primary === undefined)
-                return {
-                    success: false,
-                    reason: 'no_domain_mappings',
-                    urls: [],
-                    primaryUrl: null,
-                }
-
-            const port = options?.port ?? 80
-            const healthCheck = {
-                enabled: true,
-                path: options?.healthCheckPath ?? '/health',
+        buildVariableMap(
+            _serviceId: string,
+            primary: ResolvedServiceUrl | null,
+            options?: {
+                pathPrefix?: string | null
+                healthCheckPath?: string | null
             }
-            const sslProvider =
-                primary.sslProvider === 'none' ? undefined : primary.sslProvider
-
-            // Find or create the traefik service config (unique per serviceId).
-            let config =
-                yield* traefikRepository.getServiceConfigByServiceId(serviceId)
-            if (!config) {
-                yield* traefikRepository.createServiceConfig({
-                    serviceId,
-                    domain: primary.domain,
-                    subdomain: primary.subdomain ?? undefined,
-                    port,
-                    sslEnabled: primary.sslEnabled,
-                    sslProvider,
-                    pathPrefix: primary.basePath ?? '/',
-                    healthCheck,
-                    isActive: true,
+        ): ReturnType<DomainRoutingServiceShape['buildVariableMap']> {
+            return Effect.gen(function* () {
+                const variables = yield* TraefikVariableResolverService
+                return variables.buildVariableMap({
+                    domain: primary
+                        ? {
+                              domain: primary.domain,
+                              subdomain: primary.subdomain ?? undefined,
+                              fullDomain: primary.host,
+                              baseDomain: primary.domain,
+                          }
+                        : undefined,
+                    path: {
+                        prefix:
+                            options?.pathPrefix ??
+                            primary?.basePath ??
+                            undefined,
+                        healthCheck: options?.healthCheckPath ?? '/health',
+                    },
                 })
-                config =
+            })
+        }
+
+        syncServiceRoutes(
+            serviceId: string,
+            options?: { port?: number; healthCheckPath?: string | null }
+        ): ReturnType<DomainRoutingServiceShape['syncServiceRoutes']> {
+            return Effect.gen({ self: this }, function* () {
+                const traefikRepository = yield* TraefikRepository
+                const traefikSync = yield* TraefikSyncService
+                const urls = yield* this.resolveServiceUrls(serviceId)
+                const primary = pickPrimary(urls)
+                if (primary === undefined)
+                    return {
+                        success: false,
+                        reason: 'no_domain_mappings',
+                        urls: [],
+                        primaryUrl: null,
+                    }
+
+                const port = options?.port ?? 80
+                const healthCheck = {
+                    enabled: true,
+                    path: options?.healthCheckPath ?? '/health',
+                }
+                const sslProvider =
+                    primary.sslProvider === 'none'
+                        ? undefined
+                        : primary.sslProvider
+
+                // Find or create the traefik service config (unique per serviceId).
+                let config =
                     yield* traefikRepository.getServiceConfigByServiceId(
                         serviceId
                     )
                 if (!config) {
-                    return yield* new DomainRoutingFailure({
-                        operation: `create the traefik config for service ${serviceId}`,
+                    yield* traefikRepository.createServiceConfig({
+                        serviceId,
+                        domain: primary.domain,
+                        subdomain: primary.subdomain ?? undefined,
+                        port,
+                        sslEnabled: primary.sslEnabled,
+                        sslProvider,
+                        pathPrefix: primary.basePath ?? '/',
+                        healthCheck,
+                        isActive: true,
+                    })
+                    config =
+                        yield* traefikRepository.getServiceConfigByServiceId(
+                            serviceId
+                        )
+                    if (!config) {
+                        return yield* new DomainRoutingFailure({
+                            operation: `create the traefik config for service ${serviceId}`,
+                        })
+                    }
+                } else {
+                    const existing = config
+                    yield* traefikRepository.updateServiceConfig({
+                        id: existing.id,
+                        domain: primary.domain,
+                        subdomain: primary.subdomain ?? undefined,
+                        fullDomain: primary.host,
+                        port,
+                        sslEnabled: primary.sslEnabled,
+                        sslProvider,
+                        pathPrefix: primary.basePath ?? '/',
+                        healthCheck,
+                        isActive: true,
                     })
                 }
-            } else {
-                const existing = config
-                yield* traefikRepository.updateServiceConfig({
-                    id: existing.id,
-                    domain: primary.domain,
-                    subdomain: primary.subdomain ?? undefined,
-                    fullDomain: primary.host,
-                    port,
-                    sslEnabled: primary.sslEnabled,
-                    sslProvider,
-                    pathPrefix: primary.basePath ?? '/',
-                    healthCheck,
-                    isActive: true,
-                })
-            }
-            const configId = config.id
+                const configId = config.id
 
-            // Existing routes, keyed by host for upsert.
-            const existingRoutes =
-                yield* traefikRepository.getDomainRoutesByConfigId(
-                    configId,
-                    undefined
+                // Existing routes, keyed by host for upsert.
+                const existingRoutes =
+                    yield* traefikRepository.getDomainRoutesByConfigId(
+                        configId,
+                        undefined
+                    )
+                const existingByHost = new Map<
+                    string,
+                    { id: string; hostRule: string }
+                >()
+                for (const route of existingRoutes) {
+                    const host = extractHostFromRule(route.hostRule)
+                    if (host) existingByHost.set(host, route)
+                }
+
+                const seenHosts = new Set<string>()
+                for (const url of urls) {
+                    const route = {
+                        hostRule: `Host(\`${url.host}\`)`,
+                        pathRule: url.basePath
+                            ? `PathPrefix(\`${url.basePath}\`)`
+                            : undefined,
+                        entryPoint: url.sslEnabled ? 'websecure' : 'web',
+                        priority: url.isPrimary ? 100 : 10,
+                        isActive: true,
+                    }
+                    const existing = existingByHost.get(url.host)
+                    yield* existing
+                        ? traefikRepository.updateDomainRoute(
+                              existing.id,
+                              route
+                          )
+                        : traefikRepository.createDomainRoute({
+                              configId,
+                              ...route,
+                          })
+                    seenHosts.add(url.host)
+                }
+
+                // Deactivate routes whose host is no longer mapped.
+                for (const [host, route] of existingByHost) {
+                    if (!seenHosts.has(host))
+                        yield* traefikRepository.updateDomainRoute(route.id, {
+                            isActive: false,
+                        })
+                }
+
+                const variableMap = yield* this.buildVariableMap(
+                    serviceId,
+                    primary,
+                    {
+                        pathPrefix: primary.basePath,
+                        healthCheckPath: options?.healthCheckPath,
+                    }
                 )
-            const existingByHost = new Map<
-                string,
-                { id: string; hostRule: string }
-            >()
-            for (const route of existingRoutes) {
-                const host = extractHostFromRule(route.hostRule)
-                if (host) existingByHost.set(host, route)
-            }
+                yield* Effect.logInfo(
+                    `Domain routes synced for service ${serviceId} (${String(urls.length)} mappings, ${String(Object.keys(variableMap).length)} variables resolved)`
+                )
+                yield* traefikSync.syncServiceConfiguration(configId)
 
-            const seenHosts = new Set<string>()
-            for (const url of urls) {
-                const route = {
-                    hostRule: `Host(\`${url.host}\`)`,
-                    pathRule: url.basePath
-                        ? `PathPrefix(\`${url.basePath}\`)`
-                        : undefined,
-                    entryPoint: url.sslEnabled ? 'websecure' : 'web',
-                    priority: url.isPrimary ? 100 : 10,
-                    isActive: true,
+                return {
+                    success: true,
+                    urls,
+                    primaryUrl: primary.fullUrl,
+                    configId,
                 }
-                const existing = existingByHost.get(url.host)
-                yield* existing
-                    ? traefikRepository.updateDomainRoute(existing.id, route)
-                    : traefikRepository.createDomainRoute({
-                          configId,
-                          ...route,
-                      })
-                seenHosts.add(url.host)
-            }
-
-            // Deactivate routes whose host is no longer mapped.
-            for (const [host, route] of existingByHost) {
-                if (!seenHosts.has(host))
-                    yield* traefikRepository.updateDomainRoute(route.id, {
-                        isActive: false,
-                    })
-            }
-
-            const variableMap = yield* buildVariableMap(serviceId, primary, {
-                pathPrefix: primary.basePath,
-                healthCheckPath: options?.healthCheckPath,
             })
-            yield* Effect.logInfo(
-                `Domain routes synced for service ${serviceId} (${String(urls.length)} mappings, ${String(Object.keys(variableMap).length)} variables resolved)`
-            )
-            yield* traefikSync.syncServiceConfiguration(configId)
+        }
 
-            return {
-                success: true,
-                urls,
-                primaryUrl: primary.fullUrl,
-                configId,
-            }
-        })
+        resolvePrimaryUrl(
+            serviceId: string
+        ): ReturnType<DomainRoutingServiceShape['resolvePrimaryUrl']> {
+            return Effect.gen({ self: this }, function* () {
+                const urls = yield* this.resolveServiceUrls(serviceId)
+                return pickPrimary(urls)?.fullUrl ?? null
+            })
+        }
 
-    return {
-        resolveServiceUrls,
-        resolvePrimaryUrl: (serviceId) =>
-            resolveServiceUrls(serviceId).pipe(
-                Effect.map((urls) => pickPrimary(urls)?.fullUrl ?? null)
-            ),
-        buildVariableMap,
-        syncServiceRoutes,
+        provisionTlsCertificate(
+            serviceId: string
+        ): ReturnType<DomainRoutingServiceShape['provisionTlsCertificate']> {
+            return Effect.gen({ self: this }, function* () {
+                const traefikRepository = yield* TraefikRepository
+                const certificates = yield* TraefikService
 
-        provisionTlsCertificate: (serviceId) =>
-            Effect.gen(function* () {
                 const primary = pickPrimary(
-                    yield* resolveServiceUrls(serviceId)
+                    yield* this.resolveServiceUrls(serviceId)
                 )
                 if (!primary)
                     return {
@@ -391,10 +450,17 @@ function makeDomainRoutingService({
                     `TLS certificate provisioned for ${primary.host} (provider=${primary.sslProvider})`
                 )
                 return { provisioned: true, host: primary.host }
-            }),
+            })
+        }
 
-        addPreviewRoute: (serviceId, host, options) =>
-            Effect.gen(function* () {
+        addPreviewRoute(
+            serviceId: string,
+            host: string,
+            options?: { sslEnabled?: boolean }
+        ): ReturnType<DomainRoutingServiceShape['addPreviewRoute']> {
+            return Effect.gen(function* () {
+                const traefikRepository = yield* TraefikRepository
+
                 const found =
                     yield* traefikRepository.getServiceConfigByServiceId(
                         serviceId
@@ -450,10 +516,16 @@ function makeDomainRoutingService({
                     isActive: true,
                 })
                 return route ? { configId: config.id, routeId: route.id } : null
-            }),
+            })
+        }
 
-        removePreviewRoute: (serviceId, host) =>
-            Effect.gen(function* () {
+        removePreviewRoute(
+            serviceId: string,
+            host: string
+        ): ReturnType<DomainRoutingServiceShape['removePreviewRoute']> {
+            return Effect.gen(function* () {
+                const traefikRepository = yield* TraefikRepository
+
                 const config =
                     yield* traefikRepository.getServiceConfigByServiceId(
                         serviceId
@@ -472,12 +544,18 @@ function makeDomainRoutingService({
                     isActive: false,
                 })
                 return true
-            }),
+            })
+        }
 
-        promotePreviewToStable: (serviceId, previewName) =>
-            Effect.gen(function* () {
+        promotePreviewToStable(
+            serviceId: string,
+            previewName: string
+        ): ReturnType<DomainRoutingServiceShape['promotePreviewToStable']> {
+            return Effect.gen({ self: this }, function* () {
+                const mappings = yield* ServiceDomainMappingRepository
+
                 const primary = pickPrimary(
-                    yield* resolveServiceUrls(serviceId)
+                    yield* this.resolveServiceUrls(serviceId)
                 )
                 if (!primary)
                     return {
@@ -521,7 +599,7 @@ function makeDomainRoutingService({
                 })
 
                 // Re-sync so the promoted host gets a stable route, superseding the preview route.
-                yield* syncServiceRoutes(serviceId, {
+                yield* this.syncServiceRoutes(serviceId, {
                     healthCheckPath: '/health',
                 })
                 yield* mappings.deactivatePreviewEnvironmentsByFullDomain(host)
@@ -530,29 +608,7 @@ function makeDomainRoutingService({
                     `Preview promoted to stable mapping: ${host} (service=${serviceId})`
                 )
                 return { promoted: true, host, mappingId: created.id }
-            }),
+            })
+        }
     }
-}
-
-export class DomainRoutingService extends Context.Service<
-    DomainRoutingService,
-    Over<
-        DomainRoutingServiceShape,
-        | ServiceDomainMappingRepository
-        | TraefikRepository
-        | TraefikSyncService
-        | TraefikService
-        | TraefikVariableResolverService
-    >
->()('shared/DomainRoutingService') {
-    static readonly live = serviceOver(
-        Effect.all({
-            mappings: ServiceDomainMappingRepository,
-            traefikRepository: TraefikRepository,
-            traefikSync: TraefikSyncService,
-            certificates: TraefikService,
-            variables: TraefikVariableResolverService,
-        }),
-        makeDomainRoutingService
-    )
 }

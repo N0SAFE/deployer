@@ -12,10 +12,8 @@ import { liveSnapshot } from '@deployer/shared/core/utils/live-snapshot.utils'
 
 import { attemptSync } from '../../../core/effects'
 import { ClusterEvents } from '../events/cluster-events'
-import {
-    ClusterService,
-    type ClusterServicePorts,
-} from '../services/cluster.service'
+import { SwarmParticipationPort } from '../cluster.ports'
+import { ClusterService } from '../services/cluster.service'
 
 /**
  * Re-evaluation cadence for `streamSwarmConfig` — the interval the dashboard used
@@ -102,7 +100,7 @@ export class ClusterController {
             .use(requireAuth())
             .effect(function* ({ context }) {
                 const cluster = yield* ClusterService
-                const ports = yield* Effect.context<ClusterServicePorts>()
+                const ports = yield* Effect.context<SwarmParticipationPort>()
                 // A poll runs on a timer, outside the request fiber: it re-enters the request boundary so it has the actor like any request.
                 return liveSnapshot(
                     () =>

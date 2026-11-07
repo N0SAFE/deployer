@@ -1,10 +1,7 @@
 import { Context, Effect } from 'effect'
 
-import {
-    serviceOver,
-    type Over,
-    type RequirementsOf,
-} from '@deployer/effect-core'
+import type { RequirementsOf } from '@deployer/effect-core'
+import type { DeploymentSourceCheckoutContext } from '@deployer/contracts-entities'
 import type { DeploymentTriggerInput } from '@deployer/runtime-contracts/modules/deployment/crud'
 
 import {
@@ -24,8 +21,6 @@ import {
     type UploadSourceProviderServiceShape,
 } from '../upload/services/upload-source-provider.service'
 
-import type { CodeProvider } from './code-provider.interface'
-
 /** The providers, by the lowercase source type the registry dispatches on. */
 type RegisteredProviders = {
     readonly github: GithubSourceProviderServiceShape
@@ -34,62 +29,83 @@ type RegisteredProviders = {
     readonly custom: CustomSourceProviderServiceShape
 }
 
-/** What a provider reads from the Effect context when its method runs. */
-type ProviderRequirements = RequirementsOf<
-    RegisteredProviders[keyof RegisteredProviders]
->
-
 /**
- * The public API for source provider operations: callers invoke ONE shared method and the registry
- * resolves the right provider by source type. `registered` is the one place that names the providers,
- * so a new source type is one more entry there and nothing else changes.
+ * What a provider reads from the Effect context when its method runs.
+ *
+ * Distributed over the union member by member: `RequirementsOf<A | B>` collapses to `never`,
+ * because the mapped type reads `T[K]` across the union instead of each member in turn.
  */
-function makeCodeProviderRegistryService(registered: RegisteredProviders) {
-    const providersByType = new Map<string, CodeProvider<ProviderRequirements>>(
-        Object.entries(registered)
-    )
-
-    /** The provider for a source type, or null when unsupported (the trigger then resolves to no checkout). */
-    const getProvider = (sourceType: string) =>
-        providersByType.get(sourceType.toLowerCase()) ?? null
-
-    return {
-        /** Registered source types (e.g. ["github", "gitlab", "upload", "custom"]). */
-        listProviderTypes: () => Effect.succeed([...providersByType.keys()]),
-
-        // ─── Shared dispatch method ─────────────────────────────────────────────
-
-        resolveSourceCheckout: Effect.fn(
-            'CodeProviderRegistryService.resolveSourceCheckout'
-        )(function* (input: DeploymentTriggerInput) {
-            const provider = getProvider(input.source.sourceType)
-            if (!provider) return null
-            return yield* provider.resolveSourceCheckout(input)
-        }),
-    }
-}
-
-export type CodeProviderRegistryServiceShape = Over<
-    ReturnType<typeof makeCodeProviderRegistryService>,
+type ProviderRequirements = {
+    [K in keyof RegisteredProviders]: RequirementsOf<RegisteredProviders[K]>
+}[keyof RegisteredProviders]
+    // Each provider is itself a tag the dispatch yields before calling it.
     | GithubSourceProviderService
     | GitlabSourceProviderService
     | UploadSourceProviderService
     | CustomSourceProviderService
->
+
+/**
+ * The public API for source provider operations: callers invoke ONE shared method and the registry
+ * resolves the right provider by source type. `providerFor` is the one place that names the providers,
+ * so a new source type is one more branch there and nothing else changes.
+ */
+export type CodeProviderRegistryServiceShape = {
+    /** Registered source types, in dispatch order (github, gitlab, upload, custom). */
+    readonly listProviderTypes: () => Effect.Effect<string[]>
+    /**
+     * Resolve a trigger to a typed checkout context through the provider for its source type;
+     * null when the type is unsupported (the trigger then resolves to no checkout).
+     */
+    readonly resolveSourceCheckout: (
+        input: DeploymentTriggerInput
+    ) => Effect.Effect<
+        DeploymentSourceCheckoutContext | null,
+        unknown,
+        ProviderRequirements
+    >
+}
 
 /** Tag and implementation together: the tag is the contract, `live` the one implementation. */
 export class CodeProviderRegistryService extends Context.Service<
     CodeProviderRegistryService,
     CodeProviderRegistryServiceShape
 >()('fleet/CodeProviderRegistryService') {
-    /** The providers are yielded when a method runs, so this is a constant the module provides with `useValue`. */
-    static readonly live: CodeProviderRegistryServiceShape = serviceOver(
-        Effect.all({
-            github: GithubSourceProviderService,
-            gitlab: GitlabSourceProviderService,
-            upload: UploadSourceProviderService,
-            custom: CustomSourceProviderService,
-        }),
-        makeCodeProviderRegistryService
-    )
+    static readonly live = class CodeProviderRegistryServiceImpl
+        implements CodeProviderRegistryServiceShape
+    {
+        listProviderTypes(): ReturnType<
+            CodeProviderRegistryServiceShape['listProviderTypes']
+        > {
+            return Effect.succeed(['github', 'gitlab', 'upload', 'custom'])
+        }
+
+        resolveSourceCheckout(
+            input: DeploymentTriggerInput
+        ): ReturnType<
+            CodeProviderRegistryServiceShape['resolveSourceCheckout']
+        > {
+            return Effect.gen(function* () {
+                switch (input.source.sourceType) {
+                    case 'github':
+                        return yield* (
+                            yield* GithubSourceProviderService
+                        ).resolveSourceCheckout(input)
+                    case 'gitlab':
+                        return yield* (
+                            yield* GitlabSourceProviderService
+                        ).resolveSourceCheckout(input)
+                    case 'upload':
+                        return yield* (
+                            yield* UploadSourceProviderService
+                        ).resolveSourceCheckout(input)
+                    case 'custom':
+                        return yield* (
+                            yield* CustomSourceProviderService
+                        ).resolveSourceCheckout(input)
+                    default:
+                        return null
+                }
+            })
+        }
+    }
 }

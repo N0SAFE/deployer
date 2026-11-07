@@ -1,17 +1,20 @@
 import { Context, Effect } from 'effect'
 import { Observable } from 'rxjs'
 
+import type { RequirementsOf } from '@deployer/effect-core'
+import { EgressService } from '@deployer/shared/core/modules/egress/egress.service'
 import type { NodeNetworkConfigData } from '@deployer/shared/core/modules/reachability/services/node-network-config.mapper'
-import type { PublicAccessPointServiceShape } from '@deployer/shared/core/modules/reachability/services/public-access-point.service'
-import type { ReachabilityServiceShape } from '@deployer/shared/core/modules/reachability/services/reachability.service'
+import {
+    PublicAccessPointService,
+    type PublicAccessPointServiceShape,
+} from '@deployer/shared/core/modules/reachability/services/public-access-point.service'
+import {
+    ReachabilityService,
+    type ReachabilityServiceShape,
+} from '@deployer/shared/core/modules/reachability/services/reachability.service'
+import { TraefikConfigRefresher } from '@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service'
 
 import { attemptSync } from '../../../core/effects'
-import {
-    EgressPort,
-    PublicAccessPointPort,
-    ReachabilityCorePort,
-    TraefikRefresherPort,
-} from '../reachability.ports'
 
 /** A node's own network config as the contract sees it (the public edge belongs to the stack). */
 type NodeNetworkView = NodeNetworkConfigData
@@ -43,12 +46,18 @@ const describe = (error: unknown, fallback: string) =>
 
 /**
  * What the reachability service reads from the Effect context while it runs.
+ *
+ * Each line is the collaborator plus the requirements that collaborator's own methods leave open
+ * (`ClusterSettings` behind the lanes, `DatabasePort` behind the repositories): `yield*` on a
+ * collaborator's method widens the channel to what that method needs.
  */
 export type NodeReachabilityPorts =
-    | ReachabilityCorePort
-    | PublicAccessPointPort
-    | EgressPort
-    | TraefikRefresherPort
+    | ReachabilityService
+    | RequirementsOf<ReachabilityServiceShape>
+    | PublicAccessPointService
+    | RequirementsOf<PublicAccessPointServiceShape>
+    | EgressService
+    | TraefikConfigRefresher
 
 export type NodeReachabilityServiceShape = {
     /** Probe a URL through the operator egress policy; failures are reported as a category. */
@@ -134,7 +143,7 @@ export class NodeReachabilityService extends Context.Service<
     static readonly live = class NodeReachabilityServiceImpl implements NodeReachabilityServiceShape {
         check(url: string): ReturnType<NodeReachabilityServiceShape['check']> {
             return Effect.gen(function* () {
-                const egress = yield* EgressPort
+                const egress = yield* EgressService
                 const probeUrl = `${url.replace(/\/$/, '')}/mesh/ping`
                 const start = Date.now()
                 // Any authenticated user can name this URL: it goes through the operator egress policy
@@ -166,8 +175,8 @@ export class NodeReachabilityService extends Context.Service<
             NodeReachabilityServiceShape['probePublicUrl']
         > {
             return Effect.gen(function* () {
-                const reachability = yield* ReachabilityCorePort
-                const egress = yield* EgressPort
+                const reachability = yield* ReachabilityService
+                const egress = yield* EgressService
                 const publicUrl = yield* reachability.getNodePublicUrl()
                 if (!publicUrl)
                     return {
@@ -204,7 +213,7 @@ export class NodeReachabilityService extends Context.Service<
             expectedIp?: string
         ): ReturnType<NodeReachabilityServiceShape['checkDomain']> {
             return Effect.gen(function* () {
-                const reachability = yield* ReachabilityCorePort
+                const reachability = yield* ReachabilityService
                 return yield* reachability.checkDomainReachability(
                     domain,
                     expectedIp
@@ -214,7 +223,7 @@ export class NodeReachabilityService extends Context.Service<
 
         getPublicIp(): ReturnType<NodeReachabilityServiceShape['getPublicIp']> {
             return Effect.gen(function* () {
-                const reachability = yield* ReachabilityCorePort
+                const reachability = yield* ReachabilityService
                 return { ip: yield* reachability.getPublicIp() }
             })
         }
@@ -225,7 +234,7 @@ export class NodeReachabilityService extends Context.Service<
             >[0]
         ): ReturnType<NodeReachabilityServiceShape['getNodeNetworkConfig']> {
             return Effect.gen(function* () {
-                const reachability = yield* ReachabilityCorePort
+                const reachability = yield* ReachabilityService
                 return toNodeNetworkView(
                     yield* reachability.getNodeNetworkConfig(nodeId)
                 )
@@ -236,7 +245,7 @@ export class NodeReachabilityService extends Context.Service<
             NodeReachabilityServiceShape['listNodeNetworkConfigs']
         > {
             return Effect.gen(function* () {
-                const reachability = yield* ReachabilityCorePort
+                const reachability = yield* ReachabilityService
                 const configs = yield* reachability.listNodeNetworkConfigs()
                 return { configs: configs.map(toNodeNetworkView) }
             })
@@ -246,8 +255,8 @@ export class NodeReachabilityService extends Context.Service<
             input: NodeConfigUpdate
         ): ReturnType<NodeReachabilityServiceShape['updateNodeNetworkConfig']> {
             return Effect.gen(function* () {
-                const reachability = yield* ReachabilityCorePort
-                const refresher = yield* TraefikRefresherPort
+                const reachability = yield* ReachabilityService
+                const refresher = yield* TraefikConfigRefresher
                 const updated =
                     yield* reachability.updateNodeNetworkConfig(input)
                 refresher.refresh()
@@ -259,7 +268,7 @@ export class NodeReachabilityService extends Context.Service<
             NodeReachabilityServiceShape['checkDomainGate']
         > {
             return Effect.gen(function* () {
-                const reachability = yield* ReachabilityCorePort
+                const reachability = yield* ReachabilityService
                 const gate = yield* reachability.checkDomainGate()
                 return {
                     allowed: gate.allowed,
@@ -274,7 +283,7 @@ export class NodeReachabilityService extends Context.Service<
             NodeReachabilityServiceShape['getPublicAccessPoint']
         > {
             return Effect.gen(function* () {
-                const accessPoint = yield* PublicAccessPointPort
+                const accessPoint = yield* PublicAccessPointService
                 const state = yield* accessPoint.getAccessPoint()
                 yield* Effect.logInfo(
                     `Public access point requested: kind=${String(state.kind)} url=${state.publicUrl ?? 'none'} reachable=${String(state.reachable)}`
@@ -287,7 +296,7 @@ export class NodeReachabilityService extends Context.Service<
             NodeReachabilityServiceShape['watchPublicAccessPoint']
         > {
             return Effect.gen(function* () {
-                const accessPoint = yield* PublicAccessPointPort
+                const accessPoint = yield* PublicAccessPointService
                 return yield* attemptSync(
                     () =>
                         new Observable<AccessPointState>((subscriber) => {

@@ -15,8 +15,9 @@ import {
 } from '../errors'
 
 import type { StorageFailure } from '../../database/storage'
+import { TraefikTemplateRepository } from '../repositories/traefik-template.repository'
+
 import type { TemplateVariable, TemplateVariables } from '../interfaces'
-import type { TraefikTemplateRepositoryShape } from '../repositories/traefik-template.repository'
 
 type TemplateVariableValue = string | number | boolean | null | undefined
 
@@ -124,195 +125,187 @@ export function buildVariablesMetadata(
 
 // ── the service ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
-export type TraefikTemplateServiceShape = {
-    readonly getProviderTemplate: (
-        providerType: string
-    ) => Effect.Effect<ProviderTraefikTemplate | null, StorageFailure>
-    readonly getServiceTemplate: (
-        serviceId: string
-    ) => Effect.Effect<ServiceTraefikTemplate | null, StorageFailure>
-    readonly createProviderTemplate: (
-        data: CreateProviderTraefikTemplate
-    ) => Effect.Effect<
-        ProviderTraefikTemplate,
-        StorageFailure | TraefikTemplateCreateFailure
-    >
-    readonly createServiceTemplate: (
-        data: CreateServiceTraefikTemplate
-    ) => Effect.Effect<
-        ServiceTraefikTemplate,
-        StorageFailure | TraefikTemplateCreateFailure
-    >
-    readonly updateServiceTemplate: (
-        id: string,
-        updates: Partial<CreateServiceTraefikTemplate>
-    ) => Effect.Effect<
-        ServiceTraefikTemplate,
-        StorageFailure | TraefikTemplateNotFound
-    >
-    /** The service's own template, else the provider's default; `null` when neither exists. */
-    readonly getTemplateForDeployment: (
+class TraefikTemplateServiceImpl {
+    /** The service's own template, else the provider's; shared by the read and the render. */
+    private resolveTemplate(
         serviceId: string,
         providerType: string
-    ) => Effect.Effect<
-        { template: string; variables: TemplateVariables } | null,
-        StorageFailure
-    >
-    /** The rendered template, `null` when there is none, or `TraefikTemplateVariablesMissing`. */
-    readonly renderTemplateForDeployment: (
+    ) {
+        return Effect.gen(function* () {
+            const repository = yield* TraefikTemplateRepository
+            const serviceTemplate =
+                yield* repository.findActiveByServiceId(serviceId)
+            if (serviceTemplate) {
+                return {
+                    template: serviceTemplate.templateContent,
+                    variables:
+                        serviceTemplate.variables as TemplateVariables,
+                }
+            }
+            const providerTemplate =
+                yield* repository.findProviderByType(providerType)
+            if (providerTemplate) {
+                return {
+                    template: providerTemplate.templateContent,
+                    variables:
+                        providerTemplate.variables as TemplateVariables,
+                }
+            }
+            yield* Effect.logWarning(
+                `No template found for service ${serviceId} or provider ${providerType}`
+            )
+            return null
+        })
+    }
+
+    getProviderTemplate(
+        providerType: string
+    ) {
+        return Effect.gen(function* () {
+            const repository = yield* TraefikTemplateRepository
+            return yield* repository.findProviderByType(providerType)
+        })
+    }
+
+    getTemplateForDeployment(
+        serviceId: string,
+        providerType: string
+    ) {
+        return this.resolveTemplate(serviceId, providerType)
+    }
+
+    getServiceTemplate(
+        serviceId: string
+    ) {
+        return Effect.gen(function* () {
+            const repository = yield* TraefikTemplateRepository
+            return yield* repository.findActiveByServiceId(serviceId)
+        })
+    }
+
+    createProviderTemplate(data: CreateProviderTraefikTemplate) {
+        return Effect.gen(function* () {
+            const repository = yield* TraefikTemplateRepository
+            const variables =
+                data.variables ??
+                buildVariablesMetadata(
+                    extractVariables(data.templateContent)
+                )
+            const template = yield* repository.createProviderTemplate({
+                id: data.id ?? nanoid(),
+                providerType: data.providerType,
+                templateName: data.templateName,
+                templateContent: data.templateContent,
+                description: data.description ?? null,
+                variables,
+                isDefault: data.isDefault ?? true,
+            })
+            if (!template)
+                return yield* new TraefikTemplateCreateFailure({
+                    subject: `provider ${data.providerType}`,
+                })
+            yield* Effect.logInfo(
+                `Created provider template for ${data.providerType}`
+            )
+            return template
+        })
+    }
+
+    createServiceTemplate(data: CreateServiceTraefikTemplate) {
+        return Effect.gen(function* () {
+            const repository = yield* TraefikTemplateRepository
+            const variables =
+                data.variables ??
+                buildVariablesMetadata(
+                    extractVariables(data.templateContent)
+                )
+            const template = yield* repository.createServiceTemplate({
+                id: data.id ?? nanoid(),
+                serviceId: data.serviceId,
+                templateContent: data.templateContent,
+                variables,
+                isActive: data.isActive ?? true,
+            })
+            if (!template)
+                return yield* new TraefikTemplateCreateFailure({
+                    subject: `service ${data.serviceId}`,
+                })
+            yield* Effect.logInfo(
+                `Created service template for service ${data.serviceId}`
+            )
+            return template
+        })
+    }
+
+    updateServiceTemplate(
+        id: string,
+        updates: Partial<CreateServiceTraefikTemplate>
+    ) {
+        return Effect.gen(function* () {
+            const repository = yield* TraefikTemplateRepository
+            const updateData: {
+                updatedAt: Date
+                templateContent?: string
+                variables?: TemplateVariables
+                isActive?: boolean
+            } = {
+                updatedAt: new Date(),
+            }
+            if (updates.templateContent) {
+                updateData.templateContent = updates.templateContent
+                updateData.variables = buildVariablesMetadata(
+                    extractVariables(updates.templateContent)
+                )
+            }
+            if (updates.isActive !== undefined && updates.isActive !== null)
+                updateData.isActive = updates.isActive
+
+            const template = yield* repository.updateServiceTemplate(
+                id,
+                updateData
+            )
+            if (!template)
+                return yield* new TraefikTemplateNotFound({
+                    templateId: id,
+                })
+            yield* Effect.logInfo(`Updated service template ${id}`)
+            return template
+        })
+    }
+
+    renderTemplateForDeployment(
         serviceId: string,
         providerType: string,
         variables: Record<string, TemplateVariableValue>
-    ) => Effect.Effect<
-        string | null,
-        StorageFailure | TraefikTemplateVariablesMissing
-    >
-}
-
-export function makeTraefikTemplateService(
-    repository: TraefikTemplateRepositoryShape
-): TraefikTemplateServiceShape {
-    const getTemplateForDeployment: TraefikTemplateServiceShape['getTemplateForDeployment'] =
-        (serviceId, providerType) =>
-            Effect.gen(function* () {
-                const serviceTemplate =
-                    yield* repository.findActiveByServiceId(serviceId)
-                if (serviceTemplate) {
-                    return {
-                        template: serviceTemplate.templateContent,
-                        variables:
-                            serviceTemplate.variables as TemplateVariables,
-                    }
-                }
-                const providerTemplate =
-                    yield* repository.findProviderByType(providerType)
-                if (providerTemplate) {
-                    return {
-                        template: providerTemplate.templateContent,
-                        variables:
-                            providerTemplate.variables as TemplateVariables,
-                    }
-                }
-                yield* Effect.logWarning(
-                    `No template found for service ${serviceId} or provider ${providerType}`
+    ) {
+        return Effect.gen({ self: this }, function* () {
+            const templateData = yield* this.resolveTemplate(
+                serviceId,
+                providerType
+            )
+            if (!templateData) return null
+            const validation = validateVariables(
+                templateData.variables,
+                variables
+            )
+            if (!validation.valid) {
+                yield* Effect.logError(
+                    `Missing required variables for template: ${validation.missing.join(', ')}`
                 )
-                return null
-            })
-
-    return {
-        getProviderTemplate: (providerType) =>
-            repository.findProviderByType(providerType),
-        getServiceTemplate: (serviceId) =>
-            repository.findActiveByServiceId(serviceId),
-
-        createProviderTemplate: (data) =>
-            Effect.gen(function* () {
-                const variables =
-                    data.variables ??
-                    buildVariablesMetadata(
-                        extractVariables(data.templateContent)
-                    )
-                const template = yield* repository.createProviderTemplate({
-                    id: data.id ?? nanoid(),
-                    providerType: data.providerType,
-                    templateName: data.templateName,
-                    templateContent: data.templateContent,
-                    description: data.description ?? null,
-                    variables,
-                    isDefault: data.isDefault ?? true,
+                return yield* new TraefikTemplateVariablesMissing({
+                    missing: validation.missing,
                 })
-                if (!template)
-                    return yield* new TraefikTemplateCreateFailure({
-                        subject: `provider ${data.providerType}`,
-                    })
-                yield* Effect.logInfo(
-                    `Created provider template for ${data.providerType}`
-                )
-                return template
-            }),
-
-        createServiceTemplate: (data) =>
-            Effect.gen(function* () {
-                const variables =
-                    data.variables ??
-                    buildVariablesMetadata(
-                        extractVariables(data.templateContent)
-                    )
-                const template = yield* repository.createServiceTemplate({
-                    id: data.id ?? nanoid(),
-                    serviceId: data.serviceId,
-                    templateContent: data.templateContent,
-                    variables,
-                    isActive: data.isActive ?? true,
-                })
-                if (!template)
-                    return yield* new TraefikTemplateCreateFailure({
-                        subject: `service ${data.serviceId}`,
-                    })
-                yield* Effect.logInfo(
-                    `Created service template for service ${data.serviceId}`
-                )
-                return template
-            }),
-
-        updateServiceTemplate: (id, updates) =>
-            Effect.gen(function* () {
-                const updateData: {
-                    updatedAt: Date
-                    templateContent?: string
-                    variables?: TemplateVariables
-                    isActive?: boolean
-                } = {
-                    updatedAt: new Date(),
-                }
-                if (updates.templateContent) {
-                    updateData.templateContent = updates.templateContent
-                    updateData.variables = buildVariablesMetadata(
-                        extractVariables(updates.templateContent)
-                    )
-                }
-                if (updates.isActive !== undefined && updates.isActive !== null)
-                    updateData.isActive = updates.isActive
-
-                const template = yield* repository.updateServiceTemplate(
-                    id,
-                    updateData
-                )
-                if (!template)
-                    return yield* new TraefikTemplateNotFound({
-                        templateId: id,
-                    })
-                yield* Effect.logInfo(`Updated service template ${id}`)
-                return template
-            }),
-
-        getTemplateForDeployment,
-
-        renderTemplateForDeployment: (serviceId, providerType, variables) =>
-            Effect.gen(function* () {
-                const templateData = yield* getTemplateForDeployment(
-                    serviceId,
-                    providerType
-                )
-                if (!templateData) return null
-                const validation = validateVariables(
-                    templateData.variables,
-                    variables
-                )
-                if (!validation.valid) {
-                    yield* Effect.logError(
-                        `Missing required variables for template: ${validation.missing.join(', ')}`
-                    )
-                    return yield* new TraefikTemplateVariablesMissing({
-                        missing: validation.missing,
-                    })
-                }
-                return parseTemplate(templateData.template, variables)
-            }),
+            }
+            return parseTemplate(templateData.template, variables)
+        })
     }
 }
+
+export type TraefikTemplateServiceShape = TraefikTemplateServiceImpl
 
 export class TraefikTemplateService extends Context.Service<
     TraefikTemplateService,
     TraefikTemplateServiceShape
->()('shared/TraefikTemplateService') {}
+>()('shared/TraefikTemplateService') {
+    static readonly live = TraefikTemplateServiceImpl
+}

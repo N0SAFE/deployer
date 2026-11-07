@@ -19,10 +19,6 @@ import { createGlobalModule } from '@deployer/nest-effect'
 import { EnvModule, EnvService } from '../../../config/env/env.module'
 import { DatabasePort } from '../database/storage'
 import { CoreDockerModule } from '../docker/docker.module'
-import {
-    ClusterSettings,
-    type ClusterSettingsShape,
-} from '../mesh-node/cluster-settings'
 
 import {
     AppInstanceService,
@@ -32,23 +28,13 @@ import {
     EnvHostnameService,
     HostnameService,
 } from './services/hostname.service'
-import {
-    IngressLanesService,
-    makeIngressLanesService,
-} from './services/ingress-lanes.service'
-import {
-    makePlatformConfigService,
-    PlatformConfigService,
-    type PlatformConfigServiceShape,
-} from './services/platform-config.service'
+import { IngressLanesService } from './services/ingress-lanes.service'
+import { PlatformConfigService } from './services/platform-config.service'
 import {
     makePlatformRoutesSource,
     PlatformRoutesSource,
 } from './services/platform-routes-source.service'
-import {
-    makePlatformWebTargetService,
-    PlatformWebTargetService,
-} from './services/platform-web-target.service'
+import { PlatformWebTargetService } from './services/platform-web-target.service'
 
 import type { Context } from 'effect'
 
@@ -62,12 +48,11 @@ export const CorePlatformIngressModule = createGlobalModule({
         },
         {
             provide: IngressLanesService,
-            useFactory: (settings: ClusterSettingsShape, env: EnvService) =>
-                makeIngressLanesService({
-                    settings,
-                    entryPort: () => env.get('DEPLOYER_TRAEFIK_HTTP_PORT'),
-                }),
-            inject: [ClusterSettings, EnvService],
+            useFactory: (env: EnvService) =>
+                new IngressLanesService.live(
+                    env.get('DEPLOYER_TRAEFIK_HTTP_PORT')
+                ),
+            inject: [EnvService],
         },
         {
             provide: AppInstanceService,
@@ -82,28 +67,20 @@ export const CorePlatformIngressModule = createGlobalModule({
                 database: Context.Service.Shape<typeof DatabasePort>,
                 env: EnvService
             ) =>
-                makePlatformConfigService({
-                    database,
-                    managedWebSeed: () => env.get('MANAGED_WEB_APP_ENABLED'),
-                }),
+                new PlatformConfigService.live(database, () =>
+                    env.get('MANAGED_WEB_APP_ENABLED')
+                ),
             inject: [DatabasePort, EnvService],
         },
         {
             provide: PlatformWebTargetService,
-            useFactory: (
-                platformConfig: PlatformConfigServiceShape,
-                env: EnvService
-            ) =>
-                makePlatformWebTargetService({
-                    platformConfig,
-                    env: {
-                        webTarget: () => env.get('DEPLOYER_WEB_TARGET'),
-                        managedWebExternal: () =>
-                            env.get('MANAGED_WEB_APP_EXTERNAL'),
-                        prefix: () => env.get('DEPLOYER_PREFIX'),
-                    },
+            useFactory: (env: EnvService) =>
+                new PlatformWebTargetService.live({
+                    webTarget: env.get('DEPLOYER_WEB_TARGET'),
+                    managedWebExternal: env.get('MANAGED_WEB_APP_EXTERNAL'),
+                    prefix: env.get('DEPLOYER_PREFIX'),
                 }),
-            inject: [PlatformConfigService, EnvService],
+            inject: [EnvService],
         },
         {
             provide: PlatformRoutesSource,

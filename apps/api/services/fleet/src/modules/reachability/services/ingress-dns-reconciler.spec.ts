@@ -1,15 +1,17 @@
 import { Effect, Fiber } from 'effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { Over } from '@deployer/effect-core'
+import type { Over, RequirementsOf } from '@deployer/effect-core'
 import type { EffectHostShape } from '@deployer/nest-effect'
 
 import { startIngressDnsReconciler } from './ingress-dns-reconciler'
 import {
     IngressEdgeService,
-    type IngressEdgePorts,
     type IngressEdgeServiceShape,
 } from './ingress-edge.service'
+
+/** What the ingress edge's methods leave open while they run — its collaborators and their needs. */
+type IngressEdgePorts = RequirementsOf<IngressEdgeServiceShape>
 
 /** A host that records the program instead of running it, so the loop can be started on demand. */
 function fakeHost() {

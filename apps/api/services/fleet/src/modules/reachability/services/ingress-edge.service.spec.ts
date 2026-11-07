@@ -13,26 +13,27 @@ import type {
 } from '@deployer/mesh-client'
 import type { EnvService } from '@deployer/shared/config/env/env.module'
 import type { EdgeContext } from '@deployer/shared/core/modules/edge/edge-provider'
+import { EdgeProviderRegistry } from '@deployer/shared/core/modules/edge/edge-provider.registry'
 import {
     TEST_TUNNEL_ID,
     testEdgeRegistry,
 } from '@deployer/shared/core/modules/edge/testing/edge-registry.fixture'
 import { EnvHostnameService } from '@deployer/shared/core/modules/platform-ingress/services/hostname.service'
-import type { IngressLanesServiceShape } from '@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service'
+import {
+    IngressLanesService,
+    type IngressLanesServiceShape,
+} from '@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service'
+import { NodeNetworkConfigRepository } from '@deployer/shared/core/modules/reachability/repositories/node-network-config.repository'
 import type { NodeNetworkConfigRepositoryShape } from '@deployer/shared/core/modules/reachability/repositories/node-network-config.repository'
-import { makePublicEdgeService } from '@deployer/shared/core/modules/reachability/services/public-edge.service'
-import type { TraefikConfigRefresherShape } from '@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service'
+import { PublicEdgeService } from '@deployer/shared/core/modules/reachability/services/public-edge.service'
+import {
+    TraefikConfigRefresher,
+    type TraefikConfigRefresherShape,
+} from '@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service'
 
 import { DnsProviderRegistryService } from '@/modules/providers/dns/shared/dns-provider-registry.service'
 
-import {
-    EdgeProvidersPort,
-    HostnamesPort,
-    IngressLanesPort,
-    NodeAgentPort,
-    PublicEdgePort,
-    TraefikRefresherPort,
-} from '../reachability.ports'
+import { HostnamesPort, NodeAgentPort } from '../reachability.ports'
 
 import { EdgeDnsService } from './edge-dns.service'
 import { IngressEdgeService } from './ingress-edge.service'
@@ -147,11 +148,7 @@ function setup(initial: IngressLanes = defaultIngressLanes()) {
         list: vi.fn(() => Effect.succeed([])),
     } as unknown as NodeNetworkConfigRepositoryShape
     const env = { get: vi.fn(() => '') } as unknown as EnvService
-    const publicEdge = makePublicEdgeService({
-        registry,
-        nodeConfigs,
-        prefix: '',
-    })
+    const publicEdge = new PublicEdgeService.live('')
     const dns = {
         results: vi.fn(() => Effect.succeed([])),
         reconcile: vi.fn(() => Effect.succeed([])),
@@ -168,17 +165,22 @@ function setup(initial: IngressLanes = defaultIngressLanes()) {
     } as unknown as NodeDoorClient
     const refresher = {
         refresh: vi.fn(),
-    } as unknown as TraefikConfigRefresherShape
-    // The fakes need nothing from the context beyond what is provided here, so the DNS registry's
+    } as unknown as TraefikConfigRefresherShape    // The fakes need nothing from the context beyond what is provided here, so the DNS registry's
     // adapter requirements are discharged.
     const service = provideTo(
         new IngressEdgeService.live(),
         (effect) =>
             effect.pipe(
-                Effect.provideService(IngressLanesPort, lanesService as never),
-                Effect.provideService(EdgeProvidersPort, registry as never),
-                Effect.provideService(PublicEdgePort, publicEdge as never),
+                Effect.provideService(IngressLanesService, lanesService as never),
+                Effect.provideService(EdgeProviderRegistry, registry as never),
+                Effect.provideService(PublicEdgeService, publicEdge as never),
                 Effect.provideService(EdgeDnsService, dns as never),
+                // The real public edge reads the registry and the nodes' rows; the fake
+                // registry above is the one it resolves against.
+                Effect.provideService(
+                    NodeNetworkConfigRepository,
+                    nodeConfigs as never
+                ),
                 // The fake DNS service reads no registry; the context only has to hold the tag.
                 Effect.provideService(DnsProviderRegistryService, {} as never),
                 Effect.provideService(NodeAgentPort, mesh as never),
@@ -186,7 +188,7 @@ function setup(initial: IngressLanes = defaultIngressLanes()) {
                     HostnamesPort,
                     new EnvHostnameService(env) as never
                 ),
-                Effect.provideService(TraefikRefresherPort, refresher as never)
+                Effect.provideService(TraefikConfigRefresher, refresher as never)
             ) as Effect.Effect<unknown>
     )
     return {

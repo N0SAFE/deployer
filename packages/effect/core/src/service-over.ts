@@ -79,11 +79,13 @@ export function provideTo<S extends object, Out = never>(
             if (typeof value !== 'function') return value
             return (...args: unknown[]) =>
                 provide(
+                    // Called with the instance as receiver: a `live` class keeps its private helpers on `this`,
+                    // and a bare `value(...args)` would lose them.
                     (
                         value as (
                             ...a: unknown[]
                         ) => Effect.Effect<unknown, unknown, RequirementsOf<S>>
-                    )(...args)
+                    ).apply(target, args)
                 )
         },
     }) as never

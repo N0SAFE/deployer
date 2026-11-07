@@ -25,30 +25,26 @@ import { readFile } from 'node:fs/promises'
 import { Context, Effect } from 'effect'
 
 import type { RouteVisibility } from '@deployer/contracts-entities/entities/ingress/index'
-import type { DockerEngineShape } from '@deployer/docker'
+import { DockerEngine } from '@deployer/docker'
 
+import { EdgeProviderRegistry } from '../../edge/edge-provider.registry'
+import { IngressLanesService } from '../../platform-ingress/services/ingress-lanes.service'
+import { PlatformConfigService } from '../../platform-ingress/services/platform-config.service'
+import { PlatformRoutesSource } from '../../platform-ingress/services/platform-routes-source.service'
+import { PlatformWebTargetService } from '../../platform-ingress/services/platform-web-target.service'
 import {
     buildLaneTraefikConfig,
     TRAEFIK_ACME_RESOLVER,
     type LaneRoute,
-    type LaneTraefikConfig,
 } from '../../platform-ingress/services/lane-traefik-config'
 import { PLATFORM_WEB_INTERNAL_PORT } from '../../platform-ingress/services/platform-names'
 import { PlatformPaths } from '../../platform-ingress/services/platform-paths'
 import { resolveSelfContainerName } from '../../platform-ingress/services/platform-self-resolver'
+import { TraefikRepository } from '../repositories/traefik.repository'
 
 import type { EnvService } from '../../../../config/env/env.module'
-import type { EdgeProviderRegistryShape } from '../../edge/edge-provider.registry'
-import type { IngressLanesUnavailable } from '../../platform-ingress/platform-ingress.errors'
 import type { HostnameService } from '../../platform-ingress/services/hostname.service'
-import type { IngressLanesServiceShape } from '../../platform-ingress/services/ingress-lanes.service'
-import type { PlatformConfigServiceShape } from '../../platform-ingress/services/platform-config.service'
-import type {
-    PlatformRoutesSourceShape,
-    SupervisedRoute,
-} from '../../platform-ingress/services/platform-routes-source.service'
-import type { PlatformWebTargetServiceShape } from '../../platform-ingress/services/platform-web-target.service'
-import type { TraefikRepositoryShape } from '../repositories/traefik.repository'
+import type { SupervisedRoute } from '../../platform-ingress/services/platform-routes-source.service'
 
 /** The router that answers the console's single URL on the platform's own hosts. */
 export const PLATFORM_WEB_CONSOLE_PATH = '/manage/web-app'
@@ -74,286 +70,6 @@ export type SetupRouteTarget = {
     servedBySetup: boolean
 }
 
-export type TraefikIngressConfigServiceShape = {
-    /** The ONE dynamic configuration every ingress task polls. A source that is not ready (no global DB yet) contributes nothing; only the lanes themselves are required. */
-    readonly buildDynamicConfig: () => Effect.Effect<
-        LaneTraefikConfig,
-        IngressLanesUnavailable
-    >
-    /**
-     * Where `setup.<host>` points. Setup declares its hostname's backend in its handover file (the one contract between the two
-     * apps, in the config volume both mount). While that backend is not the API's done page, setup is mid-handover and keeps its
-     * route; once it repoints at the done page (or the file is gone) the API owns the hostname.
-     */
-    readonly setupRouteTarget: (
-        apiBackend: string
-    ) => Effect.Effect<SetupRouteTarget>
-}
-
-type Ports = {
-    readonly env: EnvService
-    readonly dockerEngine: DockerEngineShape
-    readonly hostnames: HostnameService
-    readonly lanes: IngressLanesServiceShape
-    readonly webTarget: PlatformWebTargetServiceShape
-    readonly routesSource: PlatformRoutesSourceShape
-    readonly traefikRepository: TraefikRepositoryShape
-    readonly platformConfig: PlatformConfigServiceShape
-    readonly edges: EdgeProviderRegistryShape
-}
-
-export function makeTraefikIngressConfigService(
-    ports: Ports
-): TraefikIngressConfigServiceShape {
-    const {
-        env,
-        dockerEngine,
-        hostnames,
-        lanes,
-        webTarget,
-        routesSource,
-        traefikRepository,
-        platformConfig,
-        edges,
-    } = ports
-
-    /** The API's own backend on the platform overlay. */
-    const apiBackend = Effect.map(
-        resolveSelfContainerName(dockerEngine.containers, env),
-        (name) => `http://${name}:${String(env.get('API_PORT'))}`
-    )
-
-    const setupRouteTarget: TraefikIngressConfigServiceShape['setupRouteTarget'] =
-        (apiBackendUrl) =>
-            Effect.gen(function* () {
-                const fallback: SetupRouteTarget = {
-                    url: apiBackendUrl,
-                    servedBySetup: false,
-                }
-                const file = PlatformPaths.setupConfigFile(
-                    env.get('TRAEFIK_CONFIG_BASE_PATH')
-                )
-                const content = yield* Effect.tryPromise({
-                    try: () => readFile(file, 'utf8'),
-                    catch: (cause) => cause,
-                }).pipe(Effect.catch(() => Effect.succeed(null)))
-                if (content === null) return fallback
-                const url = /url:\s*"?([^"\s]+)"?/.exec(content)?.[1]
-                if (url === undefined) return fallback
-                return new URL(url).pathname.startsWith(SETUP_DONE_PATH)
-                    ? fallback
-                    : { url, servedBySetup: true }
-            })
-
-    const managedWebPublicHosts = Effect.gen(function* () {
-        const hosts: string[] = []
-        const origin = yield* platformConfig.getManagedWebOrigin()
-        if (origin !== null) hosts.push(origin)
-        const tunnel = yield* platformConfig.getManagedWebTunnel()
-        if (tunnel !== null) hosts.push(tunnel.hostname)
-        return [...new Set(hosts)]
-    })
-
-    /** DB-driven routes: global address, deployments, previews. Empty before the global DB exists. */
-    const domainRoutes = (
-        apiBackendUrl: string,
-        services: Record<string, string>
-    ): Effect.Effect<LaneRoute[]> =>
-        routesSource.listSupervisedRoutes().pipe(
-            Effect.map((supervised: SupervisedRoute[]) =>
-                supervised.map((route) => {
-                    const service = `${route.name}-svc`
-                    services[service] =
-                        route.target.kind === 'api'
-                            ? apiBackendUrl
-                            : `http://${route.target.name}:${String(route.target.port)}`
-                    return {
-                        name: route.name,
-                        labels: route.label === null ? [] : [route.label],
-                        publicHosts: route.hosts,
-                        visibility: route.visibility,
-                        service,
-                    }
-                })
-            ),
-            Effect.catch((error) =>
-                Effect.logDebug(
-                    `Domain routes deferred — global DB not ready (${error.message})`
-                ).pipe(Effect.as([] as LaneRoute[]))
-            )
-        )
-
-    /** Per-service domains registered in the traefik tables, skipping hosts already routed. */
-    const serviceConfigRoutes = (
-        claimed: ReadonlySet<string>,
-        services: Record<string, string>
-    ): Effect.Effect<LaneRoute[]> =>
-        Effect.gen(function* () {
-            const configs = yield* traefikRepository
-                .getAllServiceConfigs(true)
-                .pipe(Effect.catch(() => Effect.succeed([])))
-            const routes: LaneRoute[] = []
-            const seen = new Set([...claimed].map((host) => host.toLowerCase()))
-            for (const config of configs) {
-                const host = extractHost(config.fullDomain)
-                if (
-                    host === null ||
-                    config.port < 1 ||
-                    seen.has(host.toLowerCase())
-                )
-                    continue
-                seen.add(host.toLowerCase())
-                const targets = yield* traefikRepository
-                    .getServiceTargetsByConfigId(config.id, true)
-                    .pipe(Effect.catch(() => Effect.succeed([])))
-                const active = (
-                    targets as {
-                        url?: string | null
-                        isActive?: boolean | null
-                    }[]
-                ).find((t) => t.isActive !== false && Boolean(t.url))
-                const name = `svc-${config.id.slice(0, 8)}`
-                services[`${name}-svc`] =
-                    active?.url ?? `http://${host}:${String(config.port)}`
-                const visibility: RouteVisibility = 'public'
-                routes.push({
-                    name,
-                    labels: [],
-                    publicHosts: [host],
-                    visibility,
-                    service: `${name}-svc`,
-                })
-            }
-            return routes
-        })
-
-    return {
-        setupRouteTarget,
-        buildDynamicConfig: () =>
-            Effect.gen(function* () {
-                // The lanes are the one thing without a safe default here: no lanes, no configuration to serve.
-                const current = yield* lanes.getLanes()
-                const apiUrl = yield* apiBackend
-                const consoleVisibility = current.consoleVisibility
-
-                const routes: LaneRoute[] = []
-                const services: Record<string, string> = {
-                    [SERVICES.api]: apiUrl,
-                }
-                const middlewares: Record<string, unknown> = {}
-
-                routes.push({
-                    name: 'platform-api',
-                    labels: ['api'],
-                    visibility: consoleVisibility,
-                    service: SERVICES.api,
-                })
-
-                // The managed web app's own public surface (custom origin, dedicated tunnel hostname) is reachable on the public lane only.
-                const extraWebHosts = yield* managedWebPublicHosts
-                const web = yield* webTarget.resolveWebTarget()
-                const webBackend =
-                    web === null
-                        ? null
-                        : `http://${web}:${String(PLATFORM_WEB_INTERNAL_PORT)}`
-                if (webBackend !== null) {
-                    services[SERVICES.web] = webBackend
-                    routes.push({
-                        name: 'platform-web',
-                        labels: ['web'],
-                        publicHosts: extraWebHosts,
-                        visibility: consoleVisibility,
-                        service: SERVICES.web,
-                    })
-                }
-
-                // One console URL, two visuals: the web app when it runs, the API's HTML console when it does not.
-                services[SERVICES.console] = webBackend ?? apiUrl
-                routes.push({
-                    name: 'platform-web-console',
-                    labels: ['api', 'web'],
-                    publicHosts: extraWebHosts,
-                    visibility: consoleVisibility,
-                    service: SERVICES.console,
-                    ruleSuffix: `&& PathPrefix(\`${PLATFORM_WEB_CONSOLE_PATH}\`)`,
-                    priority: PRIORITY.console,
-                })
-
-                const setup = yield* setupRouteTarget(apiUrl)
-                services[SERVICES.setup] = setup.url
-                if (setup.servedBySetup) {
-                    // Mid-handover: the wizard still owns its hostname, unchanged.
-                    routes.push({
-                        name: 'platform-setup',
-                        labels: ['setup'],
-                        visibility: consoleVisibility,
-                        service: SERVICES.setup,
-                        priority: PRIORITY.setup,
-                    })
-                } else {
-                    // After onboarding: a RELOAD of the wizard URL goes to the console, while the done page itself still renders.
-                    //
-                    // The redirect MUST cross hosts: a bare path would be resolved by the browser against `setup.<host>`, which does not
-                    // serve the console (a 401). Naming the API origin makes it an absolute redirect onto the host that serves it.
-                    middlewares[SETUP_REDIRECT_MIDDLEWARE] = {
-                        redirectRegex: {
-                            regex: '^https?://[^/]+/?$',
-                            replacement: `${hostnames.apiOrigin()}${PLATFORM_WEB_CONSOLE_PATH}`,
-                            permanent: true,
-                        },
-                    }
-                    routes.push({
-                        name: 'platform-setup-redirect',
-                        labels: ['setup'],
-                        visibility: consoleVisibility,
-                        service: SERVICES.setup,
-                        ruleSuffix: `&& !PathPrefix(\`${SETUP_DONE_PATH}\`)`,
-                        middlewares: [SETUP_REDIRECT_MIDDLEWARE],
-                        priority: PRIORITY.setupRedirect,
-                    })
-                    routes.push({
-                        name: 'platform-setup',
-                        labels: ['setup'],
-                        visibility: consoleVisibility,
-                        service: SERVICES.setup,
-                        priority: PRIORITY.setup,
-                    })
-                }
-
-                const claimed = new Set<string>([...extraWebHosts])
-                for (const route of yield* domainRoutes(apiUrl, services)) {
-                    routes.push(route)
-                    for (const host of route.publicHosts ?? [])
-                        claimed.add(host)
-                }
-                for (const route of yield* serviceConfigRoutes(
-                    claimed,
-                    services
-                ))
-                    routes.push(route)
-
-                return buildLaneTraefikConfig({
-                    lanes: current,
-                    domains: {
-                        local: hostnames.localDomain(),
-                        private: current.private.domain,
-                        public: current.public?.domain ?? null,
-                    },
-                    routes,
-                    services,
-                    middlewares,
-                    tlsResolver: TRAEFIK_ACME_RESOLVER,
-                    publicAcme: edges.ingressPlan(current).tls === 'acme',
-                })
-            }),
-    }
-}
-
-export class TraefikIngressConfigService extends Context.Service<
-    TraefikIngressConfigService,
-    TraefikIngressConfigServiceShape
->()('shared/TraefikIngressConfigService') {}
-
 /** Accept a bare host or a `Host(...)` rule back into a host. */
 function extractHost(fullDomain: string | null | undefined): string | null {
     if (
@@ -374,3 +90,293 @@ function extractHost(fullDomain: string | null | undefined): string | null {
         return null
     }
 }
+
+/** The read routes a domain adds to the configuration, before lanes are applied. */
+const toLaneRoute = (route: SupervisedRoute, apiBackendUrl: string) => {
+    const service = `${route.name}-svc`
+    return {
+        service,
+        url:
+            route.target.kind === 'api'
+                ? apiBackendUrl
+                : `http://${route.target.name}:${String(route.target.port)}`,
+        route: {
+            name: route.name,
+            labels: route.label === null ? [] : [route.label],
+            publicHosts: route.hosts,
+            visibility: route.visibility,
+            service,
+        } satisfies LaneRoute,
+    }
+}
+
+/**
+ * Tag and implementation together: the tag is the contract, `live` the one implementation.
+ *
+ * The env accessor and the hostname grammar arrive as constructor arguments: both are synchronous Nest
+ * providers that an operation cannot yield, and the module supplies them with a `useFactory` that only
+ * calls `new .live(...)`. Every database- and platform-backed collaborator is yielded in the operation
+ * that needs it.
+ */
+class TraefikIngressConfigServiceImpl {
+    constructor(
+        private readonly env: EnvService,
+        private readonly hostnames: HostnameService
+    ) {}
+
+    /** The API's own backend on the platform overlay. */
+    private apiBackend() {
+        return Effect.gen({ self: this }, function* () {
+            const dockerEngine = yield* DockerEngine
+            const name = yield* resolveSelfContainerName(
+                dockerEngine.containers,
+                this.env
+            )
+            return `http://${name}:${String(this.env.get('API_PORT'))}`
+        })
+    }
+
+    private setupTarget(
+        apiBackendUrl: string
+    ) {
+        const fallback: SetupRouteTarget = {
+            url: apiBackendUrl,
+            servedBySetup: false,
+        }
+        return Effect.gen({ self: this }, function* () {
+            const file = PlatformPaths.setupConfigFile(
+                this.env.get('TRAEFIK_CONFIG_BASE_PATH')
+            )
+            const content = yield* Effect.tryPromise({
+                try: () => readFile(file, 'utf8'),
+                catch: (cause) => cause,
+            }).pipe(Effect.catch(() => Effect.succeed(null)))
+            if (content === null) return fallback
+            const url = /url:\s*"?([^"\s]+)"?/.exec(content)?.[1]
+            if (url === undefined) return fallback
+            return new URL(url).pathname.startsWith(SETUP_DONE_PATH)
+                ? fallback
+                : { url, servedBySetup: true }
+        })
+    }
+
+    /** The managed web app's own public surfaces: custom origin plus dedicated tunnel hostname. */
+    private managedWebPublicHosts() {
+        return Effect.gen(function* () {
+            const platformConfig = yield* PlatformConfigService
+            const hosts: string[] = []
+            const origin = yield* platformConfig.getManagedWebOrigin()
+            if (origin !== null) hosts.push(origin)
+            const tunnel = yield* platformConfig.getManagedWebTunnel()
+            if (tunnel !== null) hosts.push(tunnel.hostname)
+            return [...new Set(hosts)]
+        })
+    }
+
+    /** DB-driven routes: global address, deployments, previews. Empty before the global DB exists. */
+    private domainRoutes(
+        apiBackendUrl: string,
+        services: Record<string, string>
+    ) {
+        return Effect.gen(function* () {
+            const routesSource = yield* PlatformRoutesSource
+            const supervised: SupervisedRoute[] =
+                yield* routesSource.listSupervisedRoutes()
+            return supervised.map((route) => {
+                const { service, url, route: laneRoute } = toLaneRoute(
+                    route,
+                    apiBackendUrl
+                )
+                services[service] = url
+                return laneRoute
+            })
+        }).pipe(
+            Effect.catch((error) =>
+                Effect.logDebug(
+                    `Domain routes deferred — global DB not ready (${error.message})`
+                ).pipe(Effect.as([] as LaneRoute[]))
+            )
+        )
+    }
+
+    /** Per-service domains registered in the traefik tables, skipping hosts already routed. */
+    private serviceConfigRoutes(
+        claimed: ReadonlySet<string>,
+        services: Record<string, string>
+    ) {
+        return Effect.gen(function* () {
+            const traefikRepository = yield* TraefikRepository
+            const configs = yield* traefikRepository
+                .getAllServiceConfigs(true)
+                .pipe(Effect.catch(() => Effect.succeed([])))
+            const routes: LaneRoute[] = []
+            const seen = new Set([...claimed].map((host) => host.toLowerCase()))
+            for (const config of configs) {
+                const host = extractHost(config.fullDomain)
+                if (
+                    host === null ||
+                    config.port < 1 ||
+                    seen.has(host.toLowerCase())
+                )
+                    continue
+                seen.add(host.toLowerCase())
+                const targets = yield* traefikRepository
+                    .getServiceTargetsByConfigId(config.id, true)
+                    .pipe(Effect.catch(() => Effect.succeed([])))
+                const active = targets.find(
+                    (t) => t.isActive !== false && Boolean(t.url)
+                )
+                const name = `svc-${config.id.slice(0, 8)}`
+                services[`${name}-svc`] =
+                    active?.url ?? `http://${host}:${String(config.port)}`
+                const visibility: RouteVisibility = 'public'
+                routes.push({
+                    name,
+                    labels: [],
+                    publicHosts: [host],
+                    visibility,
+                    service: `${name}-svc`,
+                })
+            }
+            return routes
+        })
+    }
+
+    /** Where `setup.<host>` points. Setup declares its hostname's backend in its handover file. */
+    setupRouteTarget(apiBackend: string): Effect.Effect<SetupRouteTarget> {
+        return this.setupTarget(apiBackend)
+    }
+
+    /** The ONE dynamic configuration every ingress task polls. */
+    buildDynamicConfig() {
+        return Effect.gen({ self: this }, function* () {
+            const lanes = yield* IngressLanesService
+            const edges = yield* EdgeProviderRegistry
+            const webTarget = yield* PlatformWebTargetService
+
+            // The lanes are the one thing without a safe default here: no lanes, no configuration to serve.
+            const current = yield* lanes.getLanes()
+            const apiUrl = yield* this.apiBackend()
+            const consoleVisibility = current.consoleVisibility
+
+            const routes: LaneRoute[] = []
+            const services: Record<string, string> = {
+                [SERVICES.api]: apiUrl,
+            }
+            const middlewares: Record<string, unknown> = {}
+
+            routes.push({
+                name: 'platform-api',
+                labels: ['api'],
+                visibility: consoleVisibility,
+                service: SERVICES.api,
+            })
+
+            // The managed web app's own public surface (custom origin, dedicated tunnel hostname) is reachable on the public lane only.
+            const extraWebHosts = yield* this.managedWebPublicHosts()
+            const web = yield* webTarget.resolveWebTarget()
+            const webBackend =
+                web === null
+                    ? null
+                    : `http://${web}:${String(PLATFORM_WEB_INTERNAL_PORT)}`
+            if (webBackend !== null) {
+                services[SERVICES.web] = webBackend
+                routes.push({
+                    name: 'platform-web',
+                    labels: ['web'],
+                    publicHosts: extraWebHosts,
+                    visibility: consoleVisibility,
+                    service: SERVICES.web,
+                })
+            }
+
+            // One console URL, two visuals: the web app when it runs, the API's HTML console when it does not.
+            services[SERVICES.console] = webBackend ?? apiUrl
+            routes.push({
+                name: 'platform-web-console',
+                labels: ['api', 'web'],
+                publicHosts: extraWebHosts,
+                visibility: consoleVisibility,
+                service: SERVICES.console,
+                ruleSuffix: `&& PathPrefix(\`${PLATFORM_WEB_CONSOLE_PATH}\`)`,
+                priority: PRIORITY.console,
+            })
+
+            const setup = yield* this.setupTarget(apiUrl)
+            services[SERVICES.setup] = setup.url
+            if (setup.servedBySetup) {
+                // Mid-handover: the wizard still owns its hostname, unchanged.
+                routes.push({
+                    name: 'platform-setup',
+                    labels: ['setup'],
+                    visibility: consoleVisibility,
+                    service: SERVICES.setup,
+                    priority: PRIORITY.setup,
+                })
+            } else {
+                // After onboarding: a RELOAD of the wizard URL goes to the console, while the done page itself still renders.
+                //
+                // The redirect MUST cross hosts: a bare path would be resolved by the browser against `setup.<host>`, which does not
+                // serve the console (a 401). Naming the API origin makes it an absolute redirect onto the host that serves it.
+                middlewares[SETUP_REDIRECT_MIDDLEWARE] = {
+                    redirectRegex: {
+                        regex: '^https?://[^/]+/?$',
+                        replacement: `${this.hostnames.apiOrigin()}${PLATFORM_WEB_CONSOLE_PATH}`,
+                        permanent: true,
+                    },
+                }
+                routes.push({
+                    name: 'platform-setup-redirect',
+                    labels: ['setup'],
+                    visibility: consoleVisibility,
+                    service: SERVICES.setup,
+                    ruleSuffix: `&& !PathPrefix(\`${SETUP_DONE_PATH}\`)`,
+                    middlewares: [SETUP_REDIRECT_MIDDLEWARE],
+                    priority: PRIORITY.setupRedirect,
+                })
+                routes.push({
+                    name: 'platform-setup',
+                    labels: ['setup'],
+                    visibility: consoleVisibility,
+                    service: SERVICES.setup,
+                    priority: PRIORITY.setup,
+                })
+            }
+
+            const claimed = new Set<string>([...extraWebHosts])
+            for (const route of yield* this.domainRoutes(apiUrl, services)) {
+                routes.push(route)
+                for (const host of route.publicHosts ?? []) claimed.add(host)
+            }
+            for (const route of yield* this.serviceConfigRoutes(
+                claimed,
+                services
+            ))
+                routes.push(route)
+
+            return buildLaneTraefikConfig({
+                lanes: current,
+                domains: {
+                    local: this.hostnames.localDomain(),
+                    private: current.private.domain,
+                    public: current.public?.domain ?? null,
+                },
+                routes,
+                services,
+                middlewares,
+                tlsResolver: TRAEFIK_ACME_RESOLVER,
+                publicAcme: edges.ingressPlan(current).tls === 'acme',
+            })
+        })
+    }
+}
+
+
+export class TraefikIngressConfigService extends Context.Service<
+    TraefikIngressConfigService,
+    TraefikIngressConfigServiceShape
+>()('shared/TraefikIngressConfigService') {
+    static readonly live = TraefikIngressConfigServiceImpl
+}
+
+export type TraefikIngressConfigServiceShape = TraefikIngressConfigServiceImpl

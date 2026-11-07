@@ -181,10 +181,24 @@ check() {
   whole `live` type `any`). A state field is `private`, never `#private`: a spec overrides one method with a `Proxy`
   over the instance, and a `#` field cannot be read through a proxy. Any state the class owns (a map, a store, a
   counter) is a constructor argument with a default, so the module wires nothing and a spec passes its own — there is
-  no separate `xOver(state)` factory returning the shape. `serviceOver(Collaborator, make)` stays the form for a service that is a bag of
-  closures over one collaborator; it runs `make` on every call, so keep such a service stateless and put state
-  shared by calls in a value created once next to `live` (see `EdgeDnsService`). A spec instantiates the class:
+  no separate `xOver(state)` factory returning the shape. `serviceOver(Collaborator, make)` is **not** an allowed form
+  any more: convert the file to `live` when you touch it. A spec instantiates the class:
   `provideTo(new Service.live(), (e) => e.pipe(Effect.provideService(Tag, fake)))`.
+- **The logic lives in the class that declares it — no forwarding, no ports record, no single-use generics**
+  (`docs/architecture/service-implementation-rule.md` is the normative rule). Concretely, in the same file that
+  declares the shape there must be **no** `type Ports = { … }` record, **no** `const portsOf = Effect.gen(… yield*
+  each tag …)`, **no** `implOverPorts(ports)` / `implOverX(deps)` function returning the shape, and **no**
+  `export type XPorts = A | B | C` union used only to spell the requirement channel. A method yields the
+  collaborator it needs at the point it needs it (`const lanesPort = yield* IngressLanesPort`), and a method whose
+  whole body is `Effect.flatMap(deps, (p) => otherImpl(p).method())` is a bug: inline the logic. Two things stay
+  allowed: a **plain function with no collaborators** (a projection: `planLaneDnsRecords(lanes, facts)`), and a
+  **`private` helper method on `live`** shared by several operations, which names the tags it yields in its own
+  return type. When a method calls a private helper, write the body `Effect.gen({ self: this }, function* () { … })`
+  — a bare `function*` has no `this`. Ports stay as **tags** where a Nest-owned class is behind them; the tags are
+  yielded per operation, never assembled into a record.
+  `apps/api/services/fleet/src/modules/reachability/services/ingress-edge.service.ts` (`IngressEdgeService`) and
+  `apps/api/services/health` are the references. Check a file with:
+  `grep -rnE "^type Ports = \{|satisfies Ports|function implOver|const portsOf" <file>`.
 - **A `forRoot` that declares its module must declare its services — twice.** `declareModule(metadata, claims)` carries
   the generics in phantom symbol properties (`ExportsOf`, `EffectContextOf`, `UnmetRequirementsOf`), so two things erase
   them: writing `: DynamicModule` on `forRoot` drops the intersection (`ReturnType` becomes a bare `DynamicModule`), and

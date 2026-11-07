@@ -1,18 +1,21 @@
 import { Effect } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
 
+import { provideTo } from '@deployer/effect-core'
+
 import { StorageFailure } from '../../database/storage'
 import {
     TraefikTemplateCreateFailure,
     TraefikTemplateNotFound,
     TraefikTemplateVariablesMissing,
 } from '../errors'
+import { TraefikTemplateRepository } from '../repositories/traefik-template.repository'
 
 import {
     buildVariablesMetadata,
     extractVariables,
-    makeTraefikTemplateService,
     parseTemplate,
+    TraefikTemplateService,
     validateVariables,
 } from './traefik-template.service'
 
@@ -34,6 +37,15 @@ function repo(overrides: Record<string, unknown> = {}) {
         ...overrides,
     } as unknown as TraefikTemplateRepositoryShape
 }
+
+const serviceOver = (repository: TraefikTemplateRepositoryShape) =>
+    provideTo(
+        new TraefikTemplateService.live(),
+        (effect) =>
+            effect.pipe(
+                Effect.provideService(TraefikTemplateRepository, repository)
+            ) as Effect.Effect<unknown>
+    )
 
 describe('template helpers', () => {
     it('replaces placeholders and leaves unknown ones', () => {
@@ -62,7 +74,7 @@ describe('TraefikTemplateService', () => {
     it('creates a service template with generated variable metadata', async () => {
         const repository = repo()
         const created = await Effect.runPromise(
-            makeTraefikTemplateService(repository).createServiceTemplate({
+            serviceOver(repository).createServiceTemplate({
                 serviceId: 's1',
                 templateContent: '~##host##~',
             } as never)
@@ -78,7 +90,7 @@ describe('TraefikTemplateService', () => {
     })
 
     it('fails with TraefikTemplateCreateFailure when the insert returns no row', async () => {
-        const service = makeTraefikTemplateService(
+        const service = serviceOver(
             repo({ createServiceTemplate: () => Effect.succeed(null) })
         )
         const error = await Effect.runPromise(
@@ -93,7 +105,7 @@ describe('TraefikTemplateService', () => {
     })
 
     it('fails with TraefikTemplateNotFound when updating an unknown template', async () => {
-        const service = makeTraefikTemplateService(
+        const service = serviceOver(
             repo({ updateServiceTemplate: () => Effect.succeed(null) })
         )
         expect(
@@ -110,7 +122,7 @@ describe('TraefikTemplateService', () => {
             templateContent: '~##host##~',
             variables: buildVariablesMetadata(['host']),
         }
-        const service = makeTraefikTemplateService(
+        const service = serviceOver(
             repo({ findProviderByType: () => Effect.succeed(provider) })
         )
         expect(
@@ -129,7 +141,7 @@ describe('TraefikTemplateService', () => {
         ).toBeInstanceOf(TraefikTemplateVariablesMissing)
         expect(
             await Effect.runPromise(
-                makeTraefikTemplateService(repo()).renderTemplateForDeployment(
+                serviceOver(repo()).renderTemplateForDeployment(
                     's1',
                     'none',
                     {}
@@ -139,7 +151,7 @@ describe('TraefikTemplateService', () => {
     })
 
     it('surfaces the typed storage failure', async () => {
-        const service = makeTraefikTemplateService(
+        const service = serviceOver(
             repo({
                 findActiveByServiceId: () =>
                     Effect.fail(new StorageFailure({})),

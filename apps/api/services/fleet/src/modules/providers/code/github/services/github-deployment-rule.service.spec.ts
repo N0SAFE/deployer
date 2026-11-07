@@ -30,7 +30,7 @@ describe('GithubDeploymentRuleService', () => {
     const findActiveByProjectId = vi.fn()
     // The fake needs nothing from the context beyond what is provided here.
     const service = provideTo(
-        GithubDeploymentRuleService.live,
+        new GithubDeploymentRuleService.live(),
         (effect) =>
             effect.pipe(
                 Effect.provideService(GithubDeploymentRules, {

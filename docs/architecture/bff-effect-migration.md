@@ -27,6 +27,13 @@ There are **two parallel Promise client layers** doing the same job, plus the 33
 Two things are already Effect and are reused, not rewritten: `callService` (one outgoing call as an Effect, interrupt-aware,
 `ServiceUnreachable`) and `procedure()` / `effectMiddleware` (the request boundary).
 
+**No forwarding layer anywhere in this change set** (`docs/architecture/service-implementation-rule.md`, normative). The BFF's new
+gateways are `live` classes whose methods *are* the call — not a class that builds a `Ports` record of clients and delegates each
+method to an `implOverPorts(ports)` function returning the same shape. The same ban applies to every service file this plan
+touches (step 6): a `Ports` record, `portsOf`, `implOverX(deps)` and a single-use `<X>Ports` union are all conversions left
+unfinished. What stays allowed: a plain function with no collaborators, and a `private` helper on `live` shared by several
+operations (`Effect.gen({ self: this }, …)` to keep `this`).
+
 ## 2. Decisions (made; they are not left to the operator)
 
 1. **One client layer, not two.** A and B collapse into one `ServiceClients` tag in `@deployer/service-client`. The BFF and every

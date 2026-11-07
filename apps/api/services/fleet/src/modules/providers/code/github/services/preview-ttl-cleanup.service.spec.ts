@@ -31,7 +31,7 @@ const provisioning = {
 }
 // The fake needs nothing from the context beyond what is provided here.
 const service = provideTo(
-    PreviewTtlCleanupService.live,
+    new PreviewTtlCleanupService.live(),
     (effect) =>
         effect.pipe(
             Effect.provideService(

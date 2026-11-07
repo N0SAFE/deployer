@@ -5,19 +5,27 @@ import {
     defaultIngressLanes,
     type IngressLanes,
 } from '@deployer/contracts-entities/entities/ingress/index'
+import { provideTo } from '@deployer/effect-core'
+import { NodeConfigRepository } from '@deployer/node-state'
 
+import { EdgeProviderRegistry } from '../../edge/edge-provider.registry'
 import {
     TEST_TUNNEL_ID,
     testEdgeRegistry,
     type TestTunnelEdgeProvider,
 } from '../../edge/testing/edge-registry.fixture'
-import { EgressRequestError } from '../../egress/egress.service'
+import { EgressService, EgressRequestError } from '../../egress/egress.service'
+import { ClusterSettings } from '../../mesh-node/cluster-settings'
+import { IngressLanesService } from '../../platform-ingress/services/ingress-lanes.service'
+import { NodeNetworkConfigRepository } from '../repositories/node-network-config.repository'
 
-import { makePublicEdgeService } from './public-edge.service'
-import {
-    makeReachabilityService,
-    type ReachabilityServiceShape,
-} from './reachability.service'
+import { PublicEdgeService } from './public-edge.service'
+import { ReachabilityService } from './reachability.service'
+
+import type { ReachabilityServiceShape } from './reachability.service'
+import type { ClusterSettingsShape } from '../../mesh-node/cluster-settings'
+import type { IngressLanesServiceShape } from '../../platform-ingress/services/ingress-lanes.service'
+import type { NodeNetworkConfigRepositoryShape } from '../repositories/node-network-config.repository'
 
 const tunnelLane = {
     provider: TEST_TUNNEL_ID,
@@ -36,7 +44,7 @@ const directLane = (tls: boolean) => ({
 type Promised<S> = {
     [K in keyof S]: S[K] extends (
         ...args: infer A
-    ) => Effect.Effect<infer R, unknown>
+    ) => Effect.Effect<infer R, unknown, unknown>
         ? (...args: A) => Promise<R>
         : S[K]
 }
@@ -58,6 +66,7 @@ describe('ReachabilityService', () => {
     let service: Promised<ReachabilityServiceShape>
     let lanes: IngressLanes
     let tunnel: TestTunnelEdgeProvider
+    let lanesService: IngressLanesServiceShape
     let egress: {
         external: Mock
         operator: Mock
@@ -86,31 +95,53 @@ describe('ReachabilityService', () => {
                 })
             ),
         }
-        const nodeNetworkConfigs = {
+        const nodeNetworkConfigs: NodeNetworkConfigRepositoryShape = {
             findByNodeId: vi.fn(() => Effect.succeed(null)),
             list: vi.fn(() => Effect.succeed([])),
             upsert: vi.fn(() => Effect.void),
         }
-        const publicEdge = makePublicEdgeService({
-            registry: edges.registry,
-            nodeConfigs: nodeNetworkConfigs,
-            prefix: '',
-        })
+        lanesService = {
+            getLanes: vi.fn(() => Effect.succeed(lanes)),
+            setLanes: vi.fn(() => Effect.die('unused')),
+        }
+        const publicEdge = new PublicEdgeService.live('')
+        // Only the tags the operations yield are provided; the fakes read nothing else.
         service = promised(
-            makeReachabilityService({
-                nodeNetworkConfigs,
-                nodeConfig: {
-                    find: vi.fn(() =>
-                        Effect.succeed({
-                            nodeId: '00000000-0000-0000-0000-000000000001',
-                        })
+            provideTo(new ReachabilityService.live(), (effect) =>
+                effect.pipe(
+                    Effect.provideService(
+                        NodeConfigRepository,
+                        {
+                            find: vi.fn(() =>
+                                Effect.succeed({
+                                    nodeId: '00000000-0000-0000-0000-000000000001',
+                                })
+                            ),
+                        } as never
                     ),
-                } as never,
-                lanes: { getLanes: vi.fn(() => Effect.succeed(lanes)) },
-                edges: edges.registry,
-                publicEdge,
-                egress: egress,
-            })
+                    Effect.provideService(
+                        NodeNetworkConfigRepository,
+                        nodeNetworkConfigs as never
+                    ),
+                    Effect.provideService(
+                        IngressLanesService,
+                        lanesService as never
+                    ),
+                    Effect.provideService(
+                        ClusterSettings,
+                        {} as ClusterSettingsShape
+                    ),
+                    Effect.provideService(
+                        EdgeProviderRegistry,
+                        edges.registry as never
+                    ),
+                    Effect.provideService(
+                        PublicEdgeService,
+                        publicEdge as never
+                    ),
+                    Effect.provideService(EgressService, egress as never)
+                ) as Effect.Effect<unknown>
+            )
         )
     })
 

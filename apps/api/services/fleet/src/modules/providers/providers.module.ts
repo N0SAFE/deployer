@@ -150,15 +150,15 @@ export class ProvidersModule extends createModuleContext(
             },
             {
                 provide: GithubSourceProviderService,
-                useValue: GithubSourceProviderService.live,
+                useClass: GithubSourceProviderService.live,
             },
             {
                 provide: GitlabSourceProviderService,
-                useValue: GitlabSourceProviderService.live,
+                useClass: GitlabSourceProviderService.live,
             },
             {
                 provide: UploadSourceProviderService,
-                useValue: UploadSourceProviderService.live,
+                useClass: UploadSourceProviderService.live,
             },
             {
                 provide: CustomSourceProviderService,
@@ -166,7 +166,7 @@ export class ProvidersModule extends createModuleContext(
             },
             {
                 provide: CodeProviderRegistryService,
-                useValue: CodeProviderRegistryService.live,
+                useClass: CodeProviderRegistryService.live,
             },
             // DNS providers — Effect services over the fleet database and two shared platform services.
             // Each is a class whose methods yield their collaborators, so Nest builds one instance.
@@ -237,27 +237,27 @@ export class ProvidersModule extends createModuleContext(
             { provide: SystemActorClients, useExisting: ServiceClient },
             {
                 provide: GithubDeploymentRuleService,
-                useValue: GithubDeploymentRuleService.live,
+                useClass: GithubDeploymentRuleService.live,
             },
             {
                 provide: GithubWebhookDispatchService,
-                useValue: GithubWebhookDispatchService.live,
+                useClass: GithubWebhookDispatchService.live,
             },
             {
                 provide: DeploymentTriggerGateway,
-                useValue: DeploymentTriggerGateway.live,
+                useClass: DeploymentTriggerGateway.live,
             },
             {
                 provide: PreviewProvisioningService,
-                useValue: PreviewProvisioningService.live,
+                useClass: PreviewProvisioningService.live,
             },
             {
                 provide: PreviewTtlCleanupService,
-                useValue: PreviewTtlCleanupService.live,
+                useClass: PreviewTtlCleanupService.live,
             },
             {
                 provide: WebhookIdempotencyService,
-                useValue: WebhookIdempotencyService.live,
+                useClass: WebhookIdempotencyService.live,
             },
             {
                 provide: PreviewLifecycleEventService,

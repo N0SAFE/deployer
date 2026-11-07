@@ -1,10 +1,13 @@
-import { Effect } from 'effect'
+import { Context, Effect } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
 
-import { StorageFailure } from '../../database/storage'
-import { TraefikFileNotFound } from '../errors'
+import { bindServices } from '@deployer/effect-core'
 
-import { makeTraefikFileSystem } from './traefik-file-system.service'
+import { StorageFailure, DatabasePort } from '../../database/storage'
+import { TraefikFileNotFound } from '../errors'
+import { TraefikRepository } from '../repositories/traefik.repository'
+
+import { TraefikFileSystemService } from './traefik-file-system.service'
 
 import type { TraefikRepositoryShape } from '../repositories/traefik.repository'
 
@@ -44,8 +47,22 @@ function repo(overrides: Record<string, unknown> = {}) {
     } as unknown as TraefikRepositoryShape
 }
 
+/**
+ * The two base paths are the constructor's; the virtual tree yields `TraefikRepository`, whose own methods
+ * name `DatabasePort`. Both are discharged once here, and `bindServices` leaves the class's synchronous
+ * conventions untouched.
+ */
 const fsOver = (repository: TraefikRepositoryShape) =>
-    makeTraefikFileSystem({ basePath: '/cfg', backupPath: '/bak' }, repository)
+    bindServices(
+        new TraefikFileSystemService.live({
+            basePath: '/cfg',
+            backupPath: '/bak',
+        }),
+        Context.make(TraefikRepository, repository).pipe(
+            // The fake repository answers every read, so the port behind it is never reached.
+            Context.add(DatabasePort, {} as never)
+        )
+    )
 
 describe('TraefikFileSystem conventions', () => {
     const fs = fsOver(repo())

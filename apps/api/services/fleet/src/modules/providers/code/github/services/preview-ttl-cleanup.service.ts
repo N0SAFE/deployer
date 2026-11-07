@@ -10,11 +10,12 @@
  * module calls once when it is built: one fiber on the app's `EffectHost`, matching
  * `startIngressDnsReconciler`. Interval is fixed at 10 minutes.
  */
-import { serviceOver, type Over } from '@deployer/effect-core'
+import { Context, Effect, Schedule } from 'effect'
+
 import type { EffectHostShape } from '@deployer/nest-effect'
+import type { RequirementsOf } from '@deployer/effect-core'
 
 import { Logger } from '@nestjs/common'
-import { Context, Effect, Schedule } from 'effect'
 
 import { describeFailure, recover } from '@/core/effects'
 
@@ -25,39 +26,50 @@ import {
 
 export const TTL_CLEANUP_INTERVAL_MS = 10 * 60 * 1000 // 10 minutes
 
-function makePreviewTtlCleanupService(
-    provisioning: PreviewProvisioningServiceShape
-) {
-    return {
+/** What expiring a preview reads: the provisioning service and what its operations read in turn. */
+type CleanupRequirements =
+    | PreviewProvisioningService
+    | RequirementsOf<PreviewProvisioningServiceShape>
+
+/** The scheduled sweep: expire every preview whose TTL has passed. */
+export type PreviewTtlCleanupServiceShape = {
+    readonly runCleanup: () => Effect.Effect<void, never, CleanupRequirements>
+}
+
+/** Tag and implementation together: the tag is the contract, `live` the one implementation. */
+export class PreviewTtlCleanupService extends Context.Service<
+    PreviewTtlCleanupService,
+    PreviewTtlCleanupServiceShape
+>()('fleet/PreviewTtlCleanupService') {
+    static readonly live = class PreviewTtlCleanupServiceImpl
+        implements PreviewTtlCleanupServiceShape
+    {
         /**
          * Expire every preview whose TTL has passed. One preview failing is logged and the next one
          * still runs; the run itself never fails.
          */
-        runCleanup: Effect.fn('PreviewTtlCleanupService.runCleanup')(
-            function* () {
-                yield* recover(
+        runCleanup(): ReturnType<
+            PreviewTtlCleanupServiceShape['runCleanup']
+        > {
+            return Effect.asVoid(
+                recover(
                     Effect.gen(function* () {
-                        const expired =
-                            yield* provisioning.findExpiredPreviews()
+                        const provisioning = yield* PreviewProvisioningService
+                        const expired = yield* provisioning.findExpiredPreviews()
                         for (const preview of expired) {
                             yield* recover(
-                                provisioning
-                                    .expirePreview(
-                                        preview.id,
-                                        preview.serviceId,
-                                        preview.previewName
-                                    )
-                                    .pipe(
-                                        Effect.andThen(
-                                            Effect.logInfo(
-                                                `Expired preview cleaned: ${preview.fullDomain}`
-                                            )
-                                        )
-                                    ),
+                                provisioning.expirePreview(
+                                    preview.id,
+                                    preview.serviceId,
+                                    preview.previewName
+                                ),
                                 (error) =>
                                     Effect.logWarning(
                                         `Failed to expire preview ${preview.fullDomain}: ${describeFailure(error)}`
                                     )
+                            )
+                            yield* Effect.logInfo(
+                                `Expired preview cleaned: ${preview.fullDomain}`
                             )
                         }
                     }),
@@ -66,26 +78,9 @@ function makePreviewTtlCleanupService(
                             `Preview TTL cleanup run failed: ${describeFailure(error)}`
                         )
                 )
-            }
-        ),
+            )
+        }
     }
-}
-
-export type PreviewTtlCleanupServiceShape = Over<
-    ReturnType<typeof makePreviewTtlCleanupService>,
-    PreviewProvisioningService
->
-
-/** Tag and implementation together: the tag is the contract, `live` the one implementation. */
-export class PreviewTtlCleanupService extends Context.Service<
-    PreviewTtlCleanupService,
-    PreviewTtlCleanupServiceShape
->()('fleet/PreviewTtlCleanupService') {
-    /** The provisioning service is yielded when a method runs, so this is a constant the module provides with `useValue`. */
-    static readonly live: PreviewTtlCleanupServiceShape = serviceOver(
-        PreviewProvisioningService,
-        makePreviewTtlCleanupService
-    )
 }
 
 export const PREVIEW_TTL_CLEANUP = Symbol('fleet:preview-ttl-cleanup')

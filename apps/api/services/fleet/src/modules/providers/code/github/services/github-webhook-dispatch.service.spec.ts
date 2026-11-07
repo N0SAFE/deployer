@@ -74,7 +74,7 @@ function setup() {
     }
     // The fakes need nothing from the context beyond what is provided here.
     const service = provideTo(
-        GithubWebhookDispatchService.live,
+        new GithubWebhookDispatchService.live(),
         (effect) =>
             effect.pipe(
                 Effect.provideService(

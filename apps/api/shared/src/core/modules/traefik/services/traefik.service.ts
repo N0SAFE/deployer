@@ -1,14 +1,15 @@
 import { Context, Effect } from 'effect'
 
 import { ConfigNotFoundError } from '../errors'
+import { TraefikRepository } from '../repositories/traefik.repository'
 
 import {
     verifySwarmRouteAgainstTraefik,
     type SwarmRouteVerifyOptions,
 } from './swarm-route-verifier'
+import { TraefikFileSystemService } from './traefik-file-system.service'
+import { TraefikSyncService } from './traefik-sync.service'
 
-import type { TraefikFileSystemShape } from './traefik-file-system.service'
-import type { TraefikSyncShape } from './traefik-sync.service'
 import type {
     CreateServiceConfigInput,
     UpdateServiceConfigInput,
@@ -20,159 +21,328 @@ import type {
     ValidationError,
     ValidationResult,
 } from '../interfaces'
-import type { TraefikRepositoryShape } from '../repositories/traefik.repository'
 
-type Ports = {
-    readonly repository: TraefikRepositoryShape
-    readonly fileSystem: TraefikFileSystemShape
-    readonly sync: TraefikSyncShape
-}
+/** The shapes this facade answers with, read off the collaborators instead of restated. */
+type RepositoryShape = Context.Service.Shape<typeof TraefikRepository>
+type FileSystemShape = Context.Service.Shape<typeof TraefikFileSystemService>
+type SyncShape = Context.Service.Shape<typeof TraefikSyncService>
+
+type ConfigResult = Effect.Success<
+    ReturnType<RepositoryShape['createServiceConfig']>
+>
+type MiddlewareList = Effect.Success<
+    ReturnType<RepositoryShape['getMiddlewares']>
+>
+type HealthSummary = Effect.Success<
+    ReturnType<RepositoryShape['getHealthCheckSummary']>
+>
+type SyncResult = Effect.Success<
+    ReturnType<SyncShape['syncServiceConfiguration']>
+>
 
 /**
- * The Traefik facade: the database is the source of truth (configs, routes, targets, certificates, middlewares), the
- * virtual filesystem shows it as files, and sync writes it where Traefik reads it. Every member is an Effect that fails
- * with `StorageFailure` (database), `ConfigNotFoundError` (a missing config) or the sync/filesystem failures.
+ * Tag and implementation together: the tag is the contract, `live` the one implementation.
+ *
+ * Every member IS the logic: the collaborator it needs is yielded in that member. The filesystem members yield
+ * `TraefikFileSystemService` because the virtual tree is that service's job — this facade exposes it, it does not
+ * re-implement it.
  */
-export function makeTraefikService({ repository, fileSystem, sync }: Ports) {
-    const syncServiceConfiguration = (serviceId: string) =>
-        Effect.gen(function* () {
-            const config =
-                yield* repository.getServiceConfigByServiceId(serviceId)
-            if (!config)
-                return yield* new ConfigNotFoundError({
-                    configId: serviceId,
-                    configType: 'service',
-                })
-            return yield* sync.syncServiceConfiguration(config.id)
-        })
-
-    return {
-        // ── service configurations (source of truth) ──────────────────────────────────────────────────────────────────
-        createServiceConfiguration: (
+class TraefikServiceImpl {
+        createServiceConfiguration(
             serviceId: string,
             config: Omit<CreateServiceConfigInput, 'serviceId'>
-        ) =>
-            Effect.logDebug(
-                `Creating service configuration for service ${serviceId}`
-            ).pipe(
-                Effect.andThen(
-                    repository.createServiceConfig({ serviceId, ...config })
+        ) {
+            return Effect.gen(function* () {
+                const repository = yield* TraefikRepository
+                yield* Effect.logDebug(
+                    `Creating service configuration for service ${serviceId}`
                 )
-            ),
-        getServiceConfiguration: (configId: string) =>
-            repository.getCompleteServiceConfig(configId),
-        updateServiceConfiguration: (
+                return yield* repository.createServiceConfig({
+                    serviceId,
+                    ...config,
+                })
+            })
+        }
+
+        getServiceConfiguration(
+            configId: string
+        ) {
+            return Effect.gen(function* () {
+                const repository = yield* TraefikRepository
+                return yield* repository.getCompleteServiceConfig(configId)
+            })
+        }
+
+        updateServiceConfiguration(
             configId: string,
             updates: Omit<UpdateServiceConfigInput, 'id'>
-        ) =>
-            Effect.logDebug(`Updating service configuration ${configId}`).pipe(
-                Effect.andThen(
-                    repository.updateServiceConfig({ id: configId, ...updates })
+        ) {
+            return Effect.gen(function* () {
+                const repository = yield* TraefikRepository
+                yield* Effect.logDebug(
+                    `Updating service configuration ${configId}`
                 )
-            ),
-        deleteServiceConfiguration: (configId: string) =>
-            Effect.logDebug(`Deleting service configuration ${configId}`).pipe(
-                Effect.andThen(repository.deleteServiceConfig(configId))
-            ),
-        getAllServiceConfigurations: (isActive?: boolean) =>
-            repository.getAllServiceConfigs(isActive),
+                return yield* repository.updateServiceConfig({
+                    id: configId,
+                    ...updates,
+                })
+            })
+        }
 
-        // ── domain routes ─────────────────────────────────────────────────────────────────────────────────────────────
-        addDomainRoute: (
+        deleteServiceConfiguration(
+            configId: string
+        ) {
+            return Effect.gen(function* () {
+                const repository = yield* TraefikRepository
+                yield* Effect.logDebug(
+                    `Deleting service configuration ${configId}`
+                )
+                return yield* repository.deleteServiceConfig(configId)
+            })
+        }
+
+        getAllServiceConfigurations(
+            isActive?: boolean
+        ) {
+            return Effect.gen(function* () {
+                const repository = yield* TraefikRepository
+                return yield* repository.getAllServiceConfigs(isActive)
+            })
+        }
+
+        addDomainRoute(
             configId: string,
             routeConfig: Omit<CreateDomainRouteInput, 'configId'>
-        ) => repository.createDomainRoute({ configId, ...routeConfig }),
-        updateDomainRoute: (
+        ) {
+            return Effect.gen(function* () {
+                const repository = yield* TraefikRepository
+                return yield* repository.createDomainRoute({
+                    configId,
+                    ...routeConfig,
+                })
+            })
+        }
+
+        updateDomainRoute(
             routeId: string,
             updates: Partial<Omit<CreateDomainRouteInput, 'configId'>>
-        ) => repository.updateDomainRoute(routeId, updates),
-        deleteDomainRoute: (routeId: string) =>
-            repository.deleteDomainRoute(routeId),
+        ) {
+            return Effect.gen(function* () {
+                const repository = yield* TraefikRepository
+                return yield* repository.updateDomainRoute(routeId, updates)
+            })
+        }
 
-        // ── service targets ───────────────────────────────────────────────────────────────────────────────────────────
-        addServiceTarget: (
+        deleteDomainRoute(
+            routeId: string
+        ) {
+            return Effect.gen(function* () {
+                const repository = yield* TraefikRepository
+                return yield* repository.deleteDomainRoute(routeId)
+            })
+        }
+
+        addServiceTarget(
             configId: string,
             targetConfig: Omit<CreateServiceTargetInput, 'configId'>
-        ) => repository.createServiceTarget({ configId, ...targetConfig }),
-        updateServiceTarget: (
+        ) {
+            return Effect.gen(function* () {
+                const repository = yield* TraefikRepository
+                return yield* repository.createServiceTarget({
+                    configId,
+                    ...targetConfig,
+                })
+            })
+        }
+
+        updateServiceTarget(
             targetId: string,
             updates: Partial<Omit<CreateServiceTargetInput, 'configId'>>
-        ) => repository.updateServiceTarget(targetId, updates),
-        deleteServiceTarget: (targetId: string) =>
-            repository.deleteServiceTarget(targetId),
+        ) {
+            return Effect.gen(function* () {
+                const repository = yield* TraefikRepository
+                return yield* repository.updateServiceTarget(targetId, updates)
+            })
+        }
 
-        // ── SSL certificates ──────────────────────────────────────────────────────────────────────────────────────────
-        addSSLCertificate: (
+        deleteServiceTarget(
+            targetId: string
+        ) {
+            return Effect.gen(function* () {
+                const repository = yield* TraefikRepository
+                return yield* repository.deleteServiceTarget(targetId)
+            })
+        }
+
+        addSSLCertificate(
             configId: string,
             certConfig: Omit<CreateSSLCertificateInput, 'configId'>
-        ) => repository.createSSLCertificate({ configId, ...certConfig }),
-        updateSSLCertificate: (
+        ) {
+            return Effect.gen(function* () {
+                const repository = yield* TraefikRepository
+                return yield* repository.createSSLCertificate({
+                    configId,
+                    ...certConfig,
+                })
+            })
+        }
+
+        updateSSLCertificate(
             certId: string,
             updates: Partial<Omit<CreateSSLCertificateInput, 'configId'>>
-        ) => repository.updateSSLCertificate(certId, updates),
-        deleteSSLCertificate: (certId: string) =>
-            repository.deleteSSLCertificate(certId),
+        ) {
+            return Effect.gen(function* () {
+                const repository = yield* TraefikRepository
+                return yield* repository.updateSSLCertificate(certId, updates)
+            })
+        }
 
-        // ── middlewares ───────────────────────────────────────────────────────────────────────────────────────────────
-        createMiddleware: (middlewareConfig: CreateMiddlewareInput) =>
-            repository.createMiddleware(middlewareConfig),
-        getMiddlewares: (serviceId?: string, isGlobal?: boolean) =>
-            repository.getMiddlewares(serviceId, isGlobal, true),
-        updateMiddleware: (
+        deleteSSLCertificate(
+            certId: string
+        ) {
+            return Effect.gen(function* () {
+                const repository = yield* TraefikRepository
+                return yield* repository.deleteSSLCertificate(certId)
+            })
+        }
+
+        createMiddleware(
+            middlewareConfig: CreateMiddlewareInput
+        ) {
+            return Effect.gen(function* () {
+                const repository = yield* TraefikRepository
+                return yield* repository.createMiddleware(middlewareConfig)
+            })
+        }
+
+        getMiddlewares(serviceId?: string, isGlobal?: boolean) {
+            return Effect.gen(function* () {
+                const repository = yield* TraefikRepository
+                return yield* repository.getMiddlewares(
+                    serviceId,
+                    isGlobal,
+                    true
+                )
+            })
+        }
+
+        updateMiddleware(
             middlewareId: string,
             updates: Partial<Omit<CreateMiddlewareInput, 'serviceId'>>
-        ) => repository.updateMiddleware(middlewareId, updates),
-        deleteMiddleware: (middlewareId: string) =>
-            repository.deleteMiddleware(middlewareId),
+        ) {
+            return Effect.gen(function* () {
+                const repository = yield* TraefikRepository
+                return yield* repository.updateMiddleware(
+                    middlewareId,
+                    updates
+                )
+            })
+        }
 
-        // ── filesystem (read-only access to the virtual tree) ─────────────────────────────────────────────────────────
-        getTraefikFileSystem: (path?: string) =>
-            fileSystem.getTraefikFileSystem(path),
-        getProjectFileSystem: (projectName: string) =>
-            fileSystem.getProjectFileSystem(projectName),
-        getFileContent: (filePath: string) =>
-            fileSystem.getFileContent(filePath),
-        downloadFile: (filePath: string) => fileSystem.downloadFile(filePath),
-        listProjects: () => fileSystem.listProjects(),
+        deleteMiddleware(
+            middlewareId: string
+        ) {
+            return Effect.gen(function* () {
+                const repository = yield* TraefikRepository
+                return yield* repository.deleteMiddleware(middlewareId)
+            })
+        }
 
-        // ── synchronisation (database → filesystem) ───────────────────────────────────────────────────────────────────
-        /** `ConfigNotFoundError` when the service has no Traefik config yet; a failed write is a `success: false` result. */
-        syncServiceConfiguration,
-        syncAllConfigurations: (): Effect.Effect<
-            SyncSummary,
-            import('../../database/storage').StorageFailure
-        > => sync.syncAllConfigurations(),
+        getTraefikFileSystem(
+            path?: string
+        ) {
+            return Effect.gen(function* () {
+                const fileSystem = yield* TraefikFileSystemService
+                return yield* fileSystem.getTraefikFileSystem(path)
+            })
+        }
+
+        getProjectFileSystem(
+            projectName: string
+        ) {
+            return Effect.gen(function* () {
+                const fileSystem = yield* TraefikFileSystemService
+                return yield* fileSystem.getProjectFileSystem(projectName)
+            })
+        }
+
+        getFileContent(
+            filePath: string
+        ) {
+            return Effect.gen(function* () {
+                const fileSystem = yield* TraefikFileSystemService
+                return yield* fileSystem.getFileContent(filePath)
+            })
+        }
+
+        downloadFile(
+            filePath: string
+        ) {
+            return Effect.gen(function* () {
+                const fileSystem = yield* TraefikFileSystemService
+                return yield* fileSystem.downloadFile(filePath)
+            })
+        }
+
+        listProjects() {
+            return Effect.gen(function* () {
+                const fileSystem = yield* TraefikFileSystemService
+                return yield* fileSystem.listProjects()
+            })
+        }
+
+        syncServiceConfiguration(
+            serviceId: string
+        ) {
+            return Effect.gen(function* () {
+                const repository = yield* TraefikRepository
+                const sync = yield* TraefikSyncService
+                const config =
+                    yield* repository.getServiceConfigByServiceId(serviceId)
+                if (!config)
+                    return yield* new ConfigNotFoundError({
+                        configId: serviceId,
+                        configType: 'service',
+                    })
+                return yield* sync.syncServiceConfiguration(config.id)
+            })
+        }
+
+        syncAllConfigurations() {
+            return Effect.gen(function* () {
+                const sync = yield* TraefikSyncService
+                return yield* sync.syncAllConfigurations()
+            })
+        }
+
         /** Sync one project's changed configurations, or every changed configuration without a project name. */
-        forceSyncAll: (projectName?: string) =>
-            (projectName
-                ? sync.syncProjectConfigurations(projectName)
-                : sync.syncAllConfigurations()
-            ).pipe(
-                Effect.map((result) => ({
-                    total: result.total,
-                    successful: result.successful,
-                    failed: result.failed,
-                    results: result.results.map((r) => ({
-                        configId: r.configId,
-                        configName: r.configName,
-                        success: r.success,
-                        action: r.action,
-                        message: r.message,
-                    })),
-                }))
-            ),
-        cleanupOrphanedFiles: (projectName?: string) =>
-            projectName
-                ? sync.cleanupOrphanedFilesForProject(projectName)
-                : sync.cleanupOrphanedFiles(),
+        forceSyncAll(projectName?: string) {
+            return Effect.gen(function* () {
+                const sync = yield* TraefikSyncService
+                return yield* projectName === undefined
+                    ? sync.syncAllConfigurations()
+                    : sync.syncProjectConfigurations(projectName)
+            })
+        }
 
-        // ── high-level operations ─────────────────────────────────────────────────────────────────────────────────────
-        /** Create or update a service's configuration, then sync it. */
-        deployServiceConfiguration: (
+        cleanupOrphanedFiles(
+            projectName?: string
+        ) {
+            return Effect.gen(function* () {
+                const sync = yield* TraefikSyncService
+                return yield* projectName === undefined
+                    ? sync.cleanupOrphanedFiles()
+                    : sync.cleanupOrphanedFilesForProject(projectName)
+            })
+        }
+
+        deployServiceConfiguration(
             serviceId: string,
             config: Omit<CreateServiceConfigInput, 'serviceId'>
-        ) =>
-            Effect.gen(function* () {
+        ) {
+            return Effect.gen(function* () {
+                const repository = yield* TraefikRepository
+                const sync = yield* TraefikSyncService
                 yield* Effect.logInfo(
                     `Deploying service configuration for ${serviceId}`
                 )
@@ -187,17 +357,28 @@ export function makeTraefikService({ repository, fileSystem, sync }: Ports) {
                           serviceId,
                           ...config,
                       })
+                // A write that returned no row has nothing to sync: saying so beats syncing an empty id.
+                if (!serviceConfig)
+                    return yield* new ConfigNotFoundError({
+                        configId: serviceId,
+                        configType: 'service',
+                    })
                 const syncResult = yield* sync.syncServiceConfiguration(
-                    serviceConfig?.id ?? ''
+                    serviceConfig.id
                 )
                 yield* Effect.logInfo(
                     `Service configuration deployed for ${serviceId}: ${syncResult.success ? 'success' : 'failed'}`
                 )
                 return { configuration: serviceConfig, syncResult }
-            }),
-        /** Deactivate a service's configuration and clean up the files nothing owns any more. */
-        removeServiceConfiguration: (serviceId: string) =>
-            Effect.gen(function* () {
+            })
+        }
+
+        removeServiceConfiguration(
+            serviceId: string
+        ) {
+            return Effect.gen(function* () {
+                const repository = yield* TraefikRepository
+                const sync = yield* TraefikSyncService
                 yield* Effect.logInfo(
                     `Removing service configuration for ${serviceId}`
                 )
@@ -220,11 +401,12 @@ export function makeTraefikService({ repository, fileSystem, sync }: Ports) {
                     success: true,
                     message: 'Service configuration removed successfully',
                 }
-            }),
+            })
+        }
 
-        /** Check a stored configuration (domain, port, targets, SSL provider). `ConfigNotFoundError` when it does not exist. */
-        validateConfiguration: (configId: string) =>
-            Effect.gen(function* () {
+        validateConfiguration(configId: string) {
+            return Effect.gen(function* () {
+                const repository = yield* TraefikRepository
                 const config =
                     yield* repository.getCompleteServiceConfig(configId)
                 if (!config)
@@ -249,9 +431,7 @@ export function makeTraefikService({ repository, fileSystem, sync }: Ports) {
                         code: 'INVALID_PORT',
                     })
                 }
-                const serviceTargets = config.serviceTargets as
-                    unknown[] | undefined
-                if (!serviceTargets || serviceTargets.length === 0) {
+                if (config.serviceTargets.length === 0) {
                     warnings.push({
                         path: 'serviceTargets',
                         message:
@@ -286,27 +466,31 @@ export function makeTraefikService({ repository, fileSystem, sync }: Ports) {
                     errors,
                     warnings,
                 } satisfies ValidationResult
-            }),
-        getHealthStatus: () => repository.getHealthCheckSummary(),
+            })
+        }
 
-        /**
-         * Verify-only mode for Swarm-managed services (SW-023): probes the Traefik API for a router matching the host rule.
-         * Traefik converges routes from the service labels itself, so this verifies and never writes config. Never fails:
-         * an unreachable Traefik API yields `verified: false`.
-         */
-        verifySwarmServiceRoute: (
+        getHealthStatus() {
+            return Effect.gen(function* () {
+                const repository = yield* TraefikRepository
+                return yield* repository.getHealthCheckSummary()
+            })
+        }
+
+        verifySwarmServiceRoute(
             hostRule: string,
             options?: SwarmRouteVerifyOptions
-        ) =>
-            Effect.promise(() =>
+        ) {
+            return Effect.promise(() =>
                 verifySwarmRouteAgainstTraefik(hostRule, options)
-            ),
-    }
+            )
+        }
 }
 
-export type TraefikServiceShape = ReturnType<typeof makeTraefikService>
+export type TraefikServiceShape = TraefikServiceImpl
 
 export class TraefikService extends Context.Service<
     TraefikService,
     TraefikServiceShape
->()('shared/TraefikService') {}
+>()('shared/TraefikService') {
+    static readonly live = TraefikServiceImpl
+}

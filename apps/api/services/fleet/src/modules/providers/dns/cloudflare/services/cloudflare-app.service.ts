@@ -26,7 +26,7 @@ import { AppError } from '@deployer/errors'
 import { attempt, attemptSync } from '@/core/effects'
 import { FleetConflict, FleetInvalid, FleetNotFound } from '@/core/fleet.errors'
 import { EdgeProviders } from '@/core/ports/edge-providers.port'
-import { IngressLanes } from '@/core/ports/ingress-lanes.port'
+import { IngressLanes, type IngressLanesShape } from '@/core/ports/ingress-lanes.port'
 
 import {
     DnsProvidersStore,
@@ -77,6 +77,8 @@ type AppRequirements =
     | DnsProvidersStore
     | RequirementsOf<DnsProvidersStoreShape>
     | IngressLanes
+    // The lanes read the replicated cluster settings, so that tag is part of what a caller must provide.
+    | RequirementsOf<IngressLanesShape>
     | EdgeProviders
 
 function parseCredentials(raw: string): CloudflareCredentials | null {

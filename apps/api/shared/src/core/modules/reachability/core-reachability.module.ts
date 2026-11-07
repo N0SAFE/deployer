@@ -1,53 +1,22 @@
 import { createGlobalModule } from '@deployer/nest-effect'
-import {
-    NodeConfigRepository,
-    type NodeConfigRepositoryShape,
-} from '@deployer/node-state'
 
 import { EnvModule, EnvService } from '../../../config/env/env.module'
 import { GlobalDatabaseModule } from '../database/global/global-database.module'
 import { DatabasePort } from '../database/storage'
-import {
-    EdgeProviderRegistry,
-    type EdgeProviderRegistryShape,
-} from '../edge/edge-provider.registry'
 import { CoreEdgeModule } from '../edge/edge.module'
 import { CoreEgressModule } from '../egress/egress.module'
-import {
-    EgressService,
-    type EgressServiceShape,
-} from '../egress/egress.service'
 import {
     CoreEventStreamPoolService,
     type CoreEventStreamPoolServiceShape,
 } from '../events/base/index'
 import { EventsModule } from '../events/events.module'
 import { NodeStateModule } from '../node-state/node-state.module'
-import {
-    IngressLanesService,
-    type IngressLanesServiceShape,
-} from '../platform-ingress/services/ingress-lanes.service'
 
 import { PublicAccessPointEventService } from './events/public-access-point-event.service'
-import {
-    makeNodeNetworkConfigRepository,
-    NodeNetworkConfigRepository,
-    type NodeNetworkConfigRepositoryShape,
-} from './repositories/node-network-config.repository'
-import {
-    makePublicAccessPointService,
-    PublicAccessPointService,
-} from './services/public-access-point.service'
-import {
-    makePublicEdgeService,
-    PublicEdgeService,
-    type PublicEdgeServiceShape,
-} from './services/public-edge.service'
-import {
-    makeReachabilityService,
-    ReachabilityService,
-    type ReachabilityServiceShape,
-} from './services/reachability.service'
+import { NodeNetworkConfigRepository } from './repositories/node-network-config.repository'
+import { PublicAccessPointService } from './services/public-access-point.service'
+import { PublicEdgeService } from './services/public-edge.service'
+import { ReachabilityService } from './services/reachability.service'
 
 import type { Context } from 'effect'
 
@@ -77,54 +46,16 @@ export const CoreReachabilityModule = createGlobalModule({
             provide: NodeNetworkConfigRepository,
             useFactory: (
                 database: Context.Service.Shape<typeof DatabasePort>
-            ) => makeNodeNetworkConfigRepository(database),
+            ) => new NodeNetworkConfigRepository.live(database),
             inject: [DatabasePort],
         },
         {
             provide: PublicEdgeService,
-            useFactory: (
-                registry: EdgeProviderRegistryShape,
-                nodeConfigs: NodeNetworkConfigRepositoryShape,
-                env: EnvService
-            ) =>
-                makePublicEdgeService({
-                    registry,
-                    nodeConfigs,
-                    prefix: env.get('DEPLOYER_PREFIX'),
-                }),
-            inject: [
-                EdgeProviderRegistry,
-                NodeNetworkConfigRepository,
-                EnvService,
-            ],
+            useFactory: (env: EnvService) =>
+                new PublicEdgeService.live(env.get('DEPLOYER_PREFIX')),
+            inject: [EnvService],
         },
-        {
-            provide: ReachabilityService,
-            useFactory: (
-                nodeNetworkConfigs: NodeNetworkConfigRepositoryShape,
-                nodeConfig: NodeConfigRepositoryShape,
-                lanes: IngressLanesServiceShape,
-                edges: EdgeProviderRegistryShape,
-                publicEdge: PublicEdgeServiceShape,
-                egress: EgressServiceShape
-            ) =>
-                makeReachabilityService({
-                    nodeNetworkConfigs,
-                    nodeConfig,
-                    lanes,
-                    edges,
-                    publicEdge,
-                    egress,
-                }),
-            inject: [
-                NodeNetworkConfigRepository,
-                NodeConfigRepository,
-                IngressLanesService,
-                EdgeProviderRegistry,
-                PublicEdgeService,
-                EgressService,
-            ],
-        },
+        { provide: ReachabilityService, useClass: ReachabilityService.live },
         {
             provide: PublicAccessPointEventService,
             useFactory: (pool?: CoreEventStreamPoolServiceShape) =>
@@ -133,15 +64,9 @@ export const CoreReachabilityModule = createGlobalModule({
         },
         {
             provide: PublicAccessPointService,
-            useFactory: (
-                reachability: ReachabilityServiceShape,
-                accessPointEvents: PublicAccessPointEventService
-            ) =>
-                makePublicAccessPointService({
-                    reachability,
-                    accessPointEvents,
-                }),
-            inject: [ReachabilityService, PublicAccessPointEventService],
+            useFactory: (accessPointEvents: PublicAccessPointEventService) =>
+                new PublicAccessPointService.live(accessPointEvents),
+            inject: [PublicAccessPointEventService],
         },
     ],
     exports: [
@@ -149,5 +74,9 @@ export const CoreReachabilityModule = createGlobalModule({
         PublicEdgeService,
         PublicAccessPointEventService,
         PublicAccessPointService,
+        // `PublicEdgeService` yields this when it reads the nodes' addresses, so an importer of the
+        // edge service needs it in its own context: the requirement gate follows the tag, and a
+        // provider that is not exported cannot be resolved from an importing module.
+        NodeNetworkConfigRepository,
     ],
 })

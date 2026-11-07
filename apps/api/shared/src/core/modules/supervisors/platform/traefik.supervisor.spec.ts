@@ -42,6 +42,7 @@ import type { EnvService } from '../../../../config/env/env.module'
 import type { ClusterSettingsShape } from '../../mesh-node/cluster-settings'
 import type { IngressLanesServiceShape } from '../../platform-ingress/services/ingress-lanes.service'
 import type { PlatformWebTargetServiceShape } from '../../platform-ingress/services/platform-web-target.service'
+import type { PlatformConfigServiceShape } from '../../platform-ingress/services/platform-config.service'
 
 /**
  * The ingress is one GLOBAL swarm service with one entrypoint per lane. These tests
@@ -237,6 +238,9 @@ function makeSupervisor(
             lanes,
             settings,
             webTarget,
+            platformConfig: {
+                isManagedWebAppEnabled: () => Effect.succeed(true),
+            } as unknown as PlatformConfigServiceShape,
             edges: testEdgeRegistry().registry,
             bus: testBus(),
             platformSecret: () => 'test-secret',

@@ -1,22 +1,30 @@
 import { Effect } from 'effect'
 import { describe, expect, it } from 'vitest'
 
-import { makePlatformWebTargetService } from './platform-web-target.service'
+import { provideTo } from '@deployer/effect-core'
 
+import { PlatformConfigService } from './platform-config.service'
+import { PlatformWebTargetService } from './platform-web-target.service'
+
+import type { PlatformConfigServiceShape } from './platform-config.service'
+
+/** The service over a fake managed-web flag: the flag is the one tag the operation yields. */
 function target(
     env: { webTarget?: string; external?: boolean; prefix?: string },
     enabled: boolean
 ) {
-    return makePlatformWebTargetService({
-        platformConfig: {
-            isManagedWebAppEnabled: () => Effect.succeed(enabled),
-        },
-        env: {
-            webTarget: () => env.webTarget,
-            managedWebExternal: () => env.external ?? false,
-            prefix: () => env.prefix ?? '',
-        },
-    })
+    const platformConfig = {
+        isManagedWebAppEnabled: () => Effect.succeed(enabled),
+    } as unknown as PlatformConfigServiceShape
+    return provideTo(
+        new PlatformWebTargetService.live({
+            webTarget: env.webTarget,
+            managedWebExternal: env.external ?? false,
+            prefix: env.prefix ?? '',
+        }),
+        (effect) =>
+            effect.pipe(Effect.provideService(PlatformConfigService, platformConfig))
+    )
 }
 const resolve = (service: ReturnType<typeof target>) =>
     Effect.runPromise(service.resolveWebTarget())

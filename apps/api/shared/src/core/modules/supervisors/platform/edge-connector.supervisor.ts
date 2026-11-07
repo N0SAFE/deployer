@@ -8,13 +8,27 @@ import {
 } from '@deployer/platform-supervisors'
 
 import { EnvService } from '../../../../config/env/env.module'
+import { EdgeProviderRegistry } from '../../edge/edge-provider.registry'
+import { ClusterSettings } from '../../mesh-node/cluster-settings'
+import { IngressLanesService } from '../../platform-ingress/services/ingress-lanes.service'
+import { NodeNetworkConfigRepository } from '../../reachability/repositories/node-network-config.repository'
+import { PublicEdgeService } from '../../reachability/services/public-edge.service'
 import {
     buildSupervisor,
     type SupervisorEventBusFacade,
     type SupervisorRegistration,
 } from '../../supervision/index'
 
-import type { IngressLanesServiceShape } from '../../platform-ingress/services/ingress-lanes.service'
+import type {
+    EdgeProviderRegistryShape,
+} from '../../edge/edge-provider.registry'
+import type { ClusterSettingsShape } from '../../mesh-node/cluster-settings'
+import type {
+    IngressLanesServiceShape,
+} from '../../platform-ingress/services/ingress-lanes.service'
+import type {
+    NodeNetworkConfigRepositoryShape,
+} from '../../reachability/repositories/node-network-config.repository'
 import type { PublicEdgeServiceShape } from '../../reachability/services/public-edge.service'
 
 export { EDGE_CONNECTOR_SUPERVISOR_ID }
@@ -23,6 +37,9 @@ export type EdgeConnectorSupervisorDeps = {
     readonly engine: DockerEngineShape
     readonly env: EnvService
     readonly lanes: IngressLanesServiceShape
+    readonly settings: ClusterSettingsShape
+    readonly nodeConfigs: NodeNetworkConfigRepositoryShape
+    readonly edges: EdgeProviderRegistryShape
     readonly edge: PublicEdgeServiceShape
     readonly bus: SupervisorEventBusFacade
 }
@@ -36,6 +53,9 @@ export function makeEdgeConnectorRegistration({
     engine,
     env,
     lanes,
+    settings,
+    nodeConfigs,
+    edges,
     edge,
     bus,
 }: EdgeConnectorSupervisorDeps): SupervisorRegistration {
@@ -45,9 +65,21 @@ export function makeEdgeConnectorRegistration({
         logger,
         config: {
             prefix: () => env.get('DEPLOYER_PREFIX'),
-            desired: lanes
-                .getLanes()
-                .pipe(Effect.flatMap((current) => edge.connector(current))),
+            desired: Effect.gen(function* () {
+                const lanesService = yield* IngressLanesService
+                const publicEdge = yield* PublicEdgeService
+                const current = yield* lanesService.getLanes()
+                return yield* publicEdge.connector(current)
+            }).pipe(
+                Effect.provideService(IngressLanesService, lanes),
+                Effect.provideService(PublicEdgeService, edge),
+                Effect.provideService(ClusterSettings, settings),
+                Effect.provideService(
+                    NodeNetworkConfigRepository,
+                    nodeConfigs
+                ),
+                Effect.provideService(EdgeProviderRegistry, edges)
+            ),
             routeTarget: () => edge.ingressTarget(),
             runtimeOverride: () => process.env.SUPERVISOR_RUNTIME,
         },

@@ -1,12 +1,11 @@
 import { Context, Effect } from 'effect'
 import z from 'zod/v4'
 
-import { serviceOver, type Over } from '@deployer/effect-core'
 import type { DeploymentTriggerInput } from '@deployer/runtime-contracts/modules/deployment/crud'
 
-import { attempt, attemptSync } from '@/core/effects'
+import { attemptSync } from '@/core/effects'
 import { FleetInvalid } from '@/core/fleet.errors'
-import { Git, type GitShape } from '@/core/ports/git.port'
+import { Git } from '@/core/ports/git.port'
 
 import { gitlabSourceCheckoutContextSchema } from '../../../base/source-provider.interface'
 
@@ -20,10 +19,22 @@ const gitlabSourceContextSchema = z.object({
 })
 
 /** The provider for a GitLab repository: validates it is reachable, then names the ref to check out. */
-function makeGitlabSourceProviderService(git: GitShape) {
-    return {
-        resolveSourceCheckout: (input: DeploymentTriggerInput) =>
-            Effect.gen(function* () {
+export type GitlabSourceProviderServiceShape = CodeProvider<Git>
+
+/** Tag and implementation together: the tag is the contract, `live` the one implementation. */
+export class GitlabSourceProviderService extends Context.Service<
+    GitlabSourceProviderService,
+    GitlabSourceProviderServiceShape
+>()('fleet/GitlabSourceProviderService') {
+    static readonly live = class GitlabSourceProviderServiceImpl
+        implements GitlabSourceProviderServiceShape
+    {
+        resolveSourceCheckout(
+            input: DeploymentTriggerInput
+        ): ReturnType<
+            GitlabSourceProviderServiceShape['resolveSourceCheckout']
+        > {
+            return Effect.gen(function* () {
                 if (input.source.sourceType !== 'gitlab') return null
 
                 const parsed = gitlabSourceContextSchema.safeParse({
@@ -47,6 +58,7 @@ function makeGitlabSourceProviderService(git: GitShape) {
                         ? `refs/merge-requests/${mergeRequestIid}/head`
                         : 'main')
 
+                const git = yield* Git
                 const isValidRepository =
                     yield* git.validateRepository(repositoryUrl)
                 if (!isValidRepository) {
@@ -64,23 +76,7 @@ function makeGitlabSourceProviderService(git: GitShape) {
                         ...(mergeRequestIid ? { mergeRequestIid } : {}),
                     })
                 )
-            }),
-    } satisfies CodeProvider
-}
-
-export type GitlabSourceProviderServiceShape = Over<
-    ReturnType<typeof makeGitlabSourceProviderService>,
-    Git
->
-
-/** Tag and implementation together: the tag is the contract, `live` the one implementation. */
-export class GitlabSourceProviderService extends Context.Service<
-    GitlabSourceProviderService,
-    GitlabSourceProviderServiceShape
->()('fleet/GitlabSourceProviderService') {
-    /** The git service is yielded when a method runs, so this is a constant the module provides with `useValue`. */
-    static readonly live: GitlabSourceProviderServiceShape = serviceOver(
-        Git,
-        makeGitlabSourceProviderService
-    )
+            })
+        }
+    }
 }

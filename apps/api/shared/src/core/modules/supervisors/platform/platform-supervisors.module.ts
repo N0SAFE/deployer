@@ -58,6 +58,10 @@ import {
 } from '../../node-state/node-config.snapshot'
 import { CoreReachabilityModule } from '../../reachability/core-reachability.module'
 import {
+    NodeNetworkConfigRepository,
+    type NodeNetworkConfigRepositoryShape,
+} from '../../reachability/repositories/node-network-config.repository'
+import {
     PublicEdgeService,
     type PublicEdgeServiceShape,
 } from '../../reachability/services/public-edge.service'
@@ -98,6 +102,7 @@ export const SupervisorsPlatformModule = createGlobalModule({
             PlatformConfigService,
             AppInstanceService,
             PublicEdgeService,
+            NodeNetworkConfigRepository,
             NodeConfigSnapshot,
         ],
         build: (
@@ -112,6 +117,7 @@ export const SupervisorsPlatformModule = createGlobalModule({
             platformConfig: PlatformConfigServiceShape,
             appInstances: AppInstanceServiceShape,
             edge: PublicEdgeServiceShape,
+            nodeConfigs: NodeNetworkConfigRepositoryShape,
             nodeConfig: NodeConfigSnapshotShape
         ) => [
             makeTraefikRegistration({
@@ -121,6 +127,7 @@ export const SupervisorsPlatformModule = createGlobalModule({
                 lanes,
                 settings,
                 webTarget,
+                platformConfig,
                 edges,
                 bus,
                 platformSecret: () =>
@@ -136,7 +143,16 @@ export const SupervisorsPlatformModule = createGlobalModule({
             }),
             makeRedisRegistration({ engine, env, bus }).registration,
             makeSwarmAppWiringRegistration({ engine, env, bus }),
-            makeEdgeConnectorRegistration({ engine, env, lanes, edge, bus }),
+            makeEdgeConnectorRegistration({
+                engine,
+                env,
+                lanes,
+                settings,
+                nodeConfigs,
+                edges,
+                edge,
+                bus,
+            }),
             makeNodeAgentSwarmRegistration({ engine, env, bus }).registration,
         ],
     }),

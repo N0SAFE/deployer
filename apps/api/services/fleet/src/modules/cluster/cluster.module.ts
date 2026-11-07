@@ -71,6 +71,6 @@ export class ClusterModule extends createModuleContext({
         },
         // Binds the hub's first load and its Docker event subscription to the app's lifecycle.
         serviceLifecycle(ClusterEvents),
-        { provide: ClusterService, useValue: ClusterService.live },
+        { provide: ClusterService, useClass: ClusterService.live },
     ],
 }) {}

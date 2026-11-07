@@ -16,6 +16,8 @@ import {
 } from '@deployer/platform-supervisors'
 
 import { EnvService } from '../../../../config/env/env.module'
+import { ClusterSettings } from '../../mesh-node/cluster-settings'
+import { PlatformConfigService } from '../../platform-ingress/services/platform-config.service'
 import { HostnameService } from '../../platform-ingress/services/hostname.service'
 import { buildNodeDoors } from '../../platform-ingress/services/ingress-doors'
 import {
@@ -41,7 +43,10 @@ import {
 
 import type { EdgeProviderRegistryShape } from '../../edge/edge-provider.registry'
 import type { ClusterSettingsShape } from '../../mesh-node/cluster-settings'
-import type { IngressLanesServiceShape } from '../../platform-ingress/services/ingress-lanes.service'
+import type {
+    IngressLanesServiceShape,
+} from '../../platform-ingress/services/ingress-lanes.service'
+import type { PlatformConfigServiceShape } from '../../platform-ingress/services/platform-config.service'
 import type { PlatformWebTargetServiceShape } from '../../platform-ingress/services/platform-web-target.service'
 
 export { PLATFORM_INGRESS_SUPERVISOR_ID }
@@ -53,6 +58,7 @@ export type TraefikSupervisorDeps = {
     readonly lanes: IngressLanesServiceShape
     readonly settings: ClusterSettingsShape
     readonly webTarget: PlatformWebTargetServiceShape
+    readonly platformConfig: PlatformConfigServiceShape
     readonly edges: EdgeProviderRegistryShape
     readonly bus: SupervisorEventBusFacade
     /** The node's platform secret, read synchronously (the supervisor's config callbacks cannot wait); null before it exists. */
@@ -76,6 +82,7 @@ export function makeTraefikRegistration(deps: TraefikSupervisorDeps): {
         lanes: lanesService,
         settings,
         webTarget,
+        platformConfig,
         edges,
         bus,
         platformSecret,
@@ -98,7 +105,14 @@ export function makeTraefikRegistration(deps: TraefikSupervisorDeps): {
                 port: env.get('API_PORT'),
             },
         ]
-        const web = await runPromiseUnwrapped(webTarget.resolveWebTarget())
+        // The web target asks the managed-web flag: the platform config is the one collaborator it yields.
+        const web = await runPromiseUnwrapped(
+            webTarget
+                .resolveWebTarget()
+                .pipe(
+                    Effect.provideService(PlatformConfigService, platformConfig)
+                )
+        )
         if (web !== null)
             routes.push({
                 host: hostnameService.webHostname(),
@@ -135,7 +149,9 @@ export function makeTraefikRegistration(deps: TraefikSupervisorDeps): {
             externallyManaged: isExternallyManaged,
             runtimeOverride: () => process.env.SUPERVISOR_RUNTIME,
             selfHostname: () => process.env.HOSTNAME,
-            lanes: lanesService.getLanes(),
+            lanes: lanesService
+                .getLanes()
+                .pipe(Effect.provideService(ClusterSettings, settings)),
             edgePlan: (lanes) => edges.ingressPlan(lanes),
             publishNodeDoors: ({ lanes, traefikService }) =>
                 Effect.gen(function* () {

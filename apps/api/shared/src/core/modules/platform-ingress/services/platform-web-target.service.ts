@@ -21,52 +21,58 @@
 
 import { Context, Effect } from 'effect'
 
+import { PlatformConfigService } from './platform-config.service'
 import { MANAGED_WEB_CONTAINER_BASE_NAME } from './platform-names'
 
-import type { PlatformConfigServiceShape } from './platform-config.service'
+/** The environment values the resolution reads, resolved once by the module. */
+export type PlatformWebTargetEnv = {
+    readonly webTarget: string | undefined
+    readonly managedWebExternal: boolean
+    /** `DEPLOYER_PREFIX` — '' on an unprefixed install. */
+    readonly prefix: string
+}
 
 export type PlatformWebTargetServiceShape = {
     /** The web container name on the platform network, or null when no web should be served (no route / no forward). */
-    readonly resolveWebTarget: () => Effect.Effect<string | null>
-}
-
-type Ports = {
-    readonly platformConfig: Pick<
-        PlatformConfigServiceShape,
-        'isManagedWebAppEnabled'
+    readonly resolveWebTarget: () => Effect.Effect<
+        string | null,
+        never,
+        PlatformConfigService
     >
-    /** The environment values the resolution reads. */
-    readonly env: {
-        readonly webTarget: () => string | undefined
-        readonly managedWebExternal: () => boolean
-        readonly prefix: () => string
-    }
 }
 
-export function makePlatformWebTargetService({
-    platformConfig,
-    env,
-}: Ports): PlatformWebTargetServiceShape {
-    return {
-        resolveWebTarget: () =>
-            Effect.gen(function* () {
-                const explicit = env.webTarget()?.trim()
-                if (explicit !== undefined && explicit !== '') return explicit
-
-                // The API-supervised managed web owns the surface unless an external web (compose side-by-side / BYO) is declared.
-                if (env.managedWebExternal()) return null
-                if (!(yield* platformConfig.isManagedWebAppEnabled()))
-                    return null
-
-                const prefix = env.prefix()
-                return prefix === ''
-                    ? MANAGED_WEB_CONTAINER_BASE_NAME
-                    : `${MANAGED_WEB_CONTAINER_BASE_NAME}-${prefix}`
-            }),
-    }
-}
-
+/**
+ * Tag and implementation together: the tag is the contract, `live` the one implementation.
+ *
+ * The managed-web flag is yielded per call (it changes at runtime); the three environment values are plain values the
+ * module resolves from the existing accessors, so `live` reads no environment itself.
+ */
 export class PlatformWebTargetService extends Context.Service<
     PlatformWebTargetService,
     PlatformWebTargetServiceShape
->()('shared/PlatformWebTargetService') {}
+>()('shared/PlatformWebTargetService') {
+    static readonly live = class PlatformWebTargetServiceImpl
+        implements PlatformWebTargetServiceShape
+    {
+        constructor(private readonly env: PlatformWebTargetEnv) {}
+
+        resolveWebTarget(): ReturnType<
+            PlatformWebTargetServiceShape['resolveWebTarget']
+        > {
+            return Effect.gen({ self: this }, function* () {
+                const explicit = this.env.webTarget?.trim()
+                if (explicit !== undefined && explicit !== '') return explicit
+
+                // The API-supervised managed web owns the surface unless an external web (compose side-by-side / BYO) is declared.
+                if (this.env.managedWebExternal) return null
+                const platformConfig = yield* PlatformConfigService
+                if (!(yield* platformConfig.isManagedWebAppEnabled()))
+                    return null
+
+                return this.env.prefix === ''
+                    ? MANAGED_WEB_CONTAINER_BASE_NAME
+                    : `${MANAGED_WEB_CONTAINER_BASE_NAME}-${this.env.prefix}`
+            })
+        }
+    }
+}

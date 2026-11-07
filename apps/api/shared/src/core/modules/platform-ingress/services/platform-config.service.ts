@@ -11,8 +11,8 @@ import z from 'zod/v4'
 import { appConfig } from '@deployer/nest-schema/global'
 
 import {
+    DatabasePort,
     storage,
-    type DatabasePort,
     type StorageFailure,
 } from '../../database/storage'
 
@@ -81,125 +81,156 @@ export type PlatformConfigServiceShape = {
     readonly clearManagedWebTunnel: () => Effect.Effect<void, StorageFailure>
 }
 
-type Ports = {
-    readonly database: Context.Service.Shape<typeof DatabasePort>
-    /** The `MANAGED_WEB_APP_ENABLED` environment value, the seed of the stored flag. */
-    readonly managedWebSeed: () => boolean
-}
+/**
+ * Tag and implementation together: the tag is the contract, `live` the one implementation.
+ *
+ * The connection is a constructor argument (the Effect port, not the Nest service that owns it) and the managed-web seed is
+ * a plain accessor: the module builds `new PlatformConfigService.live(database, seed)`. Nothing here yields a collaborator,
+ * so a caller only has to reach the service itself.
+ */
+export class PlatformConfigService extends Context.Service<
+    PlatformConfigService,
+    PlatformConfigServiceShape
+>()('shared/PlatformConfigService') {
+    static readonly live = class PlatformConfigServiceImpl
+        implements PlatformConfigServiceShape
+    {
+        constructor(
+            private readonly database: Context.Service.Shape<
+                typeof DatabasePort
+            >,
+            private readonly managedWebSeed: () => boolean
+        ) {}
 
-export function makePlatformConfigService({
-    database,
-    managedWebSeed,
-}: Ports): PlatformConfigServiceShape {
-    const upsert = (key: string, value: string, description: string | null) =>
-        storage(database, (db) =>
-            db
-                .insert(appConfig)
-                .values({ key, value, description })
-                .onConflictDoUpdate({
-                    target: appConfig.key,
-                    set: { value, updatedAt: new Date() },
-                })
-        ).pipe(Effect.asVoid)
+        /** One app_config value; null when absent or when the table cannot be read. */
+        private read(key: string): Effect.Effect<string | null> {
+            return storage(this.database, (db) =>
+                db
+                    .select()
+                    .from(appConfig)
+                    .where(eq(appConfig.key, key))
+                    .limit(1)
+            ).pipe(
+                Effect.map((rows) => {
+                    const raw = rows[0]?.value
+                    return raw === undefined || raw === '' ? null : raw
+                }),
+                Effect.catch(() => Effect.succeed(null))
+            )
+        }
 
-    /** One app_config value; null when absent or when the table cannot be read. */
-    const read = (key: string): Effect.Effect<string | null> =>
-        storage(database, (db) =>
-            db.select().from(appConfig).where(eq(appConfig.key, key)).limit(1)
-        ).pipe(
-            Effect.map((rows) => {
-                const raw = rows[0]?.value
-                return raw === undefined || raw === '' ? null : raw
-            }),
-            Effect.catch(() => Effect.succeed(null))
-        )
+        /** Insert or update one app_config value. */
+        private upsert(
+            key: string,
+            value: string,
+            description: string | null
+        ): Effect.Effect<void, StorageFailure> {
+            return storage(this.database, (db) =>
+                db
+                    .insert(appConfig)
+                    .values({ key, value, description })
+                    .onConflictDoUpdate({
+                        target: appConfig.key,
+                        set: { value, updatedAt: new Date() },
+                    })
+            )
+        }
 
-    const setManagedWebAppEnabled: PlatformConfigServiceShape['setManagedWebAppEnabled'] =
-        (enabled) =>
-            upsert(
+        setManagedWebAppEnabled(
+            enabled: boolean
+        ): ReturnType<PlatformConfigServiceShape['setManagedWebAppEnabled']> {
+            return this.upsert(
                 MANAGED_WEB_APP_ENABLED_KEY,
                 enabled ? 'true' : 'false',
                 'API-centric deployment: spawn/supervise the managed web app'
             )
+        }
 
-    return {
-        isManagedWebAppEnabled: () =>
-            Effect.gen(function* () {
+        isManagedWebAppEnabled(): ReturnType<
+            PlatformConfigServiceShape['isManagedWebAppEnabled']
+        > {
+            return Effect.gen({ self: this }, function* () {
                 // A missing table reads as "no row": the env seed answers.
-                const rows = yield* storage(database, (db) =>
-                    db
-                        .select()
-                        .from(appConfig)
-                        .where(eq(appConfig.key, MANAGED_WEB_APP_ENABLED_KEY))
-                        .limit(1)
-                ).pipe(
-                    Effect.catch(() =>
-                        Effect.succeed([] as { value: string }[])
-                    )
-                )
-                const row = rows[0]
-                if (row !== undefined) {
-                    const parsed = booleanValueSchema.safeParse(row.value)
+                const raw = yield* this.read(MANAGED_WEB_APP_ENABLED_KEY)
+                if (raw !== null) {
+                    const parsed = booleanValueSchema.safeParse(raw)
                     return parsed.success ? parsed.data : false
                 }
-                const seeded = managedWebSeed()
-                yield* setManagedWebAppEnabled(seeded).pipe(
+                const seeded = this.managedWebSeed()
+                yield* this.setManagedWebAppEnabled(seeded).pipe(
                     Effect.catch(() => Effect.void)
                 )
                 return seeded
-            }),
-        setManagedWebAppEnabled,
+            })
+        }
 
-        getManagedWebOrigin: () =>
-            read(MANAGED_WEB_ORIGIN_KEY).pipe(
-                Effect.map((raw) => (raw === null ? null : normalizeHost(raw)))
-            ),
+        getManagedWebOrigin(): ReturnType<
+            PlatformConfigServiceShape['getManagedWebOrigin']
+        > {
+            return Effect.gen({ self: this }, function* () {
+                const raw = yield* this.read(MANAGED_WEB_ORIGIN_KEY)
+                return raw === null ? null : normalizeHost(raw)
+            })
+        }
 
-        setManagedWebOrigin: (origin) =>
-            origin === null || origin.trim() === ''
-                ? storage(database, (db) =>
-                      db
-                          .delete(appConfig)
-                          .where(eq(appConfig.key, MANAGED_WEB_ORIGIN_KEY))
-                  ).pipe(Effect.asVoid)
-                : upsert(
-                      MANAGED_WEB_ORIGIN_KEY,
-                      normalizeHost(origin),
-                      'Custom public origin (domain/IP) of the managed web app — routed to the web container via Traefik'
-                  ),
+        setManagedWebOrigin(
+            origin: string | null
+        ): ReturnType<PlatformConfigServiceShape['setManagedWebOrigin']> {
+            if (origin === null || origin.trim() === '') {
+                return storage(this.database, (db) =>
+                    db
+                        .delete(appConfig)
+                        .where(eq(appConfig.key, MANAGED_WEB_ORIGIN_KEY))
+                )
+            }
+            return this.upsert(
+                MANAGED_WEB_ORIGIN_KEY,
+                normalizeHost(origin),
+                'Custom public origin (domain/IP) of the managed web app — routed to the web container via Traefik'
+            )
+        }
 
-        getManagedWebTunnel: () =>
-            Effect.all([
-                read(MANAGED_WEB_TUNNEL_ID_KEY),
-                read(MANAGED_WEB_TUNNEL_HOSTNAME_KEY),
-                read(MANAGED_WEB_TUNNEL_PROVIDER_KEY),
-            ]).pipe(
-                Effect.map(([tunnelId, hostname, providerId]) =>
-                    tunnelId === null ||
+        getManagedWebTunnel(): ReturnType<
+            PlatformConfigServiceShape['getManagedWebTunnel']
+        > {
+            return Effect.gen({ self: this }, function* () {
+                const [tunnelId, hostname, providerId] = yield* Effect.all([
+                    this.read(MANAGED_WEB_TUNNEL_ID_KEY),
+                    this.read(MANAGED_WEB_TUNNEL_HOSTNAME_KEY),
+                    this.read(MANAGED_WEB_TUNNEL_PROVIDER_KEY),
+                ])
+                return tunnelId === null ||
                     hostname === null ||
                     providerId === null
-                        ? null
-                        : { tunnelId, hostname, providerId }
-                )
-            ),
+                    ? null
+                    : { tunnelId, hostname, providerId }
+            })
+        }
 
-        setManagedWebTunnel: (tunnel) =>
-            Effect.all([
-                upsert(MANAGED_WEB_TUNNEL_ID_KEY, tunnel.tunnelId, null),
-                upsert(
-                    MANAGED_WEB_TUNNEL_HOSTNAME_KEY,
-                    normalizeHost(tunnel.hostname),
-                    null
-                ),
-                upsert(
-                    MANAGED_WEB_TUNNEL_PROVIDER_KEY,
-                    tunnel.providerId,
-                    null
-                ),
-            ]).pipe(Effect.asVoid),
+        setManagedWebTunnel(
+            tunnel: ManagedWebTunnel
+        ): ReturnType<PlatformConfigServiceShape['setManagedWebTunnel']> {
+            return Effect.gen({ self: this }, function* () {
+                yield* Effect.all([
+                    this.upsert(MANAGED_WEB_TUNNEL_ID_KEY, tunnel.tunnelId, null),
+                    this.upsert(
+                        MANAGED_WEB_TUNNEL_HOSTNAME_KEY,
+                        normalizeHost(tunnel.hostname),
+                        null
+                    ),
+                    this.upsert(
+                        MANAGED_WEB_TUNNEL_PROVIDER_KEY,
+                        tunnel.providerId,
+                        null
+                    ),
+                ])
+            })
+        }
 
-        clearManagedWebTunnel: () =>
-            storage(database, (db) =>
+        clearManagedWebTunnel(): ReturnType<
+            PlatformConfigServiceShape['clearManagedWebTunnel']
+        > {
+            return storage(this.database, (db) =>
                 db
                     .delete(appConfig)
                     .where(
@@ -209,11 +240,7 @@ export function makePlatformConfigService({
                             eq(appConfig.key, MANAGED_WEB_TUNNEL_PROVIDER_KEY)
                         )
                     )
-            ).pipe(Effect.asVoid),
+            )
+        }
     }
 }
-
-export class PlatformConfigService extends Context.Service<
-    PlatformConfigService,
-    PlatformConfigServiceShape
->()('shared/PlatformConfigService') {}

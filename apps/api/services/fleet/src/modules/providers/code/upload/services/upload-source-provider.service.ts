@@ -1,7 +1,6 @@
 import { Context, Effect } from 'effect'
 import z from 'zod/v4'
 
-import { serviceOver, type Over } from '@deployer/effect-core'
 import type { DeploymentTriggerInput } from '@deployer/runtime-contracts/modules/deployment/crud'
 
 import { attemptSync } from '@/core/effects'
@@ -11,13 +10,9 @@ import { runtimeRunnerOptionsSchema } from '../../../base/runtime-runner-options
 import { resolveRuntimeRunnerKind } from '../../../base/runtime-runner-options.schema'
 import { uploadSourceCheckoutContextSchema } from '../../../base/source-provider.interface'
 
-import {
-    UploadBundleRegistryService,
-    type UploadBundleRegistryServiceShape,
-} from './upload-bundle-registry.service'
+import { UploadBundleRegistryService } from './upload-bundle-registry.service'
 
 import type { RuntimeRunnerOptions } from '../../../base/runtime-runner-options.schema'
-import type { DeploymentSourceCheckoutContext } from '../../../base/source-provider.interface'
 import type { CodeProvider } from '../../shared/code-provider.interface'
 
 const uploadSourceContextSchema = z.object({
@@ -81,12 +76,22 @@ function buildRuntimeRunnerOptionsFallback(input: {
 }
 
 /** The provider for an uploaded archive: the bundle is on disk, the trigger names it. */
-function makeUploadSourceProviderService(
-    uploadBundleRegistryService: UploadBundleRegistryServiceShape
-) {
-    return {
-        resolveSourceCheckout: (input: DeploymentTriggerInput) =>
-            Effect.gen(function* () {
+export type UploadSourceProviderServiceShape = CodeProvider<UploadBundleRegistryService>
+
+/** Tag and implementation together: the tag is the contract, `live` the one implementation. */
+export class UploadSourceProviderService extends Context.Service<
+    UploadSourceProviderService,
+    UploadSourceProviderServiceShape
+>()('fleet/UploadSourceProviderService') {
+    static readonly live = class UploadSourceProviderServiceImpl
+        implements UploadSourceProviderServiceShape
+    {
+        resolveSourceCheckout(
+            input: DeploymentTriggerInput
+        ): ReturnType<
+            UploadSourceProviderServiceShape['resolveSourceCheckout']
+        > {
+            return Effect.gen(function* () {
                 if (input.source.sourceType !== 'upload') return null
 
                 const parsed = uploadSourceContextSchema.safeParse(input.source)
@@ -108,7 +113,7 @@ function makeUploadSourceProviderService(
                     customData.uploadPath ?? parsed.data.uploadPath
                 const registryRecord = declaredUploadPath
                     ? null
-                    : yield* uploadBundleRegistryService.findByUploadId(
+                    : yield* (yield* UploadBundleRegistryService).findByUploadId(
                           uploadId
                       )
 
@@ -193,23 +198,7 @@ function makeUploadSourceProviderService(
                             : {}),
                     })
                 )
-            }),
-    } satisfies CodeProvider
-}
-
-export type UploadSourceProviderServiceShape = Over<
-    ReturnType<typeof makeUploadSourceProviderService>,
-    UploadBundleRegistryService
->
-
-/** Tag and implementation together: the tag is the contract, `live` the one implementation. */
-export class UploadSourceProviderService extends Context.Service<
-    UploadSourceProviderService,
-    UploadSourceProviderServiceShape
->()('fleet/UploadSourceProviderService') {
-    /** The bundle registry is yielded when a method runs, so this is a constant the module provides with `useValue`. */
-    static readonly live: UploadSourceProviderServiceShape = serviceOver(
-        UploadBundleRegistryService,
-        makeUploadSourceProviderService
-    )
+            })
+        }
+    }
 }

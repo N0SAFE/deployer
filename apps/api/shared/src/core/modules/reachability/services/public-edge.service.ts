@@ -21,20 +21,22 @@ import type {
     PublicJoinPath,
 } from '@deployer/contracts-entities/entities/ingress/index'
 
+import {
+    type EdgeConnectorSpec,
+    type EdgeContext,
+    type EdgeDnsRecord,
+    type EdgeProvider,
+} from '../../edge/edge-provider'
+import { EdgeProviderRegistry } from '../../edge/edge-provider.registry'
 import { LANE_ENTRYPOINTS } from '../../platform-ingress/services/lane-traefik-config'
 import { platformTraefikContainerName } from '../../platform-ingress/services/platform-names'
 import { EdgeProviderFailure } from '../reachability.errors'
+import {
+    NodeNetworkConfigRepository,
+    type NodeNetworkConfigRow,
+} from '../repositories/node-network-config.repository'
 
 import { toNodeNetworkConfigData } from './node-network-config.mapper'
-
-import type {
-    EdgeConnectorSpec,
-    EdgeContext,
-    EdgeDnsRecord,
-    EdgeProvider,
-} from '../../edge/edge-provider'
-import type { EdgeProviderRegistryShape } from '../../edge/edge-provider.registry'
-import type { NodeNetworkConfigRepositoryShape } from '../repositories/node-network-config.repository'
 
 /**
  * Name of the stack's resources on a provider account. Stack-scoped, so a retry
@@ -52,125 +54,136 @@ export type PublicEdgeView = {
     status: EdgeStatus
 }
 
+/** The collaborators one public-edge call yields: the registry and the nodes' addresses. */
 export type PublicEdgeServiceShape = {
     /** Traefik's `public` entrypoint on the platform overlay: the one target every edge forwards to. */
     readonly ingressTarget: () => string
     /** The provider and context for the lanes' public lane, or null when there is none / it is not registered. Never fails: unreadable node addresses read as none. */
-    readonly resolve: (
-        lanes: IngressLanes
-    ) => Effect.Effect<{ provider: EdgeProvider; ctx: EdgeContext } | null>
+    readonly resolve: (lanes: IngressLanes) => Effect.Effect<
+        { provider: EdgeProvider; ctx: EdgeContext } | null,
+        never,
+        EdgeProviderRegistry | NodeNetworkConfigRepository
+    >
     /** The public edge as the UI shows it, or null when there is no public lane. Never fails: a provider that errors reads as an unknown edge. */
-    readonly view: (lanes: IngressLanes) => Effect.Effect<PublicEdgeView | null>
+    readonly view: (lanes: IngressLanes) => Effect.Effect<
+        PublicEdgeView | null,
+        never,
+        EdgeProviderRegistry | NodeNetworkConfigRepository
+    >
     /** How a stranger joins through the public lane, or null when there is none. */
-    readonly joinPath: (
-        lanes: IngressLanes
-    ) => Effect.Effect<PublicJoinPath | null, EdgeProviderFailure>
+    readonly joinPath: (lanes: IngressLanes) => Effect.Effect<
+        PublicJoinPath | null,
+        EdgeProviderFailure,
+        EdgeProviderRegistry | NodeNetworkConfigRepository
+    >
     /** Records the public lane needs. Empty when there is no public lane. */
-    readonly dnsRecords: (
-        lanes: IngressLanes
-    ) => Effect.Effect<EdgeDnsRecord[], EdgeProviderFailure>
+    readonly dnsRecords: (lanes: IngressLanes) => Effect.Effect<
+        EdgeDnsRecord[],
+        EdgeProviderFailure,
+        EdgeProviderRegistry | NodeNetworkConfigRepository
+    >
     /** The process the cluster must run for the edge, labelled with its provider. */
-    readonly connector: (
-        lanes: IngressLanes
-    ) => Effect.Effect<
+    readonly connector: (lanes: IngressLanes) => Effect.Effect<
         { providerId: string; spec: EdgeConnectorSpec } | null,
-        EdgeProviderFailure
+        EdgeProviderFailure,
+        EdgeProviderRegistry | NodeNetworkConfigRepository
     >
 }
 
-type Ports = {
-    readonly registry: EdgeProviderRegistryShape
-    readonly nodeConfigs: NodeNetworkConfigRepositoryShape
-    /** The `DEPLOYER_PREFIX` environment value. */
-    readonly prefix: string | undefined
-}
+/**
+ * Tag and implementation together: the tag is the contract, `live` the one implementation.
+ *
+ * The registry and the nodes' addresses are yielded per call. `prefix` is a plain value the module hands over (it is
+ * what names the stack's provider resources), so it is a constructor argument rather than a service.
+ */
+export class PublicEdgeService extends Context.Service<
+    PublicEdgeService,
+    PublicEdgeServiceShape
+>()('shared/PublicEdgeService') {
+    static readonly live = class PublicEdgeServiceImpl
+        implements PublicEdgeServiceShape
+    {
+        constructor(private readonly prefix: string | undefined) {}
 
-export function makePublicEdgeService({
-    registry,
-    nodeConfigs,
-    prefix,
-}: Ports): PublicEdgeServiceShape {
-    const ingressTarget = (): string =>
-        `http://${platformTraefikContainerName(prefix)}:${String(LANE_ENTRYPOINTS.public.port)}`
+        ingressTarget(): string {
+            return `http://${platformTraefikContainerName(this.prefix)}:${String(LANE_ENTRYPOINTS.public.port)}`
+        }
 
-    const resolve: PublicEdgeServiceShape['resolve'] = (lanes) =>
-        Effect.gen(function* () {
-            if (lanes.public === null) return null
-            const provider = registry.find(lanes.public.provider)
-            if (provider === null) return null
-            const rows = yield* nodeConfigs
-                .list()
-                .pipe(
+        resolve(
+            lanes: IngressLanes
+        ): ReturnType<PublicEdgeServiceShape['resolve']> {
+            return Effect.gen({ self: this }, function* () {
+                if (lanes.public === null) return null
+                const registry = yield* EdgeProviderRegistry
+                const provider = registry.find(lanes.public.provider)
+                if (provider === null) return null
+                const nodeConfigs = yield* NodeNetworkConfigRepository
+                const rows = yield* nodeConfigs.list().pipe(
                     Effect.catch((error) =>
                         Effect.logWarning(
                             `Node addresses unavailable: ${error.message}`
-                        ).pipe(
-                            Effect.as(
-                                [] as Effect.Success<
-                                    ReturnType<typeof nodeConfigs.list>
-                                >
-                            )
-                        )
+                        ).pipe(Effect.as([] as NodeNetworkConfigRow[]))
                     )
                 )
-            return {
-                provider,
-                ctx: {
-                    lane: lanes.public,
-                    ingressTarget: ingressTarget(),
-                    nodes: rows.map((row) =>
-                        toNodeNetworkConfigData(row.nodeId, row)
-                    ),
-                    resourceName: stackResourceName(prefix),
-                },
-            }
-        })
+                return {
+                    provider,
+                    ctx: {
+                        lane: lanes.public,
+                        ingressTarget: this.ingressTarget(),
+                        nodes: rows.map((row) =>
+                            toNodeNetworkConfigData(row.nodeId, row)
+                        ),
+                        resourceName: stackResourceName(this.prefix),
+                    },
+                }
+            })
+        }
 
-    /** The provider's own status: a provider that fails reads as an unknown edge, not as an error page. */
-    const statusOf = ({
-        provider,
-        ctx,
-    }: {
-        provider: EdgeProvider
-        ctx: EdgeContext
-    }): Effect.Effect<EdgeStatus> =>
-        provider.status(ctx).pipe(
-            Effect.catch((cause) =>
-                Effect.succeed({
-                    provisioned: false,
-                    health: 'unknown',
-                    detail: `${provider.descriptor.label} status unavailable: ${cause instanceof Error ? cause.message : String(cause)}`,
-                    facts: [],
-                    resources: [],
-                } satisfies EdgeStatus)
+        /** The provider's own status: a provider that fails reads as an unknown edge, not as an error page. */
+        private statusOf({
+            provider,
+            ctx,
+        }: {
+            provider: EdgeProvider
+            ctx: EdgeContext
+        }): Effect.Effect<EdgeStatus> {
+            return provider.status(ctx).pipe(
+                Effect.catch((cause) =>
+                    Effect.succeed({
+                        provisioned: false,
+                        health: 'unknown',
+                        detail: `${provider.descriptor.label} status unavailable: ${cause instanceof Error ? cause.message : String(cause)}`,
+                        facts: [],
+                        resources: [],
+                    } satisfies EdgeStatus)
+                )
             )
-        )
+        }
 
-    /** One provider call: any failure is an `EdgeProviderFailure` for `operation`. */
-    const providerCall = <A>(
-        provider: EdgeProvider,
-        operation: string,
-        run: () => Effect.Effect<A, unknown>
-    ) =>
-        run().pipe(
-            Effect.mapError(
-                (cause) =>
-                    new EdgeProviderFailure({
-                        providerId: provider.descriptor.id,
-                        operation,
-                        cause,
-                    })
+        /** One provider call: any failure is an `EdgeProviderFailure` for `operation`. */
+        private providerCall<A>(
+            provider: EdgeProvider,
+            operation: string,
+            run: () => Effect.Effect<A, unknown>
+        ): Effect.Effect<A, EdgeProviderFailure> {
+            return run().pipe(
+                Effect.mapError(
+                    (cause) =>
+                        new EdgeProviderFailure({
+                            providerId: provider.descriptor.id,
+                            operation,
+                            cause,
+                        })
+                )
             )
-        )
+        }
 
-    return {
-        ingressTarget,
-        resolve,
-
-        view: (lanes) =>
-            Effect.gen(function* () {
+        view(
+            lanes: IngressLanes
+        ): ReturnType<PublicEdgeServiceShape['view']> {
+            return Effect.gen({ self: this }, function* () {
                 if (lanes.public === null) return null
-                const resolved = yield* resolve(lanes)
+                const resolved = yield* this.resolve(lanes)
                 if (resolved === null) {
                     return {
                         provider: null,
@@ -187,15 +200,18 @@ export function makePublicEdgeService({
                 return {
                     provider: resolved.provider.descriptor,
                     providerId: resolved.provider.descriptor.id,
-                    status: yield* statusOf(resolved),
+                    status: yield* this.statusOf(resolved),
                 } satisfies PublicEdgeView
-            }),
+            })
+        }
 
-        joinPath: (lanes) =>
-            Effect.gen(function* () {
-                const resolved = yield* resolve(lanes)
+        joinPath(
+            lanes: IngressLanes
+        ): ReturnType<PublicEdgeServiceShape['joinPath']> {
+            return Effect.gen({ self: this }, function* () {
+                const resolved = yield* this.resolve(lanes)
                 if (resolved === null) return null
-                const status = yield* statusOf(resolved)
+                const status = yield* this.statusOf(resolved)
                 return yield* Effect.try({
                     try: () => resolved.provider.joinPath(resolved.ctx, status),
                     catch: (cause) =>
@@ -205,25 +221,31 @@ export function makePublicEdgeService({
                             cause,
                         }),
                 })
-            }),
+            })
+        }
 
-        dnsRecords: (lanes) =>
-            Effect.gen(function* () {
-                const resolved = yield* resolve(lanes)
+        dnsRecords(
+            lanes: IngressLanes
+        ): ReturnType<PublicEdgeServiceShape['dnsRecords']> {
+            return Effect.gen({ self: this }, function* () {
+                const resolved = yield* this.resolve(lanes)
                 return resolved === null
                     ? []
-                    : yield* providerCall(
+                    : yield* this.providerCall(
                           resolved.provider,
                           'DNS records',
                           () => resolved.provider.dnsRecords(resolved.ctx)
                       )
-            }),
+            })
+        }
 
-        connector: (lanes) =>
-            Effect.gen(function* () {
-                const resolved = yield* resolve(lanes)
+        connector(
+            lanes: IngressLanes
+        ): ReturnType<PublicEdgeServiceShape['connector']> {
+            return Effect.gen({ self: this }, function* () {
+                const resolved = yield* this.resolve(lanes)
                 if (resolved === null) return null
-                const spec = yield* providerCall(
+                const spec = yield* this.providerCall(
                     resolved.provider,
                     'connector',
                     () => resolved.provider.connector(resolved.ctx)
@@ -231,11 +253,7 @@ export function makePublicEdgeService({
                 return spec === null
                     ? null
                     : { providerId: resolved.provider.descriptor.id, spec }
-            }),
+            })
+        }
     }
 }
-
-export class PublicEdgeService extends Context.Service<
-    PublicEdgeService,
-    PublicEdgeServiceShape
->()('shared/PublicEdgeService') {}

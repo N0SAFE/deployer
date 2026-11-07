@@ -21,25 +21,17 @@ import { resolveSwarmNodeRole } from '@deployer/docker'
 import {
     runPromiseUnwrapped,
     runSyncUnwrapped,
-    serviceOver,
-    type Over,
+    type RequirementsOf,
 } from '@deployer/effect-core'
 import { type ClusterMasterView } from '@deployer/fleet-contracts'
 import { clusterNodeInventoryRowSchema } from '@deployer/fleet-contracts'
-import type { ClusterNodeInventoryRepositoryShape } from '@deployer/node-state'
-import type { ClusterNodeRepositoryShape } from '@deployer/node-state'
+import type { ClusterNodesRow } from '@deployer/nest-schema/local'
 import {
     ingressFromLabels,
     platformRoleFromLabels,
     withIngress,
     withPlatformRole,
 } from '@deployer/node-state'
-import type { EnvService } from '@deployer/shared/config/env/env.module'
-import type {
-    SwarmClusterShape,
-    SwarmFleetShape,
-    SwarmParticipationShape,
-} from '@deployer/swarm'
 
 import { attempt, attemptSync } from '../../../core/effects'
 import {
@@ -51,53 +43,46 @@ import {
     SwarmParticipationPort,
 } from '../cluster.ports'
 
-type Ports = {
-    readonly swarmClusterService: SwarmClusterShape
-    readonly swarmFleetService: SwarmFleetShape
-    readonly participation: SwarmParticipationShape
-    readonly clusterNodeRepository: ClusterNodeRepositoryShape
-    readonly inventoryRepository: ClusterNodeInventoryRepositoryShape
-    readonly env: EnvService
-}
-
 type NodeInventoryRow = ReturnType<typeof clusterNodeInventoryRowSchema.parse>
 
 /**
  * Every call goes to a swarm service or a node repository, so a use case fails with whatever that
  * collaborator refused with (left as thrown; the `.effect()` boundary lets it through for the host to translate).
+ *
+ * Each member names the ports it yields; there is no combined record.
  */
 export type ClusterServiceShape = {
     /** Swarm participation read-model (mode/policy/engine state). */
     readonly getSwarmConfig: () => Effect.Effect<
         SwarmConfigView,
         unknown,
-        ClusterServicePorts
+        SwarmParticipationPort
     >
     /** Persist + converge the participation config; returns the fresh view. */
     readonly setSwarmConfig: (
         input: SwarmParticipationInput
-    ) => Effect.Effect<SwarmConfigView, unknown, ClusterServicePorts>
+    ) => Effect.Effect<SwarmConfigView, unknown, SwarmParticipationPort>
     /** Local engine's current Swarm snapshot (typed). */
     readonly getSnapshot: () => Effect.Effect<
         ClusterSnapshot,
         unknown,
-        ClusterServicePorts
+        SwarmClusterPort
     >
     /** Observable stream of node resources at 10s intervals. */
     readonly nodeResourcesStream: (
         nodeId: string
-    ) => Effect.Effect<
-        Observable<SwarmNodeResources>,
-        never,
-        ClusterServicePorts
-    >
+    ) => Effect.Effect<Observable<SwarmNodeResources>, never, SwarmFleetPort>
     /**
      * Fleet inventory from the persisted `cluster_nodes` table (fast, no live engine call). Falls
      * back to a live sweep when the table is empty.
      */
     readonly listNodes: (
         includeDown: boolean
-    ) => Effect.Effect<NodeInventoryRow[], unknown, ClusterServicePorts>
+    ) => Effect.Effect<
+        NodeInventoryRow[],
+        unknown,
+        NodeInventoryPort | SwarmClusterPort
+    >
     /**
      * Current controlling-master view (elected node + term + heartbeat state).
      *
@@ -108,7 +93,7 @@ export type ClusterServiceShape = {
     readonly getMaster: () => Effect.Effect<
         ClusterMasterView,
         unknown,
-        ClusterServicePorts
+        ClusterNodeRepoPort | ClusterEnvPort
     >
     /**
      * Update a node's platform role / ingress labels via the SDK (node.update Spec.Labels — SW-031)
@@ -119,115 +104,115 @@ export type ClusterServiceShape = {
     readonly updateNodeLabels: (
         nodeId: string,
         input: { platformRole?: ClusterPlatformRole; ingress?: boolean }
-    ) => Effect.Effect<ClusterNode, unknown, ClusterServicePorts>
+    ) => Effect.Effect<ClusterNode, unknown, SwarmClusterPort | NodeInventoryPort>
     /** Mesh-wide swarm services with mode + desired/running task counts. */
     readonly listServices: () => Effect.Effect<
         SwarmServiceRuntime[],
         unknown,
-        ClusterServicePorts
+        SwarmFleetPort
     >
     /** Swarm tasks filtered by service and/or node. */
     readonly listTasks: (filter: {
         serviceId?: string
         nodeId?: string
-    }) => Effect.Effect<SwarmTaskRuntime[], unknown, ClusterServicePorts>
+    }) => Effect.Effect<SwarmTaskRuntime[], unknown, SwarmFleetPort>
     /** Per-node aggregation (swarm services/tasks + local engine artifacts). */
     readonly getNodeResources: (
         nodeId: string
-    ) => Effect.Effect<SwarmNodeResources, unknown, ClusterServicePorts>
+    ) => Effect.Effect<SwarmNodeResources, unknown, SwarmFleetPort>
 }
 
-/** What the cluster service reads from the Effect context while it runs. */
-export type ClusterServicePorts =
-    | SwarmClusterPort
-    | SwarmFleetPort
-    | SwarmParticipationPort
-    | ClusterNodeRepoPort
-    | NodeInventoryPort
-    | ClusterEnvPort
+/** The inventory rows the local cache answers with. */
+type InventoryRows = ClusterNodesRow[]
 
 /** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
 export class ClusterService extends Context.Service<
     ClusterService,
-    Over<ClusterServiceShape, ClusterServicePorts>
+    ClusterServiceShape
 >()('fleet/ClusterService') {
-    /** The ports are yielded when a method runs, so this is a constant the module provides with `useValue`. */
-    static readonly live = serviceOver(
-        Effect.all({
-            swarmClusterService: SwarmClusterPort,
-            swarmFleetService: SwarmFleetPort,
-            participation: SwarmParticipationPort,
-            clusterNodeRepository: ClusterNodeRepoPort,
-            inventoryRepository: NodeInventoryPort,
-            env: ClusterEnvPort,
-        }),
-        makeClusterService
-    )
-}
+    /** Every port is yielded when a method runs, so this is a class the module provides with `useClass`. */
+    static readonly live = class ClusterServiceImpl implements ClusterServiceShape {
+        getSwarmConfig(): ReturnType<ClusterServiceShape['getSwarmConfig']> {
+            return Effect.gen(function* () {
+                const participation = yield* SwarmParticipationPort
+                return yield* participation.view()
+            })
+        }
 
-function makeClusterService(ports: Ports): ClusterServiceShape {
-    const {
-        swarmClusterService,
-        swarmFleetService,
-        participation,
-        clusterNodeRepository,
-        inventoryRepository,
-        env,
-    } = ports
+        setSwarmConfig(
+            input: SwarmParticipationInput
+        ): ReturnType<ClusterServiceShape['setSwarmConfig']> {
+            return Effect.gen(function* () {
+                const participation = yield* SwarmParticipationPort
+                return yield* participation.applyConfig(input)
+            })
+        }
 
-    const toInventoryRows = (includeDown: boolean) =>
-        attemptSync(() => {
-            const rows = runSyncUnwrapped(inventoryRepository.list())
-            return includeDown
-                ? rows
-                : rows.filter((row) => row.state === 'active')
-        })
+        getSnapshot(): ReturnType<ClusterServiceShape['getSnapshot']> {
+            return Effect.gen(function* () {
+                const cluster = yield* SwarmClusterPort
+                return yield* cluster.getLocalClusterSnapshot()
+            })
+        }
 
-    return {
-        getSwarmConfig: () => participation.view(),
-
-        setSwarmConfig: (input) => participation.applyConfig(input),
-
-        getSnapshot: () => swarmClusterService.getLocalClusterSnapshot(),
-
-        nodeResourcesStream: (nodeId) =>
-            Effect.sync(
-                () =>
-                    new Observable<SwarmNodeResources>((subscriber) => {
-                        const push = () => {
-                            runPromiseUnwrapped(
-                                swarmFleetService.getNodeResources(nodeId)
-                            )
-                                .then((resources) => {
-                                    subscriber.next(resources)
-                                })
-                                .catch((err: unknown) => {
-                                    Effect.runFork(
-                                        Effect.logWarning(
-                                            `Node resources stream error: ${String(err)}`
-                                        )
+        nodeResourcesStream(
+            nodeId: string
+        ): ReturnType<ClusterServiceShape['nodeResourcesStream']> {
+            return Effect.gen(function* () {
+                const fleet = yield* SwarmFleetPort
+                return new Observable<SwarmNodeResources>((subscriber) => {
+                    const push = () => {
+                        runPromiseUnwrapped(
+                            fleet.getNodeResources(nodeId)
+                        )
+                            .then((resources) => {
+                                subscriber.next(resources)
+                            })
+                            .catch((err: unknown) => {
+                                Effect.runFork(
+                                    Effect.logWarning(
+                                        `Node resources stream error: ${String(err)}`
                                     )
-                                })
-                        }
-                        push()
-                        const timer = setInterval(push, 10_000)
-                        return () => {
-                            clearInterval(timer)
-                        }
-                    })
-            ),
+                                )
+                            })
+                    }
+                    push()
+                    const timer = setInterval(push, 10_000)
+                    return () => {
+                        clearInterval(timer)
+                    }
+                })
+            })
+        }
 
-        listNodes: Effect.fn('ClusterService.listNodes')(
-            function* (includeDown) {
-                let rows = yield* toInventoryRows(includeDown)
+        /** The persisted inventory, filtered to active nodes unless `includeDown` asks for all. */
+        private inventoryRows(
+            includeDown: boolean
+        ): Effect.Effect<InventoryRows, unknown, NodeInventoryPort> {
+            return Effect.gen(function* () {
+                const inventory = yield* NodeInventoryPort
+                const rows = runSyncUnwrapped(inventory.list())
+                return includeDown
+                    ? rows
+                    : rows.filter((row) => row.state === 'active')
+            })
+        }
+
+        listNodes(
+            includeDown: boolean
+        ): ReturnType<ClusterServiceShape['listNodes']> {
+            return Effect.gen({ self: this }, function* () {
+                let rows = yield* this.inventoryRows(includeDown)
 
                 if (rows.length === 0) {
                     // Fallback: live engine sweep for fresh installs before the first inventory timer ticks.
+                    const inventory = yield* NodeInventoryPort
+                    const cluster = yield* SwarmClusterPort
                     yield* attempt(async () => {
                         runSyncUnwrapped(
-                            inventoryRepository.upsertAllFromEngine(
+                            inventory.upsertAllFromEngine(
                                 await runPromiseUnwrapped(
-                                    swarmClusterService.listSwarmNodes()
+                                    cluster.listSwarmNodes()
                                 )
                             )
                         )
@@ -238,7 +223,7 @@ function makeClusterService(ports: Ports): ClusterServiceShape {
                             )
                         )
                     )
-                    rows = yield* toInventoryRows(includeDown)
+                    rows = yield* this.inventoryRows(includeDown)
                 }
 
                 return yield* attemptSync(() =>
@@ -263,41 +248,52 @@ function makeClusterService(ports: Ports): ClusterServiceShape {
                         })
                     )
                 )
-            }
-        ),
+            })
+        }
 
-        getMaster: () =>
-            attemptSync(() => {
-                const row = runSyncUnwrapped(clusterNodeRepository.find())
-                if (!row?.masterNodeId) {
-                    return null
-                }
-                const heartbeatAt = row.lastHeartbeatAt
-                    ? Date.parse(row.lastHeartbeatAt)
-                    : 0
-                const ttlMs = env.get('SWARM_HEARTBEAT_TTL_MS')
-                const graceMs = env.get('SWARM_MASTER_GRACE_MS')
-                const stale =
-                    heartbeatAt > 0 &&
-                    Date.now() - heartbeatAt > ttlMs + graceMs
-                return {
-                    nodeId: row.masterNodeId,
-                    term: row.masterTerm,
-                    electedAt: row.lastHeartbeatAt ?? '',
-                    heartbeatAt: row.lastHeartbeatAt ?? '',
-                    reason: 'elected' as const,
-                    state: stale ? ('suspect' as const) : ('healthy' as const),
-                }
-            }),
+        getMaster(): ReturnType<ClusterServiceShape['getMaster']> {
+            return Effect.gen(function* () {
+                const clusterNode = yield* ClusterNodeRepoPort
+                const env = yield* ClusterEnvPort
+                return yield* attemptSync(() => {
+                    const row = runSyncUnwrapped(clusterNode.find())
+                    if (!row?.masterNodeId) {
+                        return null
+                    }
+                    const heartbeatAt = row.lastHeartbeatAt
+                        ? Date.parse(row.lastHeartbeatAt)
+                        : 0
+                    const ttlMs = env.get('SWARM_HEARTBEAT_TTL_MS')
+                    const graceMs = env.get('SWARM_MASTER_GRACE_MS')
+                    const stale =
+                        heartbeatAt > 0 &&
+                        Date.now() - heartbeatAt > ttlMs + graceMs
+                    return {
+                        nodeId: row.masterNodeId,
+                        term: row.masterTerm,
+                        electedAt: row.lastHeartbeatAt ?? '',
+                        heartbeatAt: row.lastHeartbeatAt ?? '',
+                        reason: 'elected' as const,
+                        state: stale
+                            ? ('suspect' as const)
+                            : ('healthy' as const),
+                    }
+                })
+            })
+        }
 
-        updateNodeLabels: Effect.fn('ClusterService.updateNodeLabels')(
-            function* (nodeId, input) {
-                const before =
-                    yield* swarmClusterService.inspectSwarmNode(nodeId)
+        updateNodeLabels(
+            nodeId: string,
+            input: { platformRole?: ClusterPlatformRole; ingress?: boolean }
+        ): ReturnType<ClusterServiceShape['updateNodeLabels']> {
+            return Effect.gen(function* () {
+                const cluster = yield* SwarmClusterPort
+                const inventory = yield* NodeInventoryPort
+                const before = yield* cluster.inspectSwarmNode(nodeId)
 
                 yield* attempt(() =>
                     runPromiseUnwrapped(
-                        swarmClusterService.updateSwarmNodeLabels(
+                        cluster.updateSwarmNodeLabels(
                             nodeId,
                             before.Version.Index,
                             withIngress(
@@ -316,7 +312,7 @@ function makeClusterService(ports: Ports): ClusterServiceShape {
                 // the engine had not applied (and poisoned the inventory cache with it until the next
                 // sweep). The cache is rebuilt from the same source the sweep uses, so a partial write
                 // is visible immediately instead of being masked.
-                const node = yield* swarmClusterService.inspectSwarmNode(nodeId)
+                const node = yield* cluster.inspectSwarmNode(nodeId)
                 const labels = node.Spec.Labels
                 const hostname = node.Description.Hostname
                 const swarmRole = resolveSwarmNodeRole(node)
@@ -341,7 +337,7 @@ function makeClusterService(ports: Ports): ClusterServiceShape {
                 // Persist the engine's actual role/ingress into the local inventory (cache).
                 yield* attemptSync(() =>
                     runSyncUnwrapped(
-                        inventoryRepository.upsertFromEngine({
+                        inventory.upsertFromEngine({
                             nodeId,
                             hostname,
                             swarmRole,
@@ -369,14 +365,32 @@ function makeClusterService(ports: Ports): ClusterServiceShape {
                     labels,
                     lastHeartbeatAt: new Date().toISOString(),
                 }
-            }
-        ),
+            })
+        }
 
-        listServices: () => swarmFleetService.listServices(),
+        listServices(): ReturnType<ClusterServiceShape['listServices']> {
+            return Effect.gen(function* () {
+                const fleet = yield* SwarmFleetPort
+                return yield* fleet.listServices()
+            })
+        }
 
-        listTasks: (filter) => swarmFleetService.listTasks(filter),
+        listTasks(
+            filter: { serviceId?: string; nodeId?: string }
+        ): ReturnType<ClusterServiceShape['listTasks']> {
+            return Effect.gen(function* () {
+                const fleet = yield* SwarmFleetPort
+                return yield* fleet.listTasks(filter)
+            })
+        }
 
-        getNodeResources: (nodeId) =>
-            swarmFleetService.getNodeResources(nodeId),
+        getNodeResources(
+            nodeId: string
+        ): ReturnType<ClusterServiceShape['getNodeResources']> {
+            return Effect.gen(function* () {
+                const fleet = yield* SwarmFleetPort
+                return yield* fleet.getNodeResources(nodeId)
+            })
+        }
     }
 }

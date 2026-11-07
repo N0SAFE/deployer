@@ -27,7 +27,7 @@ describe('DeploymentTriggerGateway', () => {
     const secret = vi.fn<() => string | null>()
     // The fakes need nothing from the context beyond what is provided here.
     const gateway = provideTo(
-        DeploymentTriggerGateway.live,
+        new DeploymentTriggerGateway.live(),
         (effect) =>
             effect.pipe(
                 Effect.provideService(SystemActorClients, {

@@ -2,14 +2,16 @@ import { Effect } from 'effect'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { provideTo } from '@deployer/effect-core'
-import { EgressRequestError } from '@deployer/shared/core/modules/egress/egress.service'
-
-import {
-    EgressPort,
-    PublicAccessPointPort,
-    ReachabilityCorePort,
-    TraefikRefresherPort,
-} from '../reachability.ports'
+import { NodeConfigRepository } from '@deployer/node-state'
+import { EdgeProviderRegistry } from '@deployer/shared/core/modules/edge/edge-provider.registry'
+import { EgressRequestError, EgressService } from '@deployer/shared/core/modules/egress/egress.service'
+import { ClusterSettings } from '@deployer/shared/core/modules/mesh-node/cluster-settings'
+import { IngressLanesService } from '@deployer/shared/core/modules/platform-ingress/services/ingress-lanes.service'
+import { NodeNetworkConfigRepository } from '@deployer/shared/core/modules/reachability/repositories/node-network-config.repository'
+import { PublicAccessPointService } from '@deployer/shared/core/modules/reachability/services/public-access-point.service'
+import { PublicEdgeService } from '@deployer/shared/core/modules/reachability/services/public-edge.service'
+import { ReachabilityService } from '@deployer/shared/core/modules/reachability/services/reachability.service'
+import { TraefikConfigRefresher } from '@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service'
 
 import { NodeReachabilityService } from './node-reachability.service'
 
@@ -40,13 +42,18 @@ describe('NodeReachabilityService outbound probes', () => {
         refresher = { refresh: vi.fn() }
         service = provideTo(new NodeReachabilityService.live(), (effect) =>
             effect.pipe(
-                Effect.provideService(
-                    ReachabilityCorePort,
-                    reachability as never
-                ),
-                Effect.provideService(PublicAccessPointPort, {} as never),
-                Effect.provideService(EgressPort, egress as never),
-                Effect.provideService(TraefikRefresherPort, refresher as never)
+                Effect.provideService(ReachabilityService, reachability as never),
+                Effect.provideService(PublicAccessPointService, {} as never),
+                Effect.provideService(EgressService, egress as never),
+                Effect.provideService(TraefikConfigRefresher, refresher as never),
+                // The methods' public types carry what the shared collaborators' own methods
+                // declare; the fakes above answer every call, so these are never yielded.
+                Effect.provideService(ClusterSettings, {} as never),
+                Effect.provideService(IngressLanesService, {} as never),
+                Effect.provideService(EdgeProviderRegistry, {} as never),
+                Effect.provideService(PublicEdgeService, {} as never),
+                Effect.provideService(NodeConfigRepository, {} as never),
+                Effect.provideService(NodeNetworkConfigRepository, {} as never)
             )
         )
     })

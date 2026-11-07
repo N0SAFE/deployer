@@ -128,13 +128,13 @@ export type CreateMiddlewareInput = {
     isActive?: boolean
 }
 
-type Ports = { readonly database: Context.Service.Shape<typeof DatabasePort> }
-
-/** The Traefik tables' data access. Every method is one query (or a few) and fails with `StorageFailure`. */
-export function makeTraefikRepository({ database }: Ports) {
-    const leaf = {
-        getProjectIdByName: (projectName: string) =>
-            storage(database, async (db) => {
+/** The Traefik tables' data access. Every method yields `DatabasePort` when it runs and
+ * fails with `StorageFailure`. */
+class TraefikRepositoryImpl {
+    getProjectIdByName(projectName: string) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [result] = await db
                     .select({ id: projects.id })
                     .from(projects)
@@ -142,10 +142,14 @@ export function makeTraefikRepository({ database }: Ports) {
                     .limit(1)
 
                 return result?.id ?? null
-            }),
+            })
+        })
+    }
 
-        createServiceConfig: (input: CreateServiceConfigInput) =>
-            storage(database, async (db) => {
+    createServiceConfig(input: CreateServiceConfigInput) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const fullDomain = input.subdomain
                     ? `${input.subdomain}.${input.domain}`
                     : input.domain
@@ -161,30 +165,42 @@ export function makeTraefikRepository({ database }: Ports) {
                     .returning()
 
                 return config ?? null
-            }),
+            })
+        })
+    }
 
-        getServiceConfig: (id: string) =>
-            storage(database, async (db) => {
+    getServiceConfig(id: string) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [config] = await db
                     .select()
                     .from(traefikServiceConfigs)
                     .where(eq(traefikServiceConfigs.id, id))
 
                 return config
-            }),
+            })
+        })
+    }
 
-        getServiceConfigByServiceId: (serviceId: string) =>
-            storage(database, async (db) => {
+    getServiceConfigByServiceId(serviceId: string) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [config] = await db
                     .select()
                     .from(traefikServiceConfigs)
                     .where(eq(traefikServiceConfigs.serviceId, serviceId))
 
                 return config
-            }),
+            })
+        })
+    }
 
-        getAllServiceConfigs: (isActive?: boolean) =>
-            storage(database, async (db) => {
+    getAllServiceConfigs(isActive?: boolean) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const query = db
                     .select()
                     .from(traefikServiceConfigs)
@@ -195,10 +211,14 @@ export function makeTraefikRepository({ database }: Ports) {
                 }
 
                 return await query
-            }),
+            })
+        })
+    }
 
-        getServiceConfigsByDomain: (domain: string, isActive?: boolean) =>
-            storage(database, async (db) => {
+    getServiceConfigsByDomain(domain: string, isActive?: boolean) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const conditions = [eq(traefikServiceConfigs.domain, domain)]
 
                 if (isActive !== undefined) {
@@ -212,10 +232,14 @@ export function makeTraefikRepository({ database }: Ports) {
                     .from(traefikServiceConfigs)
                     .where(and(...conditions))
                     .orderBy(desc(traefikServiceConfigs.createdAt))
-            }),
+            })
+        })
+    }
 
-        getServiceConfigsByProject: (projectId: string, isActive?: boolean) =>
-            storage(database, async (db) => {
+    getServiceConfigsByProject(projectId: string, isActive?: boolean) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 // Get all services for the project first
                 const projectServices = await db
                     .select({ id: services.id })
@@ -244,10 +268,14 @@ export function makeTraefikRepository({ database }: Ports) {
                     .from(traefikServiceConfigs)
                     .where(and(...conditions))
                     .orderBy(desc(traefikServiceConfigs.createdAt))
-            }),
+            })
+        })
+    }
 
-        deleteServiceConfig: (id: string) =>
-            storage(database, async (db) => {
+    deleteServiceConfig(id: string) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 // First delete dependent records to avoid foreign key constraints
 
                 // Delete config files that reference this service config
@@ -272,10 +300,14 @@ export function makeTraefikRepository({ database }: Ports) {
                     .returning()
 
                 return deletedConfig
-            }),
+            })
+        })
+    }
 
-        updateConfigSyncStatus: (configId: string, lastSyncedAt: Date) =>
-            storage(database, async (db) => {
+    updateConfigSyncStatus(configId: string, lastSyncedAt: Date) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [updated] = await db
                     .update(traefikServiceConfigs)
                     .set({
@@ -286,13 +318,17 @@ export function makeTraefikRepository({ database }: Ports) {
                     .returning()
 
                 return updated
-            }),
+            })
+        })
+    }
 
-        /**
-         * Update sync status for traefikConfigs table (virtual filesystem)
-         */
-        updateTraefikConfigSyncStatus: (configId: string, lastSyncedAt: Date) =>
-            storage(database, async (db) => {
+    /**
+     * Update sync status for traefikConfigs table (virtual filesystem)
+     */
+    updateTraefikConfigSyncStatus(configId: string, lastSyncedAt: Date) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [updated] = await db
                     .update(traefikConfigs)
                     .set({
@@ -305,13 +341,17 @@ export function makeTraefikRepository({ database }: Ports) {
                     .returning()
 
                 return updated
-            }),
+            })
+        })
+    }
 
-        /**
-         * Mark a traefikConfig as failed to sync
-         */
-        markTraefikConfigSyncFailed: (configId: string, errorMessage: string) =>
-            storage(database, async (db) => {
+    /**
+     * Mark a traefikConfig as failed to sync
+     */
+    markTraefikConfigSyncFailed(configId: string, errorMessage: string) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [updated] = await db
                     .update(traefikConfigs)
                     .set({
@@ -323,10 +363,14 @@ export function makeTraefikRepository({ database }: Ports) {
                     .returning()
 
                 return updated
-            }),
+            })
+        })
+    }
 
-        createDomainRoute: (input: CreateDomainRouteInput) =>
-            storage(database, async (db) => {
+    createDomainRoute(input: CreateDomainRouteInput) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [route] = await db
                     .insert(traefikDomainRoutes)
                     .values({
@@ -337,10 +381,14 @@ export function makeTraefikRepository({ database }: Ports) {
                     .returning()
 
                 return route
-            }),
+            })
+        })
+    }
 
-        getDomainRoutesByConfigId: (configId: string, isActive?: boolean) =>
-            storage(database, async (db) => {
+    getDomainRoutesByConfigId(configId: string, isActive?: boolean) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const conditions = [eq(traefikDomainRoutes.configId, configId)]
 
                 if (isActive !== undefined) {
@@ -352,13 +400,14 @@ export function makeTraefikRepository({ database }: Ports) {
                     .from(traefikDomainRoutes)
                     .where(and(...conditions))
                     .orderBy(desc(traefikDomainRoutes.priority))
-            }),
+            })
+        })
+    }
 
-        updateDomainRoute: (
-            id: string,
-            input: Partial<CreateDomainRouteInput>
-        ) =>
-            storage(database, async (db) => {
+    updateDomainRoute(id: string, input: Partial<CreateDomainRouteInput>) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [updated] = await db
                     .update(traefikDomainRoutes)
                     .set({
@@ -369,20 +418,28 @@ export function makeTraefikRepository({ database }: Ports) {
                     .returning()
 
                 return updated
-            }),
+            })
+        })
+    }
 
-        deleteDomainRoute: (id: string) =>
-            storage(database, async (db) => {
+    deleteDomainRoute(id: string) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [deleted] = await db
                     .delete(traefikDomainRoutes)
                     .where(eq(traefikDomainRoutes.id, id))
                     .returning()
 
                 return deleted
-            }),
+            })
+        })
+    }
 
-        createServiceTarget: (input: CreateServiceTargetInput) =>
-            storage(database, async (db) => {
+    createServiceTarget(input: CreateServiceTargetInput) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [target] = await db
                     .insert(traefikServiceTargets)
                     .values({
@@ -393,10 +450,14 @@ export function makeTraefikRepository({ database }: Ports) {
                     .returning()
 
                 return target
-            }),
+            })
+        })
+    }
 
-        getServiceTargetsByConfigId: (configId: string, isActive?: boolean) =>
-            storage(database, async (db) => {
+    getServiceTargetsByConfigId(configId: string, isActive?: boolean) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const conditions = [
                     eq(traefikServiceTargets.configId, configId),
                 ]
@@ -412,13 +473,14 @@ export function makeTraefikRepository({ database }: Ports) {
                     .from(traefikServiceTargets)
                     .where(and(...conditions))
                     .orderBy(desc(traefikServiceTargets.weight))
-            }),
+            })
+        })
+    }
 
-        updateServiceTarget: (
-            id: string,
-            input: Partial<CreateServiceTargetInput>
-        ) =>
-            storage(database, async (db) => {
+    updateServiceTarget(id: string, input: Partial<CreateServiceTargetInput>) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [updated] = await db
                     .update(traefikServiceTargets)
                     .set({
@@ -429,13 +491,14 @@ export function makeTraefikRepository({ database }: Ports) {
                     .returning()
 
                 return updated
-            }),
+            })
+        })
+    }
 
-        updateServiceTargetHealth: (
-            id: string,
-            healthStatus: 'healthy' | 'unhealthy' | 'unknown'
-        ) =>
-            storage(database, async (db) => {
+    updateServiceTargetHealth(id: string, healthStatus: 'healthy' | 'unhealthy' | 'unknown') {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [updated] = await db
                     .update(traefikServiceTargets)
                     .set({
@@ -447,20 +510,28 @@ export function makeTraefikRepository({ database }: Ports) {
                     .returning()
 
                 return updated
-            }),
+            })
+        })
+    }
 
-        deleteServiceTarget: (id: string) =>
-            storage(database, async (db) => {
+    deleteServiceTarget(id: string) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [deleted] = await db
                     .delete(traefikServiceTargets)
                     .where(eq(traefikServiceTargets.id, id))
                     .returning()
 
                 return deleted
-            }),
+            })
+        })
+    }
 
-        createSSLCertificate: (input: CreateSSLCertificateInput) =>
-            storage(database, async (db) => {
+    createSSLCertificate(input: CreateSSLCertificateInput) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [certificate] = await db
                     .insert(traefikSSLCertificates)
                     .values({
@@ -471,10 +542,14 @@ export function makeTraefikRepository({ database }: Ports) {
                     .returning()
 
                 return certificate
-            }),
+            })
+        })
+    }
 
-        getSSLCertificatesByConfigId: (configId: string, isActive?: boolean) =>
-            storage(database, async (db) => {
+    getSSLCertificatesByConfigId(configId: string, isActive?: boolean) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const conditions = [
                     eq(traefikSSLCertificates.configId, configId),
                 ]
@@ -490,10 +565,14 @@ export function makeTraefikRepository({ database }: Ports) {
                     .from(traefikSSLCertificates)
                     .where(and(...conditions))
                     .orderBy(desc(traefikSSLCertificates.notAfter))
-            }),
+            })
+        })
+    }
 
-        getExpiringCertificates: (days = 30) =>
-            storage(database, async (db) => {
+    getExpiringCertificates(days = 30) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const expiryThreshold = new Date()
                 expiryThreshold.setDate(expiryThreshold.getDate() + days)
 
@@ -508,13 +587,14 @@ export function makeTraefikRepository({ database }: Ports) {
                         )
                     )
                     .orderBy(asc(traefikSSLCertificates.notAfter))
-            }),
+            })
+        })
+    }
 
-        updateSSLCertificate: (
-            id: string,
-            input: Partial<CreateSSLCertificateInput>
-        ) =>
-            storage(database, async (db) => {
+    updateSSLCertificate(id: string, input: Partial<CreateSSLCertificateInput>) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [updated] = await db
                     .update(traefikSSLCertificates)
                     .set({
@@ -525,20 +605,28 @@ export function makeTraefikRepository({ database }: Ports) {
                     .returning()
 
                 return updated
-            }),
+            })
+        })
+    }
 
-        deleteSSLCertificate: (id: string) =>
-            storage(database, async (db) => {
+    deleteSSLCertificate(id: string) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [deleted] = await db
                     .delete(traefikSSLCertificates)
                     .where(eq(traefikSSLCertificates.id, id))
                     .returning()
 
                 return deleted
-            }),
+            })
+        })
+    }
 
-        createConfigFile: (input: CreateConfigFileInput) =>
-            storage(database, async (db) => {
+    createConfigFile(input: CreateConfigFileInput) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [file] = await db
                     .insert(traefikConfigFiles)
                     .values({
@@ -550,10 +638,14 @@ export function makeTraefikRepository({ database }: Ports) {
                     .returning()
 
                 return file
-            }),
+            })
+        })
+    }
 
-        getConfigFilesByConfigId: (configId: string, isActive?: boolean) =>
-            storage(database, async (db) => {
+    getConfigFilesByConfigId(configId: string, isActive?: boolean) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const conditions = [eq(traefikConfigFiles.configId, configId)]
 
                 if (isActive !== undefined) {
@@ -565,10 +657,14 @@ export function makeTraefikRepository({ database }: Ports) {
                     .from(traefikConfigFiles)
                     .where(and(...conditions))
                     .orderBy(desc(traefikConfigFiles.createdAt))
-            }),
+            })
+        })
+    }
 
-        getConfigFilesByStatus: (status: 'pending' | 'synced' | 'error') =>
-            storage(database, async (db) => {
+    getConfigFilesByStatus(status: 'pending' | 'synced' | 'error') {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 return await db
                     .select()
                     .from(traefikConfigFiles)
@@ -579,19 +675,20 @@ export function makeTraefikRepository({ database }: Ports) {
                         )
                     )
                     .orderBy(desc(traefikConfigFiles.createdAt))
-            }),
+            })
+        })
+    }
 
-        updateConfigFile: (
-            id: string,
-            input: Partial<
-                CreateConfigFileInput & {
-                    syncStatus?: 'pending' | 'synced' | 'error'
-                    syncError?: string
-                    lastSynced?: Date
-                }
-            >
-        ) =>
-            storage(database, async (db) => {
+    updateConfigFile(id: string, input: Partial<
+            CreateConfigFileInput & {
+                syncStatus?: 'pending' | 'synced' | 'error'
+                syncError?: string
+                lastSynced?: Date
+            }
+        >) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [updated] = await db
                     .update(traefikConfigFiles)
                     .set({
@@ -602,14 +699,14 @@ export function makeTraefikRepository({ database }: Ports) {
                     .returning()
 
                 return updated
-            }),
+            })
+        })
+    }
 
-        updateConfigFileSyncStatus: (
-            id: string,
-            syncStatus: 'pending' | 'synced' | 'error',
-            syncError?: string
-        ) =>
-            storage(database, async (db) => {
+    updateConfigFileSyncStatus(id: string, syncStatus: 'pending' | 'synced' | 'error', syncError?: string) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [updated] = await db
                     .update(traefikConfigFiles)
                     .set({
@@ -623,20 +720,28 @@ export function makeTraefikRepository({ database }: Ports) {
                     .returning()
 
                 return updated
-            }),
+            })
+        })
+    }
 
-        deleteConfigFile: (id: string) =>
-            storage(database, async (db) => {
+    deleteConfigFile(id: string) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [deleted] = await db
                     .delete(traefikConfigFiles)
                     .where(eq(traefikConfigFiles.id, id))
                     .returning()
 
                 return deleted
-            }),
+            })
+        })
+    }
 
-        createMiddleware: (input: CreateMiddlewareInput) =>
-            storage(database, async (db) => {
+    createMiddleware(input: CreateMiddlewareInput) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [middleware] = await db
                     .insert(traefikMiddlewares)
                     .values({
@@ -647,14 +752,14 @@ export function makeTraefikRepository({ database }: Ports) {
                     .returning()
 
                 return middleware
-            }),
+            })
+        })
+    }
 
-        getMiddlewares: (
-            serviceId?: string,
-            isGlobal?: boolean,
-            isActive?: boolean
-        ) =>
-            storage(database, async (db) => {
+    getMiddlewares(serviceId?: string, isGlobal?: boolean, isActive?: boolean) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const conditions: SQL[] = []
 
                 if (serviceId !== undefined) {
@@ -681,20 +786,28 @@ export function makeTraefikRepository({ database }: Ports) {
                         .from(traefikMiddlewares)
                         .orderBy(desc(traefikMiddlewares.createdAt))
                 }
-            }),
+            })
+        })
+    }
 
-        getMiddleware: (id: string) =>
-            storage(database, async (db) => {
+    getMiddleware(id: string) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [middleware] = await db
                     .select()
                     .from(traefikMiddlewares)
                     .where(eq(traefikMiddlewares.id, id))
 
                 return middleware
-            }),
+            })
+        })
+    }
 
-        updateMiddleware: (id: string, input: Partial<CreateMiddlewareInput>) =>
-            storage(database, async (db) => {
+    updateMiddleware(id: string, input: Partial<CreateMiddlewareInput>) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [updated] = await db
                     .update(traefikMiddlewares)
                     .set({
@@ -705,20 +818,28 @@ export function makeTraefikRepository({ database }: Ports) {
                     .returning()
 
                 return updated
-            }),
+            })
+        })
+    }
 
-        deleteMiddleware: (id: string) =>
-            storage(database, async (db) => {
+    deleteMiddleware(id: string) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [deleted] = await db
                     .delete(traefikMiddlewares)
                     .where(eq(traefikMiddlewares.id, id))
                     .returning()
 
                 return deleted
-            }),
+            })
+        })
+    }
 
-        getServiceConfigsNeedingSync: () =>
-            storage(database, async (db) => {
+    getServiceConfigsNeedingSync() {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 return await db
                     .select()
                     .from(traefikServiceConfigs)
@@ -736,33 +857,45 @@ export function makeTraefikRepository({ database }: Ports) {
                         )
                     )
                     .orderBy(desc(traefikServiceConfigs.updatedAt))
-            }),
+            })
+        })
+    }
 
-        getServiceById: (serviceId: string) =>
-            storage(database, async (db) => {
+    getServiceById(serviceId: string) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [service] = await db
                     .select()
                     .from(services)
                     .where(eq(services.id, serviceId))
 
                 return service
-            }),
+            })
+        })
+    }
 
-        getProjectById: (projectId: string) =>
-            storage(database, async (db) => {
+    getProjectById(projectId: string) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [project] = await db
                     .select()
                     .from(projects)
                     .where(eq(projects.id, projectId))
 
                 return project
-            }),
+            })
+        })
+    }
 
-        /**
-         * Get all projects for file system structure
-         */
-        getAllProjects: () =>
-            storage(database, async (db) => {
+    /**
+     * Get all projects for file system structure
+     */
+    getAllProjects() {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 return await db
                     .select({
                         id: projects.id,
@@ -772,13 +905,17 @@ export function makeTraefikRepository({ database }: Ports) {
                     })
                     .from(projects)
                     .orderBy(asc(projects.name))
-            }),
+            })
+        })
+    }
 
-        /**
-         * Get all config files for file system structure
-         */
-        getAllConfigFiles: (isActive?: boolean) =>
-            storage(database, async (db) => {
+    /**
+     * Get all config files for file system structure
+     */
+    getAllConfigFiles(isActive?: boolean) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const conditions =
                     isActive !== undefined
                         ? [eq(traefikConfigFiles.isActive, isActive)]
@@ -805,13 +942,17 @@ export function makeTraefikRepository({ database }: Ports) {
                         conditions.length > 0 ? and(...conditions) : undefined
                     )
                     .orderBy(asc(traefikConfigFiles.relativePath))
-            }),
+            })
+        })
+    }
 
-        /**
-         * Get config files by project for file system structure
-         */
-        getConfigFilesByProject: (projectId: string, isActive?: boolean) =>
-            storage(database, async (db) => {
+    /**
+     * Get config files by project for file system structure
+     */
+    getConfigFilesByProject(projectId: string, isActive?: boolean) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const conditions = [eq(services.projectId, projectId)]
 
                 if (isActive !== undefined) {
@@ -851,13 +992,17 @@ export function makeTraefikRepository({ database }: Ports) {
                     .innerJoin(projects, eq(services.projectId, projects.id))
                     .where(and(...conditions))
                     .orderBy(asc(traefikConfigFiles.relativePath))
-            }),
+            })
+        })
+    }
 
-        /**
-         * Get config file by path for content retrieval
-         */
-        getConfigFileByPath: (relativePath: string, isActive?: boolean) =>
-            storage(database, async (db) => {
+    /**
+     * Get config file by path for content retrieval
+     */
+    getConfigFileByPath(relativePath: string, isActive?: boolean) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const conditions = [
                     eq(traefikConfigFiles.relativePath, relativePath),
                 ]
@@ -872,21 +1017,27 @@ export function makeTraefikRepository({ database }: Ports) {
                     .where(and(...conditions))
 
                 return configFile
-            }),
+            })
+        })
+    }
 
-        createNewSslCertificate: (
-            data: Omit<CreateTraefikSslCertificate, 'id'>
-        ) =>
-            storage(database, async (db) => {
+    createNewSslCertificate(data: Omit<CreateTraefikSslCertificate, 'id'>) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [certificate] = await db
                     .insert(traefikSSLCertificates)
                     .values(data)
                     .returning()
                 return certificate
-            }),
+            })
+        })
+    }
 
-        getNewSslCertificatesByProject: (projectId: string) =>
-            storage(database, async (db) => {
+    getNewSslCertificatesByProject(projectId: string) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 // Get SSL certificates by joining with service configs and services to find those belonging to a project
                 return await db
                     .select()
@@ -904,112 +1055,164 @@ export function makeTraefikRepository({ database }: Ports) {
                     )
                     .where(eq(services.projectId, projectId))
                     .orderBy(asc(traefikSSLCertificates.domain))
-            }),
+            })
+        })
+    }
 
-        getAllNewSslCertificates: () =>
-            storage(database, async (db) => {
+    getAllNewSslCertificates() {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 return await db
                     .select()
                     .from(traefikSSLCertificates)
                     .orderBy(asc(traefikSSLCertificates.domain))
-            }),
+            })
+        })
+    }
 
-        createNewMiddleware: (data: Omit<CreateTraefikMiddleware, 'id'>) =>
-            storage(database, async (db) => {
+    createNewMiddleware(data: Omit<CreateTraefikMiddleware, 'id'>) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [middleware] = await db
                     .insert(traefikMiddleware)
                     .values(data)
                     .returning()
                 return middleware
-            }),
+            })
+        })
+    }
 
-        getNewMiddlewareByProject: (projectId: string) =>
-            storage(database, async (db) => {
+    getNewMiddlewareByProject(projectId: string) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 return await db
                     .select()
                     .from(traefikMiddleware)
                     .where(eq(traefikMiddleware.projectId, projectId))
                     .orderBy(asc(traefikMiddleware.middlewareName))
-            }),
+            })
+        })
+    }
 
-        getGlobalNewMiddleware: () =>
-            storage(database, async (db) => {
+    getGlobalNewMiddleware() {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 return await db
                     .select()
                     .from(traefikMiddleware)
                     .where(eq(traefikMiddleware.isGlobal, true))
                     .orderBy(asc(traefikMiddleware.middlewareName))
-            }),
+            })
+        })
+    }
 
-        getAllNewMiddleware: () =>
-            storage(database, async (db) => {
+    getAllNewMiddleware() {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 return await db
                     .select()
                     .from(traefikMiddleware)
                     .orderBy(asc(traefikMiddleware.middlewareName))
-            }),
+            })
+        })
+    }
 
-        createPlugin: (data: Omit<CreateTraefikPlugin, 'id'>) =>
-            storage(database, async (db) => {
+    createPlugin(data: Omit<CreateTraefikPlugin, 'id'>) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [plugin] = await db
                     .insert(traefikPlugins)
                     .values(data)
                     .returning()
                 return plugin
-            }),
+            })
+        })
+    }
 
-        getPluginsByProject: (projectId: string) =>
-            storage(database, async (db) => {
+    getPluginsByProject(projectId: string) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 return await db
                     .select()
                     .from(traefikPlugins)
                     .where(eq(traefikPlugins.projectId, projectId))
                     .orderBy(asc(traefikPlugins.pluginName))
-            }),
+            })
+        })
+    }
 
-        getAllPlugins: () =>
-            storage(database, async (db) => {
+    getAllPlugins() {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 return await db
                     .select()
                     .from(traefikPlugins)
                     .orderBy(asc(traefikPlugins.pluginName))
-            }),
+            })
+        })
+    }
 
-        createStaticFile: (data: Omit<CreateTraefikStaticFile, 'id'>) =>
-            storage(database, async (db) => {
+    createStaticFile(data: Omit<CreateTraefikStaticFile, 'id'>) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [staticFile] = await db
                     .insert(traefikStaticFiles)
                     .values(data)
                     .returning()
                 return staticFile
-            }),
+            })
+        })
+    }
 
-        getStaticFilesByProject: (projectId: string) =>
-            storage(database, async (db) => {
+    getStaticFilesByProject(projectId: string) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 return await db
                     .select()
                     .from(traefikStaticFiles)
                     .where(eq(traefikStaticFiles.projectId, projectId))
                     .orderBy(asc(traefikStaticFiles.relativePath))
-            }),
+            })
+        })
+    }
 
-        getAllStaticFiles: () =>
-            storage(database, async (db) => {
+    getAllStaticFiles() {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 return await db
                     .select()
                     .from(traefikStaticFiles)
                     .orderBy(asc(traefikStaticFiles.relativePath))
-            }),
+            })
+        })
+    }
 
-        deleteStaticFile: (id: string) =>
-            storage(database, async (db) => {
+    deleteStaticFile(id: string) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 await db
                     .delete(traefikStaticFiles)
                     .where(eq(traefikStaticFiles.id, id))
-            }),
+            })
+        })
+    }
 
-        getStaticFileByPath: (projectId: string, relativePath: string) =>
-            storage(database, async (db) => {
+    getStaticFileByPath(projectId: string, relativePath: string) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [staticFile] = await db
                     .select()
                     .from(traefikStaticFiles)
@@ -1020,45 +1223,65 @@ export function makeTraefikRepository({ database }: Ports) {
                         )
                     )
                 return staticFile
-            }),
+            })
+        })
+    }
 
-        createBackup: (data: Omit<CreateTraefikBackup, 'id'>) =>
-            storage(database, async (db) => {
+    createBackup(data: Omit<CreateTraefikBackup, 'id'>) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [backup] = await db
                     .insert(traefikBackups)
                     .values(data)
                     .returning()
                 return backup
-            }),
+            })
+        })
+    }
 
-        getBackupsByProject: (projectId: string) =>
-            storage(database, async (db) => {
+    getBackupsByProject(projectId: string) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 return await db
                     .select()
                     .from(traefikBackups)
                     .where(eq(traefikBackups.projectId, projectId))
                     .orderBy(desc(traefikBackups.createdAt))
-            }),
+            })
+        })
+    }
 
-        getAllBackups: () =>
-            storage(database, async (db) => {
+    getAllBackups() {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 return await db
                     .select()
                     .from(traefikBackups)
                     .orderBy(desc(traefikBackups.createdAt))
-            }),
+            })
+        })
+    }
 
-        getTraefikConfigsByProject: (projectId: string) =>
-            storage(database, async (db) => {
+    getTraefikConfigsByProject(projectId: string) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 return await db
                     .select()
                     .from(traefikConfigs)
                     .where(eq(traefikConfigs.projectId, projectId))
                     .orderBy(asc(traefikConfigs.configName))
-            }),
+            })
+        })
+    }
 
-        getTraefikConfigById: (configId: string) =>
-            storage(database, async (db) => {
+    getTraefikConfigById(configId: string) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [result] = await db
                     .select()
                     .from(traefikConfigs)
@@ -1066,22 +1289,30 @@ export function makeTraefikRepository({ database }: Ports) {
                     .limit(1)
 
                 return result ?? null
-            }),
+            })
+        })
+    }
 
-        getAllTraefikConfigs: () =>
-            storage(database, async (db) => {
+    getAllTraefikConfigs() {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 return await db
                     .select()
                     .from(traefikConfigs)
                     .orderBy(asc(traefikConfigs.configName))
-            }),
+            })
+        })
+    }
 
-        /**
-         * Get all Traefik configs that need syncing
-         * (configs where updatedAt > lastSyncedAt OR lastSyncedAt IS NULL)
-         */
-        getTraefikConfigsNeedingSync: (isActive = true) =>
-            storage(database, async (db) => {
+    /**
+     * Get all Traefik configs that need syncing
+     * (configs where updatedAt > lastSyncedAt OR lastSyncedAt IS NULL)
+     */
+    getTraefikConfigsNeedingSync(isActive = true) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const baseConditions = [
                     eq(traefikConfigs.requiresFile, true), // Only sync configs that require files
                     // Either never synced OR updated since last sync
@@ -1127,16 +1358,17 @@ export function makeTraefikRepository({ database }: Ports) {
                     ) // Left join for standalone configs
                     .where(and(...baseConditions))
                     .orderBy(desc(traefikConfigs.updatedAt))
-            }),
+            })
+        })
+    }
 
-        /**
-         * Get Traefik configs that need syncing for a specific project
-         */
-        getTraefikConfigsNeedingSyncByProject: (
-            projectId: string,
-            isActive = true
-        ) =>
-            storage(database, async (db) => {
+    /**
+     * Get Traefik configs that need syncing for a specific project
+     */
+    getTraefikConfigsNeedingSyncByProject(projectId: string, isActive = true) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const baseConditions = [
                     eq(traefikConfigs.projectId, projectId),
                     eq(traefikConfigs.requiresFile, true), // Only sync configs that require files
@@ -1183,13 +1415,17 @@ export function makeTraefikRepository({ database }: Ports) {
                     ) // Left join for project name
                     .where(and(...baseConditions))
                     .orderBy(desc(traefikConfigs.updatedAt))
-            }),
+            })
+        })
+    }
 
-        /**
-         * Get standalone Traefik configs that need syncing
-         */
-        getStandaloneTraefikConfigsNeedingSync: (isActive = true) =>
-            storage(database, async (db) => {
+    /**
+     * Get standalone Traefik configs that need syncing
+     */
+    getStandaloneTraefikConfigsNeedingSync(isActive = true) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const baseConditions = [
                     eq(traefikConfigs.storageType, 'standalone'),
                     eq(traefikConfigs.requiresFile, true), // Only sync configs that require files
@@ -1236,126 +1472,123 @@ export function makeTraefikRepository({ database }: Ports) {
                     ) // Left join (null for standalone)
                     .where(and(...baseConditions))
                     .orderBy(desc(traefikConfigs.updatedAt))
-            }),
+            })
+        })
+    }
 
-        getStaticConfigByProject: (projectId: string) =>
-            storage(database, async (db) => {
+    getStaticConfigByProject(projectId: string) {
+        return Effect.gen(function* () {
+            const database = yield* DatabasePort
+            return yield* storage(database, async (db) => {
                 const [config] = await db
                     .select()
                     .from(traefikStaticConfigs)
                     .where(eq(traefikStaticConfigs.projectId, projectId))
                 return config
-            }),
+            })
+        })
     }
 
-    return {
-        ...leaf,
+    updateServiceConfig(input: UpdateServiceConfigInput) {
+        return Effect.gen({ self: this }, function* () {
+            const database = yield* DatabasePort
+            const updateData: Partial<UpdateServiceConfigInput> = {
+                ...input,
+            }
+            delete updateData.id
 
-        updateServiceConfig: (input: UpdateServiceConfigInput) =>
-            Effect.gen(function* () {
-                const updateData: Partial<UpdateServiceConfigInput> = {
-                    ...input,
+            if (input.subdomain !== undefined || input.domain !== undefined) {
+                const existingConfig = yield* this.getServiceConfig(input.id)
+                if (existingConfig) {
+                    const domain = input.domain ?? existingConfig.domain
+                    const subdomain = input.subdomain ?? existingConfig.subdomain
+                    updateData.fullDomain = subdomain
+                        ? `${subdomain}.${domain}`
+                        : domain
                 }
-                delete updateData.id
+            }
 
-                if (
-                    input.subdomain !== undefined ||
-                    input.domain !== undefined
-                ) {
-                    const existingConfig = yield* leaf.getServiceConfig(
-                        input.id
-                    )
-                    if (existingConfig) {
-                        const domain = input.domain ?? existingConfig.domain
-                        const subdomain =
-                            input.subdomain ?? existingConfig.subdomain
-                        updateData.fullDomain = subdomain
-                            ? `${subdomain}.${domain}`
-                            : domain
-                    }
-                }
+            updateData.updatedAt = new Date()
 
-                updateData.updatedAt = new Date()
+            const [updated] = yield* storage(database, (db) =>
+                db
+                    .update(traefikServiceConfigs)
+                    .set(updateData)
+                    .where(eq(traefikServiceConfigs.id, input.id))
+                    .returning()
+            )
 
-                const [updated] = yield* storage(database, (db) =>
-                    db
-                        .update(traefikServiceConfigs)
-                        .set(updateData)
-                        .where(eq(traefikServiceConfigs.id, input.id))
-                        .returning()
-                )
+            return updated ?? null
+        })
+    }
 
-                return updated ?? null
-            }),
+    getCompleteServiceConfig(configId: string) {
+        return Effect.gen({ self: this }, function* () {
+            const config = yield* this.getServiceConfig(configId)
+            if (!config) return null
 
-        getCompleteServiceConfig: (configId: string) =>
-            Effect.gen(function* () {
-                const config = yield* leaf.getServiceConfig(configId)
-                if (!config) return null
+            const [
+                domainRoutes,
+                serviceTargets,
+                sslCertificates,
+                configFiles,
+                middlewares,
+            ] = yield* Effect.all(
+                [
+                    this.getDomainRoutesByConfigId(config.id, true),
+                    this.getServiceTargetsByConfigId(config.id, true),
+                    this.getSSLCertificatesByConfigId(config.id, true),
+                    this.getConfigFilesByConfigId(config.id, true),
+                    this.getMiddlewares(config.serviceId, false, true),
+                ],
+                { concurrency: 'unbounded' }
+            )
 
-                const [
-                    domainRoutes,
-                    serviceTargets,
-                    sslCertificates,
-                    configFiles,
-                    middlewares,
-                ] = yield* Effect.all(
-                    [
-                        leaf.getDomainRoutesByConfigId(config.id, true),
-                        leaf.getServiceTargetsByConfigId(config.id, true),
-                        leaf.getSSLCertificatesByConfigId(config.id, true),
-                        leaf.getConfigFilesByConfigId(config.id, true),
-                        leaf.getMiddlewares(config.serviceId, false, true),
-                    ],
-                    { concurrency: 'unbounded' }
-                )
+            return {
+                ...config,
+                domainRoutes,
+                serviceTargets,
+                sslCertificates,
+                configFiles,
+                middlewares,
+            }
+        })
+    }
 
-                return {
-                    ...config,
-                    domainRoutes,
-                    serviceTargets,
-                    sslCertificates,
-                    configFiles,
-                    middlewares,
-                }
-            }),
-
-        getHealthCheckSummary: () =>
-            leaf.getAllServiceConfigs(true).pipe(
-                Effect.flatMap((configs) =>
-                    Effect.forEach(
-                        configs,
-                        (config) =>
-                            leaf
-                                .getServiceTargetsByConfigId(config.id, true)
-                                .pipe(
-                                    Effect.map((targets) => ({
-                                        configId: config.id,
-                                        serviceId: config.serviceId,
-                                        domain: config.fullDomain,
-                                        totalTargets: targets.length,
-                                        healthyTargets: targets.filter(
-                                            (t) => t.healthStatus === 'healthy'
-                                        ).length,
-                                        unhealthyTargets: targets.filter(
-                                            (t) =>
-                                                t.healthStatus === 'unhealthy'
-                                        ).length,
-                                        unknownTargets: targets.filter(
-                                            (t) => t.healthStatus === 'unknown'
-                                        ).length,
-                                    }))
-                                ),
-                        { concurrency: 'unbounded' }
-                    )
-                )
-            ),
+    getHealthCheckSummary() {
+        return Effect.gen({ self: this }, function* () {
+            const configs = yield* this.getAllServiceConfigs(true)
+            return yield* Effect.forEach(
+                configs,
+                (config) =>
+                    this.getServiceTargetsByConfigId(config.id, true).pipe(
+                        Effect.map((targets) => ({
+                            configId: config.id,
+                            serviceId: config.serviceId,
+                            domain: config.fullDomain,
+                            totalTargets: targets.length,
+                            healthyTargets: targets.filter(
+                                (t) => t.healthStatus === 'healthy'
+                            ).length,
+                            unhealthyTargets: targets.filter(
+                                (t) => t.healthStatus === 'unhealthy'
+                            ).length,
+                            unknownTargets: targets.filter(
+                                (t) => t.healthStatus === 'unknown'
+                            ).length,
+                        }))
+                    ),
+                { concurrency: 'unbounded' }
+            )
+        })
     }
 }
 
-export type TraefikRepositoryShape = ReturnType<typeof makeTraefikRepository>
+export type TraefikRepositoryShape = TraefikRepositoryImpl
 
 export class TraefikRepository extends Context.Service<
     TraefikRepository,
     TraefikRepositoryShape
->()('shared/TraefikRepository') {}
+>()('shared/TraefikRepository') {
+    static readonly live = TraefikRepositoryImpl
+}
