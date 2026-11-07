@@ -9,11 +9,22 @@ grep -rnE '^export (async )?function make[A-Z]|^export const make[A-Z]' --includ
 
 **Totals:** 52 files use `serviceOver(…)`; 194 exported `make<…>` functions (some in the same files).
 
-**Progress (2026-11-07):** 32 files still use `serviceOver(…)` (was 52), 173 exported `make<…>` functions remain (was 194), and
-**29 files still carry a `Ports` record / `portsOf` / `implOverX` / a single-use `<X>Ports` union** (banned by
-`docs/architecture/service-implementation-rule.md`). Converted that day: `shared` `reachability`, `platform-ingress`, `traefik`
-and `domain` (including `domain-routing`, the last `serviceOver` in that package), plus fleet `IngressEdgeService` and
-`NodeReachabilityService`, whose port wrappers were deleted because the shared services are tags now.
+**Progress (2026-11-07):** 30 files still use `serviceOver(…)` (was 52), ~171 exported `make<…>` functions remain (was 194), and
+**24 files still carry a `Ports` record / `portsOf` / `implOverX` / a single-use `<X>Ports` union** (was 42; banned by
+`docs/architecture/service-implementation-rule.md`).
+
+Converted and committed that day: `shared` `reachability`, `platform-ingress`, `traefik` and `domain` (including `domain-routing`,
+the last `serviceOver` in that package) — `@deployer/shared` is clean (405 files) and its 1007 tests pass — plus fleet
+`IngressEdgeService` and `NodeReachabilityService`, whose port wrappers were deleted because the shared services are tags now
+(`@deployer/svc-fleet`: 393 files clean, 315 tests). `provideTo` now calls methods with the instance as receiver, which is what
+lets a `live` class keep `private` helpers under a spec.
+
+**Not committed: `apps/api/services/runtime`.** A sub-agent's conversion of the runtime `deployment`/`docker` trees was in the
+working tree only; while repairing a broken spec I ran `git checkout HEAD --` on `deployment-queue.worker.service.ts`, which
+discarded that uncommitted conversion, and the same happened to the rest of the runtime tree when I restored it to HEAD to keep
+the commit clean. The runtime package is back at `eba6476a6` and carries 5 type errors that pre-date this work (the docker
+runner reading a `syncedAt` that `SyncResult` never declared, and two `traefik.*` calls in an e2e spec without a provided
+context). Those files must be converted again from the inventory below.
 
 ## Conversion recipe
 
