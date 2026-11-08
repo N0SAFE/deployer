@@ -1,7 +1,6 @@
 import { and, desc, eq, lt } from 'drizzle-orm'
 import { Context, Effect } from 'effect'
 
-import { serviceOver } from '@deployer/effect-core'
 import { authAuditEvents } from '@deployer/nest-schema/global/identity/audit'
 
 import {
@@ -54,67 +53,82 @@ export type AuditRepositoryShape = {
     ) => Effect.Effect<void, never, DatabasePort>
 }
 
-const makeAuditRepository = (
-    database: DatabaseShape
-): AuditRepositoryShape => ({
-    append: (event) =>
-        Effect.promise(async () => {
-            await database.db.insert(authAuditEvents).values({
-                action: event.action,
-                actorId: event.actorId ?? null,
-                targetId: event.targetId ?? null,
-                ip: event.ip ?? null,
-                userAgent: event.userAgent ?? null,
-                detail: event.detail ?? {},
-            })
-        }),
-
-    list: (query) =>
-        Effect.promise(async () => {
-            const conditions = [
-                ...(query.action === undefined
-                    ? []
-                    : [eq(authAuditEvents.action, query.action)]),
-                ...(query.actorId === undefined
-                    ? []
-                    : [eq(authAuditEvents.actorId, query.actorId)]),
-                ...(query.targetId === undefined
-                    ? []
-                    : [eq(authAuditEvents.targetId, query.targetId)]),
-                ...(query.beforeId === undefined
-                    ? []
-                    : [lt(authAuditEvents.id, query.beforeId)]),
-            ]
-            const rows = await database.db
-                .select()
-                .from(authAuditEvents)
-                .where(conditions.length === 0 ? undefined : and(...conditions))
-                .orderBy(desc(authAuditEvents.id))
-                .limit(query.limit + 1)
-
-            const hasMore = rows.length > query.limit
-            return {
-                data: (hasMore ? rows.slice(0, query.limit) : rows).map(
-                    (row) => ({
-                        id: row.id,
-                        action: row.action,
-                        actorId: row.actorId,
-                        targetId: row.targetId,
-                        ip: row.ip,
-                        userAgent: row.userAgent,
-                        detail: row.detail,
-                        createdAt: row.createdAt,
-                    })
-                ),
-                meta: { limit: query.limit, hasMore },
-            }
-        }),
-})
-
-/** Append-only auth audit reads. */
+/**
+ * Append-only auth audit reads.
+ *
+ * The database is yielded inside the method that queries with it, so this is a class the module provides
+ * with `useClass` — no `serviceOver` closure and no factory holding the queries.
+ */
 export class AuditRepository extends Context.Service<
     AuditRepository,
     AuditRepositoryShape
 >()('identity/AuditRepository') {
-    static readonly live = serviceOver(DatabasePort, makeAuditRepository)
+    static readonly live = class AuditRepositoryImpl
+        implements AuditRepositoryShape
+    {
+        append(event: NewAuditEvent): ReturnType<AuditRepositoryShape['append']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* Effect.promise(async () => {
+                    await database.db.insert(authAuditEvents).values({
+                        action: event.action,
+                        actorId: event.actorId ?? null,
+                        targetId: event.targetId ?? null,
+                        ip: event.ip ?? null,
+                        userAgent: event.userAgent ?? null,
+                        detail: event.detail ?? {},
+                    })
+                })
+            })
+        }
+
+        list(query: AuditQuery): ReturnType<AuditRepositoryShape['list']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* Effect.promise(async () => {
+                    const conditions = [
+                        ...(query.action === undefined
+                            ? []
+                            : [eq(authAuditEvents.action, query.action)]),
+                        ...(query.actorId === undefined
+                            ? []
+                            : [eq(authAuditEvents.actorId, query.actorId)]),
+                        ...(query.targetId === undefined
+                            ? []
+                            : [eq(authAuditEvents.targetId, query.targetId)]),
+                        ...(query.beforeId === undefined
+                            ? []
+                            : [lt(authAuditEvents.id, query.beforeId)]),
+                    ]
+                    const rows = await database.db
+                        .select()
+                        .from(authAuditEvents)
+                        .where(
+                            conditions.length === 0
+                                ? undefined
+                                : and(...conditions)
+                        )
+                        .orderBy(desc(authAuditEvents.id))
+                        .limit(query.limit + 1)
+
+                    const hasMore = rows.length > query.limit
+                    return {
+                        data: (
+                            hasMore ? rows.slice(0, query.limit) : rows
+                        ).map((row) => ({
+                            id: row.id,
+                            action: row.action,
+                            actorId: row.actorId,
+                            targetId: row.targetId,
+                            ip: row.ip,
+                            userAgent: row.userAgent,
+                            detail: row.detail,
+                            createdAt: row.createdAt,
+                        })),
+                        meta: { limit: query.limit, hasMore },
+                    }
+                })
+            })
+        }
+    }
 }

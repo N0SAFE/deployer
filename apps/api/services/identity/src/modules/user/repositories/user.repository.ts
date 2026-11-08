@@ -3,7 +3,6 @@ import { randomUUID } from 'node:crypto'
 import { and, asc, count, desc, eq } from 'drizzle-orm'
 import { Context, Effect } from 'effect'
 
-import { serviceOver } from '@deployer/effect-core'
 import {
     account,
     apikey,
@@ -117,17 +116,6 @@ export type UserRepositoryShape = {
     ) => Effect.Effect<void, UserRepositoryFailure, DatabasePort>
 }
 
-/** Tag and implementation together: the tag is the contract, `Live` the Drizzle implementation. */
-export class UserRepository extends Context.Service<
-    UserRepository,
-    UserRepositoryShape
->()('identity/UserRepository') {
-    /** The database is yielded when a method runs, so this is a constant the module provides with `useValue`. */
-    static readonly live = serviceOver(DatabasePort, ({ db }) =>
-        makeUserRepository(db)
-    )
-}
-
 /** The column set one patch maps to. Shared by `update` and the atomic `applySecurityChange`. */
 function userPatchSet(patch: UserPatch) {
     return {
@@ -142,191 +130,251 @@ function userPatchSet(patch: UserPatch) {
     }
 }
 
-/** Drizzle implementation over one database handle. */
-function makeUserRepository(db: DatabaseShape['db']): UserRepositoryShape {
-    return {
-        countByRole: (role: string) =>
-            attempt(async () => {
-                const rows = await db
-                    .select({ value: count() })
-                    .from(user)
-                    .where(eq(user.role, role))
-                return rows[0]?.value ?? 0
-            }),
+/**
+ * Tag and implementation together: the tag is the contract, `live` the Drizzle implementation.
+ *
+ * The database handle is yielded inside the method that queries with it, so this is a class the module
+ * provides with `useClass` — there is no `serviceOver` closure and no factory holding the queries.
+ */
+export class UserRepository extends Context.Service<
+    UserRepository,
+    UserRepositoryShape
+>()('identity/UserRepository') {
+    static readonly live = class UserRepositoryImpl
+        implements UserRepositoryShape
+    {
 
-        exportFor: (userId: string) =>
-            attempt(async () => {
-                const [sessions, apiKeys] = await Promise.all([
-                    db
-                        .select({
-                            id: session.id,
-                            createdAt: session.createdAt,
-                            expiresAt: session.expiresAt,
-                            ipAddress: session.ipAddress,
-                            userAgent: session.userAgent,
-                            impersonatedBy: session.impersonatedBy,
-                        })
-                        .from(session)
-                        .where(eq(session.userId, userId))
-                        .orderBy(desc(session.createdAt)),
-                    db
-                        .select({
-                            id: apikey.id,
-                            name: apikey.name,
-                            createdAt: apikey.createdAt,
-                            expiresAt: apikey.expiresAt,
-                            lastUsedAt: apikey.lastRequest,
-                            enabled: apikey.enabled,
-                        })
-                        .from(apikey)
-                        .where(eq(apikey.referenceId, userId))
-                        .orderBy(desc(apikey.createdAt)),
-                ])
+        countByRole(role: string): ReturnType<UserRepositoryShape['countByRole']> {
+            return Effect.gen(function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    const rows = await db
+                        .select({ value: count() })
+                        .from(user)
+                        .where(eq(user.role, role))
+                    return rows[0]?.value ?? 0
+                })
+            })
+        }
 
-                return {
-                    sessions,
-                    apiKeys: apiKeys.map((key) => ({
-                        ...key,
-                        enabled: key.enabled ?? true,
-                    })),
-                }
-            }),
+        exportFor(userId: string): ReturnType<UserRepositoryShape['exportFor']> {
+            return Effect.gen(function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    const [sessions, apiKeys] = await Promise.all([
+                        db
+                            .select({
+                                id: session.id,
+                                createdAt: session.createdAt,
+                                expiresAt: session.expiresAt,
+                                ipAddress: session.ipAddress,
+                                userAgent: session.userAgent,
+                                impersonatedBy: session.impersonatedBy,
+                            })
+                            .from(session)
+                            .where(eq(session.userId, userId))
+                            .orderBy(desc(session.createdAt)),
+                        db
+                            .select({
+                                id: apikey.id,
+                                name: apikey.name,
+                                createdAt: apikey.createdAt,
+                                expiresAt: apikey.expiresAt,
+                                lastUsedAt: apikey.lastRequest,
+                                enabled: apikey.enabled,
+                            })
+                            .from(apikey)
+                            .where(eq(apikey.referenceId, userId))
+                            .orderBy(desc(apikey.createdAt)),
+                    ])
 
-        findById: (id: string) =>
-            attempt(async () => {
-                const rows = await db
-                    .select()
-                    .from(user)
-                    .where(eq(user.id, id))
-                    .limit(1)
-                const row = rows[0]
-                return row === undefined ? null : toUser(row)
-            }),
+                    return {
+                        sessions,
+                        apiKeys: apiKeys.map((key) => ({
+                            ...key,
+                            enabled: key.enabled ?? true,
+                        })),
+                    }
+                })
+            })
+        }
 
-        findByEmail: (email: string) =>
-            attempt(async () => {
-                const rows = await db
-                    .select()
-                    .from(user)
-                    .where(eq(user.email, userRules.normaliseEmail(email)))
-                    .limit(1)
-                const row = rows[0]
-                return row === undefined ? null : toUser(row)
-            }),
-
-        emailExists: (email: string, excludingId?: string) =>
-            attempt(async () => {
-                const rows = await db
-                    .select({ id: user.id })
-                    .from(user)
-                    .where(eq(user.email, userRules.normaliseEmail(email)))
-                    .limit(2)
-                return rows.some((row) => row.id !== excludingId)
-            }),
-
-        list: (filter: UserListFilter) =>
-            attempt(async () => {
-                const where = buildWhere(filter)
-                const column = USER_SORT_COLUMNS[filter.sortField]
-                const order =
-                    filter.sortDirection === 'asc' ? asc(column) : desc(column)
-
-                const [rows, total] = await Promise.all([
-                    db
+        findById(id: string): ReturnType<UserRepositoryShape['findById']> {
+            return Effect.gen(function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    const rows = await db
                         .select()
                         .from(user)
-                        .where(where)
-                        .orderBy(order)
-                        .limit(filter.limit)
-                        .offset(filter.offset),
-                    db.select({ value: count() }).from(user).where(where),
-                ])
+                        .where(eq(user.id, id))
+                        .limit(1)
+                    const row = rows[0]
+                    return row === undefined ? null : toUser(row)
+                })
+            })
+        }
 
-                return { data: rows.map(toUser), total: total[0]?.value ?? 0 }
-            }),
+        findByEmail(email: string): ReturnType<UserRepositoryShape['findByEmail']> {
+            return Effect.gen(function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    const rows = await db
+                        .select()
+                        .from(user)
+                        .where(eq(user.email, userRules.normaliseEmail(email)))
+                        .limit(1)
+                    const row = rows[0]
+                    return row === undefined ? null : toUser(row)
+                })
+            })
+        }
 
-        count: (filter: UserFilter) =>
-            attempt(async () => {
-                const rows = await db
-                    .select({ value: count() })
-                    .from(user)
-                    .where(buildWhere(filter))
-                return rows[0]?.value ?? 0
-            }),
+        emailExists(email: string, excludingId?: string): ReturnType<UserRepositoryShape['emailExists']> {
+            return Effect.gen(function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    const rows = await db
+                        .select({ id: user.id })
+                        .from(user)
+                        .where(eq(user.email, userRules.normaliseEmail(email)))
+                        .limit(2)
+                    return rows.some((row) => row.id !== excludingId)
+                })
+            })
+        }
 
-        insert: (input: NewUser & { email: string }) =>
-            attempt(async () => {
-                const rows = await db
-                    .insert(user)
-                    .values({
-                        id: crypto.randomUUID(),
-                        name: input.name,
-                        email: input.email,
-                        image: input.image ?? null,
-                        emailVerified: false,
-                        ...(input.role === undefined
-                            ? {}
-                            : { role: input.role }),
-                        createdAt: new Date(),
-                        updatedAt: new Date(),
-                    })
-                    .returning()
+        list(filter: UserListFilter): ReturnType<UserRepositoryShape['list']> {
+            return Effect.gen(function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    const where = buildWhere(filter)
+                    const column = USER_SORT_COLUMNS[filter.sortField]
+                    const order =
+                        filter.sortDirection === 'asc' ? asc(column) : desc(column)
 
-                const row = rows[0]
-                if (row === undefined)
-                    throw new Error('insert into user returned no row')
-                return toUser(row)
-            }),
+                    const [rows, total] = await Promise.all([
+                        db
+                            .select()
+                            .from(user)
+                            .where(where)
+                            .orderBy(order)
+                            .limit(filter.limit)
+                            .offset(filter.offset),
+                        db.select({ value: count() }).from(user).where(where),
+                    ])
 
-        update: (id: string, patch: UserPatch) =>
-            attempt(async () => {
-                const rows = await db
-                    .update(user)
-                    .set(userPatchSet(patch))
-                    .where(eq(user.id, id))
-                    .returning()
+                    return { data: rows.map(toUser), total: total[0]?.value ?? 0 }
+                })
+            })
+        }
 
-                const row = rows[0]
-                if (row === undefined)
-                    throw new Error(
-                        `user ${id} disappeared between read and write`
-                    )
-                return toUser(row)
-            }),
+        count(filter: UserFilter): ReturnType<UserRepositoryShape['count']> {
+            return Effect.gen(function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    const rows = await db
+                        .select({ value: count() })
+                        .from(user)
+                        .where(buildWhere(filter))
+                    return rows[0]?.value ?? 0
+                })
+            })
+        }
 
-        delete: (id: string) =>
-            attempt(async () => {
-                await db.delete(user).where(eq(user.id, id))
-            }),
+        insert(input: NewUser & { email: string }): ReturnType<UserRepositoryShape['insert']> {
+            return Effect.gen(function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    const rows = await db
+                        .insert(user)
+                        .values({
+                            id: crypto.randomUUID(),
+                            name: input.name,
+                            email: input.email,
+                            image: input.image ?? null,
+                            emailVerified: false,
+                            ...(input.role === undefined
+                                ? {}
+                                : { role: input.role }),
+                            createdAt: new Date(),
+                            updatedAt: new Date(),
+                        })
+                        .returning()
 
-        setPassword: (userId: string, passwordHash: string) =>
-            attempt(async () => {
-                const existing = await db
-                    .select({ id: account.id })
-                    .from(account)
-                    .where(eq(account.userId, userId))
-                    .limit(1)
-                const row = existing[0]
-                if (row === undefined) {
-                    await db.insert(account).values({
-                        id: randomUUID(),
-                        accountId: userId,
-                        providerId: 'credential',
-                        userId,
-                        password: passwordHash,
-                        createdAt: new Date(),
-                        updatedAt: new Date(),
-                    })
-                    return
-                }
-                await db
-                    .update(account)
-                    .set({ password: passwordHash, updatedAt: new Date() })
-                    .where(eq(account.id, row.id))
-            }),
+                    const row = rows[0]
+                    if (row === undefined)
+                        throw new Error('insert into user returned no row')
+                    return toUser(row)
+                })
+            })
+        }
 
-        applySecurityChange: (id: string, patch: UserPatch) =>
-            attempt(() =>
+        update(id: string, patch: UserPatch): ReturnType<UserRepositoryShape['update']> {
+            return Effect.gen(function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    const rows = await db
+                        .update(user)
+                        .set(userPatchSet(patch))
+                        .where(eq(user.id, id))
+                        .returning()
+
+                    const row = rows[0]
+                    if (row === undefined)
+                        throw new Error(
+                            `user ${id} disappeared between read and write`
+                        )
+                    return toUser(row)
+                })
+            })
+        }
+
+        delete(id: string): ReturnType<UserRepositoryShape['delete']> {
+            return Effect.gen(function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    await db.delete(user).where(eq(user.id, id))
+                })
+            })
+        }
+
+        setPassword(userId: string, passwordHash: string): ReturnType<UserRepositoryShape['setPassword']> {
+            return Effect.gen(function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    const existing = await db
+                        .select({ id: account.id })
+                        .from(account)
+                        .where(eq(account.userId, userId))
+                        .limit(1)
+                    const row = existing[0]
+                    if (row === undefined) {
+                        await db.insert(account).values({
+                            id: randomUUID(),
+                            accountId: userId,
+                            providerId: 'credential',
+                            userId,
+                            password: passwordHash,
+                            createdAt: new Date(),
+                            updatedAt: new Date(),
+                        })
+                        return
+                    }
+                    await db
+                        .update(account)
+                        .set({ password: passwordHash, updatedAt: new Date() })
+                        .where(eq(account.id, row.id))
+                })
+            })
+        }
+
+        applySecurityChange(
+            id: string,
+            patch: UserPatch
+        ): ReturnType<UserRepositoryShape['applySecurityChange']> {
+            return Effect.gen(function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(() =>
                 db.transaction(async (tx) => {
                     const rows = await tx
                         .update(user)
@@ -349,43 +397,57 @@ function makeUserRepository(db: DatabaseShape['db']): UserRepositoryShape {
 
                     return toUser(row)
                 })
-            ),
+                )
+            })
+        }
 
-        listSessions: (userId: string) =>
-            attempt(async () => {
-                const rows = await db
-                    .select({
-                        id: session.id,
-                        createdAt: session.createdAt,
-                        expiresAt: session.expiresAt,
-                        ipAddress: session.ipAddress,
-                        userAgent: session.userAgent,
-                        impersonatedBy: session.impersonatedBy,
-                    })
-                    .from(session)
-                    .where(eq(session.userId, userId))
-                    .orderBy(desc(session.createdAt))
-                return rows
-            }),
+        listSessions(userId: string): ReturnType<UserRepositoryShape['listSessions']> {
+            return Effect.gen(function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    const rows = await db
+                        .select({
+                            id: session.id,
+                            createdAt: session.createdAt,
+                            expiresAt: session.expiresAt,
+                            ipAddress: session.ipAddress,
+                            userAgent: session.userAgent,
+                            impersonatedBy: session.impersonatedBy,
+                        })
+                        .from(session)
+                        .where(eq(session.userId, userId))
+                        .orderBy(desc(session.createdAt))
+                    return rows
+                })
+            })
+        }
 
-        revokeSession: (userId: string, sessionId: string) =>
-            attempt(async () => {
-                const deleted = await db
-                    .delete(session)
-                    .where(
-                        and(
-                            eq(session.id, sessionId),
-                            eq(session.userId, userId)
+        revokeSession(userId: string, sessionId: string): ReturnType<UserRepositoryShape['revokeSession']> {
+            return Effect.gen(function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    const deleted = await db
+                        .delete(session)
+                        .where(
+                            and(
+                                eq(session.id, sessionId),
+                                eq(session.userId, userId)
+                            )
                         )
-                    )
-                    .returning({ id: session.id })
-                return deleted.length > 0
-            }),
+                        .returning({ id: session.id })
+                    return deleted.length > 0
+                })
+            })
+        }
 
-        revokeCredentials: (id: string) =>
-            attempt(async () => {
-                await db.delete(session).where(eq(session.userId, id))
-                await db.delete(apikey).where(eq(apikey.referenceId, id))
-            }),
+        revokeCredentials(id: string): ReturnType<UserRepositoryShape['revokeCredentials']> {
+            return Effect.gen(function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    await db.delete(session).where(eq(session.userId, id))
+                    await db.delete(apikey).where(eq(apikey.referenceId, id))
+                })
+            })
+        }
     }
 }

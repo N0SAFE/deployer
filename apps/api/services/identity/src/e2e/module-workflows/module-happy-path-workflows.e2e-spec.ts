@@ -78,7 +78,10 @@ function runUsers<T>(
             return yield* use(users)
         }).pipe(
             Effect.provideService(UserService, UserService.live),
-            Effect.provideService(UserRepository, UserRepository.live),
+            Effect.provideService(
+                UserRepository,
+                new UserRepository.live()
+            ),
             Effect.provideService(DatabasePort, database),
             Effect.provideService(
                 CurrentActor,
