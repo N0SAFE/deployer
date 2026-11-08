@@ -23,7 +23,7 @@ describe('StepUpService', () => {
 
     /** The service over a fake repository, run as one actor. */
     const run = (actor: Actor) =>
-        StepUpService.live.status().pipe(
+        new StepUpService.live({ latestForSession }).status().pipe(
             Effect.provideService(StepUpRepository, {
                 latestForSession,
             } as unknown as StepUpRepositoryShape),
@@ -104,7 +104,7 @@ describe('StepUpService', () => {
 
     describe('assertCriticalFor: the session a peer names', () => {
         const forSession = (sessionId: string) =>
-            StepUpService.live.assertCriticalFor(sessionId).pipe(
+            new StepUpService.live({ latestForSession }).assertCriticalFor(sessionId).pipe(
                 Effect.provideService(StepUpRepository, {
                     latestForSession,
                 } as unknown as StepUpRepositoryShape),

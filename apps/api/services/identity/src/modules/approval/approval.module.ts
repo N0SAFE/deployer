@@ -5,6 +5,8 @@ import { AuditDomainModule } from '@identity/modules/audit/audit.module'
 import { StepUpDomainModule } from '@identity/modules/step-up/step-up.module'
 
 import { ApprovalRepository } from './approval.repository'
+
+import type { ApprovalRepositoryShape } from './approval.repository'
 import { ApprovalService } from './approval.service'
 import { ApprovalController } from './controllers/approval.controller'
 
@@ -15,7 +17,13 @@ export class ApprovalDomainModule extends createModuleContext(
         exports: [ApprovalService, ApprovalRepository],
         imports: [StepUpDomainModule, AuditDomainModule],
         providers: [
-            { provide: ApprovalService, useValue: ApprovalService.live },
+            // The service takes its repository as a constructor argument (see the class doc).
+            {
+                provide: ApprovalService,
+                useFactory: (repository: ApprovalRepositoryShape) =>
+                    new ApprovalService.live(repository),
+                inject: [ApprovalRepository],
+            },
             { provide: ApprovalRepository, useValue: ApprovalRepository.live },
         ],
     },

@@ -5,7 +5,6 @@ import {
     HttpRequest,
     clientAddressOf,
     headerOf,
-    serviceOver,
 } from '@deployer/effect-core'
 import { ForbiddenError } from '@deployer/errors'
 import { roleHasPermission } from '@deployer/shared/core/authz/role-catalog'
@@ -104,62 +103,78 @@ export function auditRowsToCsv(rows: readonly AuditRow[]): string {
  * checks name the permission so a custom role holding one works without a code change. Export is its own capability:
  * taking the whole trail away is a wider disclosure than browsing a page of it.
  */
-const makeAuditService = (
-    repository: AuditRepository['Service']
-): AuditServiceShape => ({
-    record: (event): ReturnType<AuditServiceShape['record']> =>
-        Effect.gen(function* () {
-            // The client's address and agent, taken from the request this call runs for. REQUIRED: a worker or seed
-            // provides `systemRequest`, which simply carries no address, instead of the audit path guessing.
-            const request = yield* HttpRequest
-            const source = {
-                ip: event.ip ?? clientAddressOf(request),
-                userAgent: event.userAgent ?? headerOf(request, 'user-agent'),
-            }
-            return yield* repository
-                .append({ ...event, ...source })
-                .pipe(
-                    Effect.catchCause(() =>
-                        Effect.logWarning(
-                            `audit write failed for "${event.action}"`
-                        )
-                    )
-                )
-        }),
-
-    list: (query): ReturnType<AuditServiceShape['list']> =>
-        Effect.gen(function* () {
-            const actor = actorFromCurrent(yield* CurrentActor)
-            if (!roleHasPermission(actor.role, 'audit:read')) {
-                return yield* Effect.fail(
-                    new ForbiddenError('actor lacks audit:read')
-                )
-            }
-            return yield* repository.list(query)
-        }),
-
-    export: (query): ReturnType<AuditServiceShape['export']> =>
-        Effect.gen(function* () {
-            const actor = actorFromCurrent(yield* CurrentActor)
-            if (!roleHasPermission(actor.role, 'audit:export')) {
-                return yield* Effect.fail(
-                    new ForbiddenError('actor lacks audit:export')
-                )
-            }
-            const page = yield* repository.list(query)
-            return {
-                csv: auditRowsToCsv(page.data),
-                rows: page.data.length,
-                // The repository fetches `limit + 1`; `hasMore` therefore means "the cap cut the result", which an export
-                // must say out loud rather than silently truncate.
-                truncated: page.meta.hasMore,
-            }
-        }),
-})
-
+/**
+ * The audit trail's write and read paths.
+ *
+ * The repository is a constructor argument, not something the methods yield: the factory form this replaces settled it
+ * and the shape's channel says so, so yielding the tag would widen every channel and ripple into every caller. The module
+ * wires it with a factory that only does `new AuditService.live(repository)`.
+ */
 export class AuditService extends Context.Service<
     AuditService,
     AuditServiceShape
 >()('identity/AuditService') {
-    static readonly live = serviceOver(AuditRepository, makeAuditService)
+    static readonly live = class AuditServiceImpl implements AuditServiceShape {
+        private readonly repository: AuditRepository['Service']
+
+        constructor(repository: AuditRepository['Service']) {
+            this.repository = repository
+        }
+
+        record(event: NewAuditEvent): ReturnType<AuditServiceShape['record']> {
+            const repository = this.repository
+            return Effect.gen(function* () {
+                // The client's address and agent, taken from the request this call runs for. REQUIRED: a worker or
+                // seed provides `systemRequest`, which simply carries no address, instead of the audit path guessing.
+                const request = yield* HttpRequest
+                const source = {
+                    ip: event.ip ?? clientAddressOf(request),
+                    userAgent:
+                        event.userAgent ?? headerOf(request, 'user-agent'),
+                }
+                return yield* repository
+                    .append({ ...event, ...source })
+                    .pipe(
+                        Effect.catchCause(() =>
+                            Effect.logWarning(
+                                `audit write failed for "${event.action}"`
+                            )
+                        )
+                    )
+            })
+        }
+
+        list(query: AuditQuery): ReturnType<AuditServiceShape['list']> {
+            const repository = this.repository
+            return Effect.gen(function* () {
+                const actor = actorFromCurrent(yield* CurrentActor)
+                if (!roleHasPermission(actor.role, 'audit:read')) {
+                    return yield* Effect.fail(
+                        new ForbiddenError('actor lacks audit:read')
+                    )
+                }
+                return yield* repository.list(query)
+            })
+        }
+
+        export(query: AuditQuery): ReturnType<AuditServiceShape['export']> {
+            const repository = this.repository
+            return Effect.gen(function* () {
+                const actor = actorFromCurrent(yield* CurrentActor)
+                if (!roleHasPermission(actor.role, 'audit:export')) {
+                    return yield* Effect.fail(
+                        new ForbiddenError('actor lacks audit:export')
+                    )
+                }
+                const page = yield* repository.list(query)
+                return {
+                    csv: auditRowsToCsv(page.data),
+                    rows: page.data.length,
+                    // The repository fetches `limit + 1`; `hasMore` therefore means "the cap cut the result", which an
+                    // export must say out loud rather than silently truncate.
+                    truncated: page.meta.hasMore,
+                }
+            })
+        }
+    }
 }

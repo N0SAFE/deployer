@@ -11,8 +11,15 @@ export class StepUpDomainModule extends createModuleContext(
     {
         controllers: [StepUpController],
         providers: [
-            { provide: StepUpService, useValue: StepUpService.live },
-            { provide: StepUpRepository, useValue: StepUpRepository.live },
+            // The service takes its repository as a constructor argument (see the class doc), so the
+            // factory only wires; the repository yields the database handle itself.
+            {
+                provide: StepUpService,
+                useFactory: (repository: StepUpRepository['Service']) =>
+                    new StepUpService.live(repository),
+                inject: [StepUpRepository],
+            },
+            { provide: StepUpRepository, useClass: StepUpRepository.live },
         ],
         exports: [StepUpService, StepUpRepository],
     },

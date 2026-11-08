@@ -13,7 +13,13 @@ export class AuditDomainModule extends createModuleContext(
         controllers: [AuditController],
         exports: [AuditService, AuditRepository],
         providers: [
-            { provide: AuditService, useValue: AuditService.live },
+            // The service takes its repository as a constructor argument (see the class doc).
+            {
+                provide: AuditService,
+                useFactory: (repository: AuditRepository['Service']) =>
+                    new AuditService.live(repository),
+                inject: [AuditRepository],
+            },
             { provide: AuditRepository, useValue: AuditRepository.live },
             DenialAuditInstaller,
         ],

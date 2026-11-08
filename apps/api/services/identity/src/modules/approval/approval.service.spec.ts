@@ -96,7 +96,9 @@ describe('ApprovalService', () => {
         const layer = Layer.mergeAll(
             Layer.succeed(
                 ApprovalService,
-                ApprovalService.live as unknown as ApprovalService['Service']
+                new ApprovalService.live(
+                    repo as unknown as ApprovalRepositoryShape
+                ) as unknown as ApprovalService['Service']
             ),
             Layer.succeed(
                 ApprovalRepository,

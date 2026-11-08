@@ -1,7 +1,7 @@
 import { Context, Effect } from 'effect'
 
 import { isPermission } from '@deployer/auth/authz'
-import { CurrentActor, HttpRequest, serviceOver } from '@deployer/effect-core'
+import { CurrentActor, HttpRequest } from '@deployer/effect-core'
 import {
     roleHasPermission,
     roleNamesWithPermission,
@@ -388,10 +388,36 @@ const makeApprovalService = (
     }
 }
 
-/** The approval ledger's use cases (`SEC-072`). */
+/**
+ * The approval ledger's use cases (`SEC-072`).
+ *
+ * The repository is a constructor argument, not something the methods yield: the previous factory form settled it and the
+ * shape's channel says so, so yielding the tag would widen every channel and ripple into every caller. The module wires it
+ * with a factory that only does `new ApprovalService.live(repository)`.
+ */
 export class ApprovalService extends Context.Service<
     ApprovalService,
     ApprovalServiceShape
 >()('identity/ApprovalService') {
-    static readonly live = serviceOver(ApprovalRepository, makeApprovalService)
+    /** `make…` returns the shape, so the class is typed by that return; the members are bound at construction. */
+    static readonly live = class ApprovalServiceImpl
+ {
+        private readonly shape: ApprovalServiceShape
+
+        constructor(repository: ApprovalRepository['Service']) {
+            this.shape = makeApprovalService(repository)
+            // A caller may hold a method detached from the instance (a spec does), so each is bound.
+            for (const key of Object.keys(
+                this.shape
+            ) as (keyof ApprovalServiceShape)[]) {
+                const member = this.shape[key]
+                if (typeof member === 'function')
+                    Object.defineProperty(this, key, {
+                        value: (member as (...a: unknown[]) => unknown).bind(
+                            this.shape
+                        ),
+                    })
+            }
+        }
+    }
 }

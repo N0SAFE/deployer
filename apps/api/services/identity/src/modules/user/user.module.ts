@@ -11,6 +11,8 @@ import { UserController } from './controllers/user.controller'
 import { UserRepository } from './repositories/user.repository'
 import { UserService } from './services/user.service'
 
+import type { UserRepositoryShape } from './repositories/user.repository'
+
 /**
  * The user domain.
  *
@@ -27,7 +29,13 @@ export class UserDomainModule extends createModuleContext(
             ApprovalDomainModule,
         ],
         providers: [
-            { provide: UserService, useValue: UserService.live },
+            // The service takes its repository as a constructor argument (see the class doc).
+            {
+                provide: UserService,
+                useFactory: (users: UserRepositoryShape) =>
+                    new UserService.live(users),
+                inject: [UserRepository],
+            },
             { provide: UserRepository, useValue: UserRepository.live },
         ],
     },

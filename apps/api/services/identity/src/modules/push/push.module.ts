@@ -6,6 +6,8 @@ import { PushController } from './controllers/push.controller'
 import { PushRepository } from './repositories/push.repository'
 import { PushService } from './services/push.service'
 
+import type { PushRepositoryShape } from './repositories/push.repository'
+
 /**
  * The push domain: web-push subscriptions.
  *
@@ -17,7 +19,13 @@ export class PushDomainModule extends createModuleContext(
     {
         controllers: [PushController],
         providers: [
-            { provide: PushService, useValue: PushService.live },
+            // The service takes its repository as a constructor argument (see the class doc).
+            {
+                provide: PushService,
+                useFactory: (repository: PushRepositoryShape) =>
+                    new PushService.live(repository),
+                inject: [PushRepository],
+            },
             { provide: PushRepository, useValue: PushRepository.live },
         ],
     },

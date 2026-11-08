@@ -47,18 +47,24 @@ type ActingService = {
         : never
 }
 
-/** The service, built over whichever repository the run provides; each call names its actor. */
+/**
+ * The service instance a test builds over its fake. `PushService.live` takes the repository as a
+ * constructor argument now, so the actor-naming proxy reads whichever fake the current test set.
+ */
+let currentRepository: PushRepositoryShape | null = null
 const service = new Proxy({} as ActingService, {
     get:
         (_target, key: keyof PushServiceShape) =>
         (actor: Acting, ...args: unknown[]) =>
             (
-                PushService.live[key] as (
+                new PushService.live(
+                    currentRepository!
+                )[key] as (
                     ...a: unknown[]
                 ) => Effect.Effect<
                     unknown,
                     PushFailure,
-                    PushRepository | CurrentActor | Correlation
+                    CurrentActor | Correlation
                 >
             )(...args).pipe(
                 Effect.provideService(
@@ -149,6 +155,7 @@ describe('PushService', () => {
 
     beforeEach(() => {
         repository = fakeRepository()
+        currentRepository = repository
     })
 
     describe('subscribe', () => {

@@ -77,7 +77,12 @@ function runUsers<T>(
             const users = yield* UserService
             return yield* use(users)
         }).pipe(
-            Effect.provideService(UserService, UserService.live),
+            Effect.provideService(
+                UserService,
+                new UserService.live(
+                    new UserRepository.live()
+                )
+            ),
             Effect.provideService(
                 UserRepository,
                 new UserRepository.live()
@@ -94,7 +99,12 @@ function runUsers<T>(
                 assertCritical: () => Effect.void,
                 status: () => Effect.die(new Error('unused')),
             } as unknown as StepUpService['Service']),
-            Effect.provideService(RoleService, RoleService.live),
+            Effect.provideService(
+                RoleService,
+                new RoleService.live(
+                    new RoleRepository.live()
+                )
+            ),
             // The trail is not what this e2e proves; the write is fire-and-forget by design.
             Effect.provideService(AuditService, {
                 record: () => Effect.void,

@@ -103,7 +103,9 @@ describe('RoleService', () => {
                 Layer.mergeAll(
                     Layer.succeed(
                         RoleService,
-                        RoleService.live as unknown as RoleService['Service']
+                        new RoleService.live(
+                            repo as unknown as RoleRepositoryShape
+                        )
                     ),
                     Layer.succeed(
                         RoleRepository,

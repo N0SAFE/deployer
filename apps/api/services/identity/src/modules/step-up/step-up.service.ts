@@ -5,7 +5,7 @@ import {
     isCriticalStepUp,
     type StepUpMethod,
 } from '@deployer/auth/authz'
-import { CurrentActor, serviceOver } from '@deployer/effect-core'
+import { CurrentActor } from '@deployer/effect-core'
 import { ForbiddenError } from '@deployer/errors'
 
 import { DatabasePort } from '@identity/core/database/database.port'
@@ -63,112 +63,136 @@ export type StepUpServiceShape = {
     >
 }
 
-const makeStepUpService = (
-    repository: StepUpRepository['Service']
-): StepUpServiceShape => ({
-    status: (): ReturnType<StepUpServiceShape['status']> =>
-        Effect.gen(function* () {
-            const actor = yield* CurrentActor
-            // A proof belongs to a SESSION. A system caller, or an anonymous one, has none — answering "not stepped up"
-            // would hide that, so it is refused as a caller error.
-            if (actor.kind !== 'user' || actor.sessionId === null) {
-                return yield* Effect.fail(
-                    new ForbiddenError('step-up status needs a user session')
-                )
-            }
-
-            const now = Date.now()
-            const since = new Date(now - STEP_UP_WINDOW_SECONDS * 1000)
-            const proof = yield* repository.latestForSession(
-                actor.sessionId,
-                since
-            )
-
-            if (proof === null) {
-                return {
-                    steppedUp: false,
-                    critical: false,
-                    method: null,
-                    verifiedAt: null,
-                    expiresAt: null,
-                    windowSeconds: STEP_UP_WINDOW_SECONDS,
-                }
-            }
-
-            return {
-                steppedUp: true,
-                critical: isCriticalStepUp(proof.method),
-                method: proof.method,
-                verifiedAt: proof.verifiedAt,
-                expiresAt: new Date(
-                    proof.verifiedAt.getTime() + STEP_UP_WINDOW_SECONDS * 1000
-                ),
-                windowSeconds: STEP_UP_WINDOW_SECONDS,
-            }
-        }),
-
-    latestProof: (): ReturnType<StepUpServiceShape['latestProof']> =>
-        Effect.gen(function* () {
-            const actor = yield* CurrentActor
-            if (actor.kind !== 'user' || actor.sessionId === null) return null
-            const proof = yield* repository.latestForSession(
-                actor.sessionId,
-                new Date(Date.now() - STEP_UP_WINDOW_SECONDS * 1000)
-            )
-            return proof === null
-                ? null
-                : {
-                      id: proof.id,
-                      method: proof.method,
-                      verifiedAt: proof.verifiedAt,
-                  }
-        }),
-
-    assertCriticalFor: (
-        sessionId: string
-    ): ReturnType<StepUpServiceShape['assertCriticalFor']> =>
-        Effect.gen(function* () {
-            const proof = yield* repository.latestForSession(
-                sessionId,
-                new Date(Date.now() - STEP_UP_WINDOW_SECONDS * 1000)
-            )
-            if (proof === null || !isCriticalStepUp(proof.method)) {
-                return yield* Effect.fail(
-                    new ForbiddenError(
-                        'step-up required: verify with a passkey and retry'
-                    )
-                )
-            }
-        }),
-
-    assertCritical: (): ReturnType<StepUpServiceShape['assertCritical']> =>
-        Effect.gen(function* () {
-            const actor = yield* CurrentActor
-            if (actor.kind !== 'user' || actor.sessionId === null) {
-                return yield* Effect.fail(
-                    new ForbiddenError('step-up needs a user session')
-                )
-            }
-
-            const since = new Date(Date.now() - STEP_UP_WINDOW_SECONDS * 1000)
-            const proof = yield* repository.latestForSession(
-                actor.sessionId,
-                since
-            )
-            if (proof === null || !isCriticalStepUp(proof.method)) {
-                return yield* Effect.fail(
-                    new ForbiddenError(
-                        'step-up required: verify with a passkey and retry'
-                    )
-                )
-            }
-        }),
-})
-
 /** Answers what THIS session has proved recently (`AUTH-062`). */
 export class StepUpService extends Context.Service<
     StepUpService,
     StepUpServiceShape
 >()('identity/StepUpService') {
-    static readonly live = serviceOver(StepUpRepository, makeStepUpService)
+    /**
+     * The repository is a constructor argument, not something the methods yield.
+     *
+     * The factory form this replaces settled it, and the shape's channel says so (`CurrentActor | DatabasePort`);
+     * making the methods yield the tag instead would widen every channel and ripple into `RoleService`,
+     * `ApprovalService` and `UserService`, which all call `assertCritical()`. The module wires this with a factory that
+     * only does `new StepUpService.live(repository)`.
+     */
+    static readonly live = class StepUpServiceImpl implements StepUpServiceShape {
+        private readonly repository: StepUpRepository['Service']
+
+        constructor(repository: StepUpRepository['Service']) {
+            this.repository = repository
+        }
+
+        status(): ReturnType<StepUpServiceShape['status']> {
+            const repository = this.repository
+            return Effect.gen(function* () {
+                const actor = yield* CurrentActor
+                // A proof belongs to a SESSION. A system caller, or an anonymous one, has none — answering
+                // "not stepped up" would hide that, so it is refused as a caller error.
+                if (actor.kind !== 'user' || actor.sessionId === null) {
+                    return yield* Effect.fail(
+                        new ForbiddenError(
+                            'step-up status needs a user session'
+                        )
+                    )
+                }
+
+                const now = Date.now()
+                const since = new Date(now - STEP_UP_WINDOW_SECONDS * 1000)
+                const proof = yield* repository.latestForSession(
+                    actor.sessionId,
+                    since
+                )
+
+                if (proof === null) {
+                    return {
+                        steppedUp: false,
+                        critical: false,
+                        method: null,
+                        verifiedAt: null,
+                        expiresAt: null,
+                        windowSeconds: STEP_UP_WINDOW_SECONDS,
+                    }
+                }
+
+                return {
+                    steppedUp: true,
+                    critical: isCriticalStepUp(proof.method),
+                    method: proof.method,
+                    verifiedAt: proof.verifiedAt,
+                    expiresAt: new Date(
+                        proof.verifiedAt.getTime() +
+                            STEP_UP_WINDOW_SECONDS * 1000
+                    ),
+                    windowSeconds: STEP_UP_WINDOW_SECONDS,
+                }
+            })
+        }
+
+        latestProof(): ReturnType<StepUpServiceShape['latestProof']> {
+            const repository = this.repository
+            return Effect.gen(function* () {
+                const actor = yield* CurrentActor
+                if (actor.kind !== 'user' || actor.sessionId === null)
+                    return null
+                const proof = yield* repository.latestForSession(
+                    actor.sessionId,
+                    new Date(Date.now() - STEP_UP_WINDOW_SECONDS * 1000)
+                )
+                return proof === null
+                    ? null
+                    : {
+                          id: proof.id,
+                          method: proof.method,
+                          verifiedAt: proof.verifiedAt,
+                      }
+            })
+        }
+
+        assertCriticalFor(
+            sessionId: string
+        ): ReturnType<StepUpServiceShape['assertCriticalFor']> {
+            const repository = this.repository
+            return Effect.gen(function* () {
+                const proof = yield* repository.latestForSession(
+                    sessionId,
+                    new Date(Date.now() - STEP_UP_WINDOW_SECONDS * 1000)
+                )
+                if (proof === null || !isCriticalStepUp(proof.method)) {
+                    return yield* Effect.fail(
+                        new ForbiddenError(
+                            'step-up required: verify with a passkey and retry'
+                        )
+                    )
+                }
+            })
+        }
+
+        assertCritical(): ReturnType<StepUpServiceShape['assertCritical']> {
+            const repository = this.repository
+            return Effect.gen(function* () {
+                const actor = yield* CurrentActor
+                if (actor.kind !== 'user' || actor.sessionId === null) {
+                    return yield* Effect.fail(
+                        new ForbiddenError('step-up needs a user session')
+                    )
+                }
+
+                const since = new Date(
+                    Date.now() - STEP_UP_WINDOW_SECONDS * 1000
+                )
+                const proof = yield* repository.latestForSession(
+                    actor.sessionId,
+                    since
+                )
+                if (proof === null || !isCriticalStepUp(proof.method)) {
+                    return yield* Effect.fail(
+                        new ForbiddenError(
+                            'step-up required: verify with a passkey and retry'
+                        )
+                    )
+                }
+            })
+        }
+    }
 }

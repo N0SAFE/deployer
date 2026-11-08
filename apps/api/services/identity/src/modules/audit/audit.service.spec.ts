@@ -54,12 +54,15 @@ describe('AuditService', () => {
                 Layer.mergeAll(
                     Layer.succeed(
                         AuditService,
-                        AuditService.live as unknown as AuditService['Service']
+                        new AuditService.live({
+                            list,
+                            append: () => Effect.void,
+                        } satisfies AuditRepositoryShape)
                     ),
                     Layer.succeed(AuditRepository, {
                         list,
                         append: () => Effect.void,
-                    } as unknown as AuditRepositoryShape),
+                    } as AuditRepositoryShape),
                     Layer.succeed(
                         CurrentActor,
                         Actor.user(actor.userId, actor.role)

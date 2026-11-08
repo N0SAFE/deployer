@@ -6,7 +6,7 @@ import {
     platformRoleRank,
     type ScopeKind,
 } from '@deployer/auth/authz'
-import { CurrentActor, HttpRequest, serviceOver } from '@deployer/effect-core'
+import { CurrentActor, HttpRequest } from '@deployer/effect-core'
 import {
     installRoleSnapshot,
     roleHasPermission,
@@ -95,60 +95,78 @@ export type RoleServiceShape = {
  * "grant myself everything": the rank must stay strictly below the editor's, and every permission must already be the
  * editor's own. Neither is inferred from the other — a low-rank role can still hold a powerful permission.
  */
-const makeRoleService = (
-    repository: RoleRepository['Service']
-): RoleServiceShape => {
-    const assertWriter = (actorRole: string) => {
-        if (!roleHasPermission(actorRole, 'role:write')) {
-            return Effect.fail(
-                new RoleForbidden({ reason: 'actor lacks role:write' })
+function assertWriter(
+    actorRole: string
+): Effect.Effect<void, RoleForbidden> {
+    if (!roleHasPermission(actorRole, 'role:write')) {
+        return Effect.fail(
+            new RoleForbidden({ reason: 'actor lacks role:write' })
+        )
+    }
+    return Effect.void
+}
+
+/** The rank and permission caps, shared by create and update. */
+const assertGrantable = (
+    actorRole: string,
+    rank: number,
+    permissions: readonly string[]
+): Effect.Effect<void, RoleForbidden | RoleInvalid> =>
+    Effect.gen(function* () {
+        if (rank >= platformRoleRank(actorRole)) {
+            return yield* Effect.fail(
+                new RoleForbidden({
+                    reason: 'a role must rank below your own',
+                })
             )
         }
-        return Effect.void
-    }
 
-    /** The rank and permission caps, shared by create and update. */
-    const assertGrantable = (
-        actorRole: string,
-        rank: number,
-        permissions: readonly string[]
-    ) =>
-        Effect.gen(function* () {
-            if (rank >= platformRoleRank(actorRole)) {
+        const mine = new Set(capabilitiesOfRole(actorRole))
+        for (const permission of permissions) {
+            if (!isPermission(permission)) {
                 return yield* Effect.fail(
-                    new RoleForbidden({
-                        reason: 'a role must rank below your own',
+                    new RoleInvalid({
+                        reason: `"${permission}" is not a permission this platform declares`,
                     })
                 )
             }
-
-            const mine = new Set(capabilitiesOfRole(actorRole))
-            for (const permission of permissions) {
-                if (!isPermission(permission)) {
-                    return yield* Effect.fail(
-                        new RoleInvalid({
-                            reason: `"${permission}" is not a permission this platform declares`,
-                        })
-                    )
-                }
-                if (!mine.has(permission)) {
-                    return yield* Effect.fail(
-                        new RoleForbidden({
-                            reason: `you cannot grant "${permission}": you do not hold it`,
-                        })
-                    )
-                }
+            if (!mine.has(permission)) {
+                return yield* Effect.fail(
+                    new RoleForbidden({
+                        reason: `you cannot grant "${permission}": you do not hold it`,
+                    })
+                )
             }
-        })
+        }
+    })
 
-    return {
-        isKnownPlatformRole: (
-            name
-        ): ReturnType<RoleServiceShape['isKnownPlatformRole']> =>
-            repository.isKnownPlatformRole(name),
+/**
+ * The role catalogue's rules: who may read it, who may write it, and what may be granted.
+ *
+ * The repository is a constructor argument, not something the methods yield: the factory form this replaces settled it
+ * and the shape's channel says so, so yielding the tag would widen every channel and ripple into every caller. The module
+ * wires it with a factory that only does `new RoleService.live(repository)`.
+ */
+export class RoleService extends Context.Service<
+    RoleService,
+    RoleServiceShape
+>()('identity/RoleService') {
+    static readonly live = class RoleServiceImpl implements RoleServiceShape {
+        private readonly repository: RoleRepository['Service']
 
-        list: (scope): ReturnType<RoleServiceShape['list']> =>
-            Effect.gen(function* () {
+        constructor(repository: RoleRepository['Service']) {
+            this.repository = repository
+        }
+
+        isKnownPlatformRole(
+            name: string
+        ): ReturnType<RoleServiceShape['isKnownPlatformRole']> {
+            return this.repository.isKnownPlatformRole(name)
+        }
+
+        list(scope: ScopeKind | undefined): ReturnType<RoleServiceShape['list']> {
+            const repository = this.repository
+            return Effect.gen(function* () {
                 const actor = actorFromCurrent(yield* CurrentActor)
                 if (!roleHasPermission(actor.role, 'role:read')) {
                     return yield* Effect.fail(
@@ -156,10 +174,12 @@ const makeRoleService = (
                     )
                 }
                 return yield* repository.list(scope)
-            }),
+            })
+        }
 
-        create: (role): ReturnType<RoleServiceShape['create']> =>
-            Effect.gen(function* () {
+        create(role: NewRole): ReturnType<RoleServiceShape['create']> {
+            const repository = this.repository
+            return Effect.gen(function* () {
                 const actor = actorFromCurrent(yield* CurrentActor)
                 yield* assertWriter(actor.role)
 
@@ -210,10 +230,15 @@ const makeRoleService = (
                 installRoleSnapshot(catalogue.epoch, catalogue.roles)
 
                 return created
-            }),
+            })
+        }
 
-        update: (id, patch): ReturnType<RoleServiceShape['update']> =>
-            Effect.gen(function* () {
+        update(
+            id: string,
+            patch: RolePatch
+        ): ReturnType<RoleServiceShape['update']> {
+            const repository = this.repository
+            return Effect.gen(function* () {
                 const actor = actorFromCurrent(yield* CurrentActor)
                 yield* assertWriter(actor.role)
 
@@ -263,10 +288,12 @@ const makeRoleService = (
                 installRoleSnapshot(catalogue.epoch, catalogue.roles)
 
                 return updated
-            }),
+            })
+        }
 
-        remove: (id): ReturnType<RoleServiceShape['remove']> =>
-            Effect.gen(function* () {
+        remove(id: string): ReturnType<RoleServiceShape['remove']> {
+            const repository = this.repository
+            return Effect.gen(function* () {
                 const actor = actorFromCurrent(yield* CurrentActor)
                 yield* assertWriter(actor.role)
 
@@ -316,13 +343,7 @@ const makeRoleService = (
                 yield* repository.bumpEpoch()
                 const catalogue = yield* repository.loadCatalogue()
                 installRoleSnapshot(catalogue.epoch, catalogue.roles)
-            }),
+            })
+        }
     }
-}
-
-export class RoleService extends Context.Service<
-    RoleService,
-    RoleServiceShape
->()('identity/RoleService') {
-    static readonly live = serviceOver(RoleRepository, makeRoleService)
 }

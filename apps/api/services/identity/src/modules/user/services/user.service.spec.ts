@@ -24,7 +24,6 @@ import {
 } from '../domain/user.errors'
 import {
     UserRepository,
-    type UserRepositoryShape,
 } from '../repositories/user.repository'
 
 import {
@@ -99,7 +98,9 @@ describe('UserService', () => {
         get:
             (_target, key: keyof UserServiceShape) =>
             (actor: Acting, ...args: unknown[]) => {
-                const method = UserService.live[key] as (
+                const method = new UserService.live(
+                    repo
+                )[key] as (
                     ...a: unknown[]
                 ) => Effect.Effect<
                     unknown,
@@ -116,7 +117,7 @@ describe('UserService', () => {
                 return method(...args).pipe(
                     Effect.provideService(
                         UserRepository,
-                        repo as unknown as UserRepositoryShape
+                        repo
                     ),
                     Effect.provideService(
                         CurrentActor,
@@ -250,10 +251,10 @@ describe('UserService', () => {
 
     describe('deleteSelf', () => {
         const asSystem = () =>
-            UserService.live.deleteSelf().pipe(
+            new UserService.live(repo).deleteSelf().pipe(
                 Effect.provideService(
                     UserRepository,
-                    repo as unknown as UserRepositoryShape
+                    repo
                 ),
                 Effect.provideService(CurrentActor, Actor.system('scheduler')),
                 Effect.provideService(Correlation, { id: 'test' }),
@@ -351,10 +352,10 @@ describe('UserService', () => {
         })
 
         it('refuses a system actor: it has no data of its own', async () => {
-            const effect = UserService.live.exportSelf().pipe(
+            const effect = new UserService.live(repo).exportSelf().pipe(
                 Effect.provideService(
                     UserRepository,
-                    repo as unknown as UserRepositoryShape
+                    repo
                 ),
                 Effect.provideService(CurrentActor, Actor.system('scheduler')),
                 Effect.provideService(Correlation, { id: 'test' }),
@@ -385,10 +386,10 @@ describe('UserService', () => {
                 Effect.succeed(userRow({ role: 'user' }))
             )
 
-            const effect = UserService.live.setRole('user-1', 'admin').pipe(
+            const effect = new UserService.live(repo).setRole('user-1', 'admin').pipe(
                 Effect.provideService(
                     UserRepository,
-                    repo as unknown as UserRepositoryShape
+                    repo
                 ),
                 Effect.provideService(
                     CurrentActor,
@@ -417,7 +418,9 @@ describe('UserService', () => {
         })
 
         it('refuses to create a privileged account without a fresh passkey proof', async () => {
-            const effect = UserService.live
+            const effect = new UserService.live(
+                repo
+            )
                 .create({
                     name: 'New Admin',
                     email: 'admin@example.com',
@@ -426,7 +429,7 @@ describe('UserService', () => {
                 .pipe(
                     Effect.provideService(
                         UserRepository,
-                        repo as unknown as UserRepositoryShape
+                        repo
                     ),
                     Effect.provideService(
                         CurrentActor,
@@ -462,12 +465,14 @@ describe('UserService', () => {
                 Effect.succeed(userRow({ email: 'old@example.com' }))
             )
 
-            const effect = UserService.live
+            const effect = new UserService.live(
+                repo
+            )
                 .update('user-1', { email: 'new@example.com' }, {})
                 .pipe(
                     Effect.provideService(
                         UserRepository,
-                        repo as unknown as UserRepositoryShape
+                        repo
                     ),
                     Effect.provideService(
                         CurrentActor,
@@ -500,10 +505,10 @@ describe('UserService', () => {
                 Effect.succeed(userRow({ role: 'viewer' }))
             )
 
-            const effect = UserService.live.delete('user-1').pipe(
+            const effect = new UserService.live(repo).delete('user-1').pipe(
                 Effect.provideService(
                     UserRepository,
-                    repo as unknown as UserRepositoryShape
+                    repo
                 ),
                 Effect.provideService(
                     CurrentActor,
@@ -542,10 +547,10 @@ describe('UserService', () => {
                 Effect.succeed(userRow({ role: 'user' }))
             )
 
-            const effect = UserService.live.setRole('user-1', 'admin').pipe(
+            const effect = new UserService.live(repo).setRole('user-1', 'admin').pipe(
                 Effect.provideService(
                     UserRepository,
-                    repo as unknown as UserRepositoryShape
+                    repo
                 ),
                 Effect.provideService(
                     CurrentActor,

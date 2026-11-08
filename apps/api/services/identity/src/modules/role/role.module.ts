@@ -19,7 +19,13 @@ export class RoleDomainModule extends createModuleContext(
         imports: [AuditDomainModule, StepUpDomainModule],
         exports: [RoleService, RoleRepository],
         providers: [
-            { provide: RoleService, useValue: RoleService.live },
+            // The service takes its repository as a constructor argument (see the class doc).
+            {
+                provide: RoleService,
+                useFactory: (repository: RoleRepository['Service']) =>
+                    new RoleService.live(repository),
+                inject: [RoleRepository],
+            },
             { provide: RoleRepository, useValue: RoleRepository.live },
         ],
     },

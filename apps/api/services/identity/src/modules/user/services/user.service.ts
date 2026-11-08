@@ -1,7 +1,7 @@
 import { hashPassword } from 'better-auth/crypto'
 import { Context, Effect } from 'effect'
 
-import { CurrentActor, type Ambient, serviceOver } from '@deployer/effect-core'
+import { CurrentActor, type Ambient } from '@deployer/effect-core'
 
 import { DatabasePort } from '@identity/core/database/database.port'
 import { actionHash } from '@identity/core/utils/action-hash'
@@ -178,13 +178,97 @@ export type UserServiceShape = {
     >
 }
 
-/** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
+/** Tag and implementation together: the tag is the contract, `live` the one implementation. */
 export class UserService extends Context.Service<
     UserService,
     UserServiceShape
 >()('identity/UserService') {
-    /** The repository is yielded when a method runs, so this is a constant the module provides with `useValue`. */
-    static readonly live = serviceOver(UserRepository, makeUserService)
+    /**
+     * The repository is a constructor argument, not something the methods yield: the factory form this replaces
+     * settled it and the shape's channel says so, so yielding the tag would widen every channel and ripple into every
+     * caller. `make…` returns the shape, so the class is typed by that return; the members are bound at construction.
+     */
+    static readonly live = class UserServiceImpl {
+        private readonly shape: UserServiceShape
+
+        constructor(users: UserRepositoryShape) {
+            this.shape = makeUserService(users)
+            // The spec reads a method off the instance and calls it detached, so each one is bound.
+            for (const key of Object.keys(this.shape) as (keyof UserServiceShape)[]) {
+                const member = this.shape[key]
+                if (typeof member === 'function')
+                    Object.defineProperty(this, key, {
+                        value: (member as (...a: unknown[]) => unknown).bind(
+                            this.shape
+                        ),
+                    })
+            }
+        }
+
+        list(query: UserQuery): ReturnType<UserServiceShape['list']> {
+            return this.shape.list(query)
+        }
+        count(filter: UserFilter): ReturnType<UserServiceShape['count']> {
+            return this.shape.count(filter)
+        }
+        deleteSelf(): ReturnType<UserServiceShape['deleteSelf']> {
+            return this.shape.deleteSelf()
+        }
+        exportSelf(): ReturnType<UserServiceShape['exportSelf']> {
+            return this.shape.exportSelf()
+        }
+        findById(id: string): ReturnType<UserServiceShape['findById']> {
+            return this.shape.findById(id)
+        }
+        checkEmail(email: string): ReturnType<UserServiceShape['checkEmail']> {
+            return this.shape.checkEmail(email)
+        }
+        create(input: NewUser): ReturnType<UserServiceShape['create']> {
+            return this.shape.create(input)
+        }
+        update(
+            id: string,
+            patch: UserPatch,
+            raw: Record<string, unknown>
+        ): ReturnType<UserServiceShape['update']> {
+            return this.shape.update(id, patch, raw)
+        }
+        setBanned(
+            id: string,
+            banned: boolean
+        ): ReturnType<UserServiceShape['setBanned']> {
+            return this.shape.setBanned(id, banned)
+        }
+        setRole(
+            id: string,
+            role: NonNullable<User['role']>
+        ): ReturnType<UserServiceShape['setRole']> {
+            return this.shape.setRole(id, role)
+        }
+        listSessions(id: string): ReturnType<UserServiceShape['listSessions']> {
+            return this.shape.listSessions(id)
+        }
+        revokeSession(
+            id: string,
+            sessionId: string
+        ): ReturnType<UserServiceShape['revokeSession']> {
+            return this.shape.revokeSession(id, sessionId)
+        }
+        setPassword(
+            id: string,
+            password: string
+        ): ReturnType<UserServiceShape['setPassword']> {
+            return this.shape.setPassword(id, password)
+        }
+        revokeSessions(
+            id: string
+        ): ReturnType<UserServiceShape['revokeSessions']> {
+            return this.shape.revokeSessions(id)
+        }
+        delete(id: string): ReturnType<UserServiceShape['delete']> {
+            return this.shape.delete(id)
+        }
+    }
 }
 
 const actingUser = Effect.gen(function* () {

@@ -1,7 +1,7 @@
 import { Context, Effect } from 'effect'
 import { generateVAPIDKeys } from 'web-push'
 
-import { CurrentActor, type Ambient, serviceOver } from '@deployer/effect-core'
+import { CurrentActor, type Ambient } from '@deployer/effect-core'
 
 import { DatabasePort } from '@identity/core/database/database.port'
 import { actorFromCurrent } from '@identity/core/utils/actor.utils'
@@ -82,15 +82,6 @@ export type PushServiceShape = {
     ) => Effect.Effect<void, PushFailure, PushRepository | DatabasePort>
 }
 
-/** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
-export class PushService extends Context.Service<
-    PushService,
-    PushServiceShape
->()('identity/PushService') {
-    /** The repository is yielded when a method runs, so this is a constant the module provides with `useValue`. */
-    static readonly live = serviceOver(PushRepository, makePushService)
-}
-
 const actingUserId = Effect.gen(function* () {
     return actorFromCurrent(yield* CurrentActor).userId
 })
@@ -98,160 +89,194 @@ const actingUserId = Effect.gen(function* () {
 /**
  * The push domain's use cases, composed as Effects.
  *
- * Rules stay synchronous and are lifted with `rule`; database work is an Effect from the
- * repository. Each refusal is a tagged `DomainError` the boundary maps by kind; a repository
- * failure is left unmapped on purpose.
+ * Rules stay synchronous and are lifted with `rule`; database work is an Effect from the repository. Each refusal is a
+ * tagged `DomainError` the boundary maps by kind; a repository failure is left unmapped on purpose.
  *
- * Not here: SQL (the repository), the HTTP shape (the controller), or the
- * notification PAYLOAD — composing what a message says is a caller's concern.
+ * Not here: SQL (the repository), the HTTP shape (the controller), or the notification PAYLOAD — composing what a message
+ * says is a caller's concern.
+ *
+ * The repository is a constructor argument, not something the methods yield: the factory form this replaces settled it and
+ * the shape's channel says so, so yielding the tag would widen every channel and ripple into every caller. The module wires
+ * it with a factory that only does `new PushService.live(repository)`.
  */
-function makePushService(subscriptions: PushRepositoryShape): PushServiceShape {
-    /**
-     * The VAPID public key this user's browser should subscribe with, generating the
-     * keypair on first use.
-     *
-     * Lazy because a keypair is only needed once somebody subscribes: minting one at
-     * signup would put a row and a keypair on every user for a feature most will not
-     * use.
-     */
-    const publicKey = Effect.fn('PushService.publicKey')(function* () {
-        const userId = yield* actingUserId
-        const existing = yield* subscriptions.findVapidKeys(userId)
-        if (existing !== null) return { publicKey: existing.publicKey }
+export class PushService extends Context.Service<
+    PushService,
+    PushServiceShape
+>()('identity/PushService') {
+    static readonly live = class PushServiceImpl implements PushServiceShape {
+        private readonly subscriptions: PushRepositoryShape
 
-        const generated = yield* rule(() => generateVAPIDKeys())
-        const keys = yield* subscriptions.insertVapidKeys({
-            userId,
-            ...generated,
-            // The VAPID spec requires a contact so a push service can report a
-            // misbehaving sender. A `mailto:` with a local domain is deliberate: a
-            // valid, unique principal that leaks no real address.
-            subject: `mailto:user-${userId}@notifications.local`,
-        })
-        return { publicKey: keys.publicKey }
-    })
+        constructor(subscriptions: PushRepositoryShape) {
+            this.subscriptions = subscriptions
+        }
 
-    return {
-        publicKey,
+        /**
+         * The VAPID public key this user's browser should subscribe with, generating the keypair on first use.
+         *
+         * Lazy because a keypair is only needed once somebody subscribes: minting one at signup would put a row and a
+         * keypair on every user for a feature most will not use.
+         */
+        private publicKeyEffect(): ReturnType<PushServiceShape['publicKey']> {
+            const subscriptions = this.subscriptions
+            return Effect.gen(function* () {
+                const userId = yield* actingUserId
+                const existing = yield* subscriptions.findVapidKeys(userId)
+                if (existing !== null) return { publicKey: existing.publicKey }
+
+                const generated = yield* rule(() => generateVAPIDKeys())
+                const keys = yield* subscriptions.insertVapidKeys({
+                    userId,
+                    ...generated,
+                    // The VAPID spec requires a contact so a push service can report a misbehaving sender. A `mailto:`
+                    // with a local domain is deliberate: a valid, unique principal that leaks no real address.
+                    subject: `mailto:user-${userId}@notifications.local`,
+                })
+                return { publicKey: keys.publicKey }
+            })
+        }
+
+        publicKey(): ReturnType<PushServiceShape['publicKey']> {
+            return this.publicKeyEffect()
+        }
 
         /**
          * Register a device.
          *
-         * The shapes are checked structurally (base64url, plausible length) rather than
-         * cryptographically: this guards against a WRONG value, not a hostile one — the
-         * push service is the authority on whether a keypair works. A malformed key would
-         * otherwise fail at DELIVERY time, days later, as an opaque 400.
+         * The shapes are checked structurally (base64url, plausible length) rather than cryptographically: this guards
+         * against a WRONG value, not a hostile one — the push service is the authority on whether a keypair works. A
+         * malformed key would otherwise fail at DELIVERY time, days later, as an opaque 400.
          */
-        subscribe: Effect.fn('PushService.subscribe')(function* (request) {
-            const userId = yield* actingUserId
+        subscribe(
+            request: SubscribeRequest
+        ): ReturnType<PushServiceShape['subscribe']> {
+            const subscriptions = this.subscriptions
+            const publicKey = () => this.publicKeyEffect()
+            return Effect.gen(function* () {
+                const userId = yield* actingUserId
 
-            yield* rule(() => {
-                pushRules.assertUsableEndpoint(request.endpoint)
-                pushRules.assertUsableKey(request.keys.p256dh, 'p256dh', 60)
-                pushRules.assertUsableKey(request.keys.auth, 'auth', 12)
+                yield* rule(() => {
+                    pushRules.assertUsableEndpoint(request.endpoint)
+                    pushRules.assertUsableKey(request.keys.p256dh, 'p256dh', 60)
+                    pushRules.assertUsableKey(request.keys.auth, 'auth', 12)
+                })
+
+                // A subscription with no keypair cannot be delivered to, so storing one first would create a row that looks
+                // live and silently cannot be used.
+                yield* publicKey()
+
+                const stored = yield* subscriptions.upsert({
+                    userId,
+                    endpoint: request.endpoint,
+                    p256dh: request.keys.p256dh,
+                    auth: request.keys.auth,
+                    deviceName: request.deviceName,
+                    userAgent: request.userAgent,
+                })
+
+                return {
+                    id: stored.id,
+                    deviceName: stored.deviceName,
+                    createdAt: stored.createdAt,
+                }
             })
-
-            // A subscription with no keypair cannot be delivered to, so storing one
-            // first would create a row that looks live and silently cannot be used.
-            yield* publicKey()
-
-            const stored = yield* subscriptions.upsert({
-                userId,
-                endpoint: request.endpoint,
-                p256dh: request.keys.p256dh,
-                auth: request.keys.auth,
-                deviceName: request.deviceName,
-                userAgent: request.userAgent,
-            })
-
-            return {
-                id: stored.id,
-                deviceName: stored.deviceName,
-                createdAt: stored.createdAt,
-            }
-        }),
+        }
 
         /**
          * Remove a device.
          *
-         * The lookup and the delete are both keyed on the actor: checking in one then
-         * deleting in the other would leave a window where a re-owned endpoint is deleted
-         * by the previous holder, so the repository's delete carries the `userId` too.
+         * The lookup and the delete are both keyed on the actor: checking in one then deleting in the other would leave a
+         * window where a re-owned endpoint is deleted by the previous holder, so the repository's delete carries the
+         * `userId` too.
          *
-         * "Not yours" and "not found" return the SAME error, because distinguishing them
-         * would confirm that an endpoint belongs to somebody else.
+         * "Not yours" and "not found" return the SAME error, because distinguishing them would confirm that an endpoint
+         * belongs to somebody else.
          */
-        unsubscribe: Effect.fn('PushService.unsubscribe')(function* (endpoint) {
-            const userId = yield* actingUserId
+        unsubscribe(
+            endpoint: string
+        ): ReturnType<PushServiceShape['unsubscribe']> {
+            const subscriptions = this.subscriptions
+            return Effect.gen(function* () {
+                const userId = yield* actingUserId
 
-            const existing = yield* subscriptions.findByEndpoint(endpoint)
-            if (existing?.userId !== userId) {
-                return yield* new PushSubscriptionNotFound({ endpoint })
-            }
+                const existing = yield* subscriptions.findByEndpoint(endpoint)
+                if (existing?.userId !== userId) {
+                    return yield* new PushSubscriptionNotFound({ endpoint })
+                }
 
-            const deleted = yield* subscriptions.deleteByEndpointForUser(
-                userId,
-                endpoint
-            )
-            if (!deleted)
-                return yield* new PushSubscriptionNotFound({ endpoint })
-            return { success: true }
-        }),
+                const deleted = yield* subscriptions.deleteByEndpointForUser(
+                    userId,
+                    endpoint
+                )
+                if (!deleted)
+                    return yield* new PushSubscriptionNotFound({ endpoint })
+                return { success: true }
+            })
+        }
 
         /** This user's devices — active only, because a retired endpoint is not deliverable. */
-        list: Effect.fn('PushService.list')(function* () {
-            const userId = yield* actingUserId
-            return yield* subscriptions.listByUser(userId, true)
-        }),
+        list(): ReturnType<PushServiceShape['list']> {
+            const subscriptions = this.subscriptions
+            return Effect.gen(function* () {
+                const userId = yield* actingUserId
+                return yield* subscriptions.listByUser(userId, true)
+            })
+        }
 
         /**
          * This user's subscription statistics.
          *
-         * Each figure is asked of the database for exactly the set it describes: `total`
-         * counts every row while `devices` lists only active ones, so deriving the total
-         * from the list would report a number that disagrees with the table.
+         * Each figure is asked of the database for exactly the set it describes: `total` counts every row while `devices`
+         * lists only active ones, so deriving the total from the list would report a number that disagrees with the table.
          */
-        stats: Effect.fn('PushService.stats')(function* () {
-            const userId = yield* actingUserId
+        stats(): ReturnType<PushServiceShape['stats']> {
+            const subscriptions = this.subscriptions
+            return Effect.gen(function* () {
+                const userId = yield* actingUserId
 
-            const total = yield* subscriptions.countByUser(userId, false)
-            const active = yield* subscriptions.countByUser(userId, true)
-            const rows = yield* subscriptions.listByUser(userId, true)
+                const total = yield* subscriptions.countByUser(userId, false)
+                const active = yield* subscriptions.countByUser(userId, true)
+                const rows = yield* subscriptions.listByUser(userId, true)
 
-            return {
-                totalSubscriptions: total,
-                activeSubscriptions: active,
-                // `lastUsedAt ?? createdAt` rather than a null: the contract declares a
-                // required date, and "never used" means "not used since registration".
-                // `now()` would make an unused device look like the most recent one.
-                devices: rows.map((row) => ({
-                    deviceName: row.deviceName ?? 'Unknown Device',
-                    lastUsed: row.lastUsedAt ?? row.createdAt,
-                })),
-            }
-        }),
+                return {
+                    totalSubscriptions: total,
+                    activeSubscriptions: active,
+                    // `lastUsedAt ?? createdAt` rather than a null: the contract declares a required date, and "never
+                    // used" means "not used since registration". `now()` would make an unused device look like the most
+                    // recent one.
+                    devices: rows.map((row) => ({
+                        deviceName: row.deviceName ?? 'Unknown Device',
+                        lastUsed: row.lastUsedAt ?? row.createdAt,
+                    })),
+                }
+            })
+        }
 
         /**
          * How many subscriptions could actually receive a notification right now.
          *
-         * Activity is necessary and not sufficient: a subscription belonging to a banned
-         * account must not be delivered to, and a ban does not flip the device rows.
+         * Activity is necessary and not sufficient: a subscription belonging to a banned account must not be delivered
+         * to, and a ban does not flip the device rows.
          */
-        deliverableCount: Effect.fn('PushService.deliverableCount')(
-            function* () {
+        deliverableCount(): ReturnType<PushServiceShape['deliverableCount']> {
+            const subscriptions = this.subscriptions
+            return Effect.gen(function* () {
                 return yield* subscriptions.countDeliverable()
-            }
-        ),
+            })
+        }
 
         /**
          * Record the outcome of a delivery the transport layer already performed.
          *
-         * Speaking web-push means holding a VAPID keypair per user and interpreting the
-         * push service's status codes. Keeping the OUTCOME here means the one piece of
-         * knowledge that must persist (a retired endpoint) is recorded authoritatively.
+         * Speaking web-push means holding a VAPID keypair per user and interpreting the push service's status codes.
+         * Keeping the OUTCOME here means the one piece of knowledge that must persist (a retired endpoint) is recorded
+         * authoritatively.
          */
-        recordDelivery: Effect.fn('PushService.recordDelivery')(
-            function* (id, outcome) {
+        recordDelivery(
+            id: string,
+            outcome: DeliveryOutcome
+        ): ReturnType<PushServiceShape['recordDelivery']> {
+            const subscriptions = this.subscriptions
+            return Effect.gen(function* () {
                 if (outcome.delivered) {
                     yield* subscriptions.markUsed(id)
                     return
@@ -259,7 +284,7 @@ function makePushService(subscriptions: PushRepositoryShape): PushServiceShape {
                 if (outcome.gone) {
                     yield* subscriptions.deactivate(id)
                 }
-            }
-        ),
+            })
+        }
     }
 }
