@@ -8,10 +8,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { DeploymentProviderBuilderRunnerStateMachineService } from '@deployer/shared/core/modules/deployment/services/deployment-provider-builder-runner-state-machine.service'
 
 import { RuntimeInvalid } from '../../../core/runtime.errors'
+import { provideTo, run } from '../../runners/testing'
 
-import { makeBuilderRegistry } from './builder-registry.service'
+import { BuilderRegistry, makeBuilderRegistry } from './builder-registry.service'
+import { BuilderGitPort, BuilderStateMachinePort } from './builders.ports'
 import {
-    makeDeploymentArtifactBuilder,
+    DeploymentArtifactBuilder,
     type BuildArtifactInput,
 } from './deployment-artifact-builder.service'
 import { makeBuildpackFamilyBuilderStrategy } from './strategies/buildpack-family-builder.strategy'
@@ -36,15 +38,27 @@ const withEngine = <T extends { buildImage: unknown; buildCompose?: unknown }>(
     Object.assign(mocks, {
         build: {
             image: (...args: unknown[]) =>
-                Effect.promise(async () =>
-                    (mocks.buildImage as (...a: unknown[]) => unknown)(...args)
-                ),
+                Effect.tryPromise({
+                    try: () =>
+                        Promise.resolve(
+                            (mocks.buildImage as (...a: unknown[]) => unknown)(
+                                ...args
+                            )
+                        ),
+                    catch: (cause) => cause,
+                }),
             compose: (...args: unknown[]) =>
-                Effect.promise(async () =>
-                    (mocks.buildCompose as (...a: unknown[]) => unknown)(
-                        ...args
-                    )
-                ),
+                Effect.tryPromise({
+                    try: () =>
+                        Promise.resolve(
+                            (
+                                mocks.buildCompose as (
+                                    ...a: unknown[]
+                                ) => unknown
+                            )(...args)
+                        ),
+                    catch: (cause) => cause,
+                }),
         },
     })
 
@@ -73,23 +87,27 @@ const createService = (
     }>
 ) => {
     const dockerService = withEngine(rawDockerService)
-    const builder = makeDeploymentArtifactBuilder({
-        gitService: {
-            extractUploadedFile: vi.fn(),
-            ...(gitServiceOverrides ?? {}),
-        } as never,
-        stateMachine: DeploymentProviderBuilderRunnerStateMachineService.live,
-        // See `createRegistry`: the spec supplies only the two Docker methods under
-        // test, so the widening stays at this boundary.
-        builderRegistry: createRegistry(dockerService),
-    })
+    const builder = provideTo(new DeploymentArtifactBuilder.live(), (effect) =>
+        effect.pipe(
+            Effect.provideService(BuilderGitPort, {
+                extractUploadedFile: vi.fn(),
+                ...(gitServiceOverrides ?? {}),
+            } as never),
+            Effect.provideService(
+                BuilderStateMachinePort,
+                DeploymentProviderBuilderRunnerStateMachineService.live
+            ),
+            Effect.provideService(
+                BuilderRegistry,
+                createRegistry(dockerService)
+            )
+        )
+    )
     return {
         buildContainerizedArtifact: (input: BuildArtifactInput) =>
-            Effect.runPromise(builder.buildContainerizedArtifact(input)),
+            run(builder.buildContainerizedArtifact(input)),
         failure: (input: BuildArtifactInput) =>
-            Effect.runPromise(
-                Effect.flip(builder.buildContainerizedArtifact(input))
-            ),
+            run(Effect.flip(builder.buildContainerizedArtifact(input))),
     }
 }
 

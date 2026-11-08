@@ -43,8 +43,14 @@ import type {
 import { beginHeavyWork } from '@deployer/shared/core/utils/heavy-work.registry'
 
 import { RuntimeInvalid } from '../../../core/runtime.errors'
+import { BuilderRegistry } from '../builders/builder-registry.service'
+import {
+    BuilderGitPort,
+    BuilderStateMachinePort,
+} from '../builders/builders.ports'
 import {
     DeploymentArtifactBuilder,
+    type DeploymentArtifactBuilderRequirements,
     type DeploymentArtifactBuilderShape,
 } from '../builders/deployment-artifact-builder.service'
 import {
@@ -135,16 +141,14 @@ const executionPlanSchema = z.object({
 
 type DeploymentExecutionPlan = z.infer<typeof executionPlanSchema>
 
-const runtimeConfigurationContextSchema = z
-    .object({
-        environment: z.record(z.string(), z.string()).optional(),
-        environmentDomains: z
-            .object({
-                network: z.record(z.string(), z.string()).optional(),
-            })
-            .optional(),
-    })
-    .passthrough()
+const runtimeConfigurationContextSchema = z.looseObject({
+    environment: z.record(z.string(), z.string()).optional(),
+    environmentDomains: z
+        .object({
+            network: z.record(z.string(), z.string()).optional(),
+        })
+        .optional(),
+})
 
 type PhaseRetryPolicy = {
     maxRetries: number
@@ -317,7 +321,11 @@ export function makeDeploymentQueueWorker(
             fallbackContainerImage: string | null
         },
         policy: PhaseRetryPolicy
-    ): Effect.Effect<string | null, unknown> => {
+    ): Effect.Effect<
+        string | null,
+        unknown,
+        DeploymentArtifactBuilderRequirements
+    > => {
         const build = Effect.suspend(() =>
             // The signal comes from the fiber: cancelling or losing the lease interrupts it and aborts the build.
             builder.buildContainerizedArtifact({
@@ -331,7 +339,11 @@ export function makeDeploymentQueueWorker(
         )
         const attemptBuild = (
             n: number
-        ): Effect.Effect<string | null, unknown> =>
+        ): Effect.Effect<
+            string | null,
+            unknown,
+            DeploymentArtifactBuilderRequirements
+        > =>
             build.pipe(
                 Effect.catch((error: unknown) =>
                     n >= policy.maxRetries
@@ -359,7 +371,11 @@ export function makeDeploymentQueueWorker(
     const executeJob = (
         builder: DeploymentArtifactBuilderShape,
         job: DeploymentQueueJob
-    ): Effect.Effect<Record<string, unknown>, unknown> =>
+    ): Effect.Effect<
+        Record<string, unknown>,
+        unknown,
+        DeploymentArtifactBuilderRequirements
+    > =>
         Effect.gen(function* () {
             const deploymentId = job.payload.deploymentId ?? ''
             const storageBinding = extractStorageBindingFromPayload(job.payload)
@@ -483,8 +499,19 @@ export function makeDeploymentQueueWorker(
             }
 
             const builder = yield* DeploymentArtifactBuilder
+            // The builder reads the checkout, the state machine and the strategy registry. All three live in the
+            // app-wide context the module provides, so a job reads them there instead of widening this worker's
+            // own requirement channel to the builder's collaborators.
+            const appContext = yield* Effect.promise(() => host.context())
+            const buildContext = Context.pick(
+                BuilderGitPort,
+                BuilderStateMachinePort,
+                BuilderRegistry
+            )(appContext)
             const outcome = yield* runner.run(job, () =>
-                executeJob(builder, job)
+                executeJob(builder, job).pipe(
+                    Effect.provideContext(buildContext)
+                )
             )
 
             const failure = failures.get(job.id)
@@ -573,7 +600,7 @@ function extractSourceCheckoutFromPayload(
 ) {
     const parsedSourceCheckout =
         deploymentSourceCheckoutContextSchema.safeParse(
-            payload?.context?.sourceCheckout
+            payload?.context.sourceCheckout
         )
 
     return parsedSourceCheckout.success ? parsedSourceCheckout.data : null
@@ -640,7 +667,7 @@ function resolvePhaseRetryPolicy(
 function extractStorageBindingFromPayload(
     payload: DeploymentQueueJob['payload'] | undefined
 ): DeploymentStorageBinding | null {
-    const storageCandidate = payload?.context?.storageBinding
+    const storageCandidate = payload?.context.storageBinding
     const parsedStorageBinding =
         deploymentStorageBindingSchema.safeParse(storageCandidate)
     return parsedStorageBinding.success ? parsedStorageBinding.data : null
@@ -651,7 +678,7 @@ function extractRuntimeRunnerFromPayload(
 ): string | null {
     const parsedSourceCheckout =
         deploymentSourceCheckoutContextSchema.safeParse(
-            payload?.context?.sourceCheckout
+            payload?.context.sourceCheckout
         )
 
     if (!parsedSourceCheckout.success) {
@@ -673,7 +700,7 @@ function extractRuntimeRunnerOptionsFromPayload(
 ): RuntimeRunnerOptions | null {
     const parsedSourceCheckout =
         deploymentSourceCheckoutContextSchema.safeParse(
-            payload?.context?.sourceCheckout
+            payload?.context.sourceCheckout
         )
 
     if (
@@ -717,7 +744,6 @@ function mergeRuntimeRunnerOptions(
 
     // Deep-merge the runner-specific nested options when both sides carry one.
     if (
-        runner === 'dockerfile' &&
         fallback.runner === 'dockerfile' &&
         primary.runner === 'dockerfile'
     ) {
@@ -727,7 +753,6 @@ function mergeRuntimeRunnerOptions(
             mergedBase.dockerfile = { ...(a ?? {}), ...(b ?? {}) }
         }
     } else if (
-        runner === 'docker_compose' &&
         fallback.runner === 'docker_compose' &&
         primary.runner === 'docker_compose'
     ) {
@@ -737,7 +762,6 @@ function mergeRuntimeRunnerOptions(
             mergedBase.dockerCompose = { ...(a ?? {}), ...(b ?? {}) }
         }
     } else if (
-        runner === 'nixpacks' &&
         fallback.runner === 'nixpacks' &&
         primary.runner === 'nixpacks'
     ) {
@@ -747,7 +771,6 @@ function mergeRuntimeRunnerOptions(
             mergedBase.nixpacks = { ...(a ?? {}), ...(b ?? {}) }
         }
     } else if (
-        runner === 'buildpack' &&
         fallback.runner === 'buildpack' &&
         primary.runner === 'buildpack'
     ) {
@@ -757,7 +780,6 @@ function mergeRuntimeRunnerOptions(
             mergedBase.buildpack = { ...(a ?? {}), ...(b ?? {}) }
         }
     } else if (
-        runner === 'railpack' &&
         fallback.runner === 'railpack' &&
         primary.runner === 'railpack'
     ) {
@@ -777,7 +799,7 @@ function extractRuntimeConfigurationFromPayload(
 ): z.infer<typeof runtimeConfigurationContextSchema> | null {
     const parsedRuntimeConfiguration =
         runtimeConfigurationContextSchema.safeParse(
-            payload?.context?.runtimeConfiguration
+            payload?.context.runtimeConfiguration
         )
 
     return parsedRuntimeConfiguration.success
@@ -855,7 +877,7 @@ function extractExecutionPlanFromPayload(
     payload: DeploymentQueueJob['payload'] | undefined
 ): DeploymentExecutionPlan | null {
     const parsedExecutionPlan = executionPlanSchema.safeParse(
-        payload?.context?.executionPlan
+        payload?.context.executionPlan
     )
     return parsedExecutionPlan.success ? parsedExecutionPlan.data : null
 }
@@ -865,7 +887,7 @@ function extractContainerImageFromPayload(
 ): string | null {
     const parsedSourceCheckout =
         deploymentSourceCheckoutContextSchema.safeParse(
-            payload?.context?.sourceCheckout
+            payload?.context.sourceCheckout
         )
 
     if (
@@ -887,7 +909,7 @@ function extractContainerNameFromPayload(
 ): string | null {
     const parsedSourceCheckout =
         deploymentSourceCheckoutContextSchema.safeParse(
-            payload?.context?.sourceCheckout
+            payload?.context.sourceCheckout
         )
 
     if (

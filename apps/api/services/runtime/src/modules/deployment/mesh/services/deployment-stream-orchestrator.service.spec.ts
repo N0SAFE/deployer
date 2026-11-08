@@ -1,6 +1,7 @@
 import { Effect } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
 
+import { provideTo, run } from '../../../runners/testing'
 import { DeploymentStreamsPort } from '../../deployment.ports'
 
 import { DeploymentStreamOrchestratorService } from './deployment-stream-orchestrator.service'
@@ -10,18 +11,22 @@ describe('DeploymentStreamOrchestratorService', () => {
         const stream = { subscribe: vi.fn() }
         const streamDeploymentEvents = vi.fn().mockReturnValue(stream)
 
-        const result = await Effect.runPromise(
-            DeploymentStreamOrchestratorService.live
-                .openDeploymentStream({
-                    deploymentId: 'dep-1',
-                    replay: true,
-                    replayLimit: 25,
-                })
-                .pipe(
+        const service = provideTo(
+            new DeploymentStreamOrchestratorService.live(),
+            (effect) =>
+                effect.pipe(
                     Effect.provideService(DeploymentStreamsPort, {
                         streamDeploymentEvents,
                     } as never)
                 )
+        )
+
+        const result = await run(
+            service.openDeploymentStream({
+                deploymentId: 'dep-1',
+                replay: true,
+                replayLimit: 25,
+            })
         )
 
         expect(result).toBe(stream)

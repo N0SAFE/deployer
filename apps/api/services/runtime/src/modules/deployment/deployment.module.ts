@@ -375,9 +375,9 @@ export class DeploymentDomainModule extends createModuleContext({
         serviceLifecycle(DeploymentQueueReconciliation),
         {
             provide: DeploymentStreamOrchestratorService,
-            useValue: DeploymentStreamOrchestratorService.live,
+            useClass: DeploymentStreamOrchestratorService.live,
         },
-        // The artifact builder is a constant Effect service over these ports.
+        // The artifact builder reads these three through ports, yielded in the branch that needs them.
         { provide: BuilderGitPort, useExisting: GitService },
         {
             provide: BuilderStateMachinePort,
@@ -385,7 +385,7 @@ export class DeploymentDomainModule extends createModuleContext({
         },
         {
             provide: DeploymentArtifactBuilder,
-            useValue: DeploymentArtifactBuilder.live,
+            useClass: DeploymentArtifactBuilder.live,
         },
         // Builder strategies: one array under one token. A new builder is one factory function plus one entry
         // in this array; the registry and its callers stay untouched.

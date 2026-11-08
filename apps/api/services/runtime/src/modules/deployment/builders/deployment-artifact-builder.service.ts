@@ -5,8 +5,6 @@ import path from 'node:path'
 import { Context, Effect } from 'effect'
 
 import type { DeploymentSourceCheckoutContext } from '@deployer/contracts-entities'
-import type { DockerError } from '@deployer/docker'
-import { serviceOver } from '@deployer/effect-core'
 import { beginHeavyWork } from '@deployer/shared/core/utils/heavy-work.registry'
 
 import { attempt } from '../../../core/effects'
@@ -48,201 +46,212 @@ export type BuildArtifactInput = {
     signal?: AbortSignal | undefined
 }
 
-/** Why a build refused: a rule of the platform, the engine failing, or the checkout/IO collaborator (kept as thrown). */
-export type BuildArtifactFailure = RuntimeInvalid | DockerError | unknown
+/** What a build reads from the Effect context: the checkout, the state machine and the strategy registry. */
+export type DeploymentArtifactBuilderRequirements =
+    | BuilderGitPort
+    | BuilderStateMachinePort
+    | BuilderRegistry
 
 export type DeploymentArtifactBuilderShape = {
-    /** Produces the container image for a deployment; `null` means the runtime is addressed by project name (compose). */
+    /**
+     * Produces the container image for a deployment; `null` means the runtime is addressed by project name (compose).
+     *
+     * The failure channel is `unknown` because one of the three refusals (the checkout/IO collaborator) is still
+     * thrown rather than an Effect error, so it passes through unchanged; `RuntimeInvalid` is mapped by kind at the
+     * `.effect()` boundary and `DockerError` reaches it from a strategy.
+     */
     readonly buildContainerizedArtifact: (
         input: BuildArtifactInput
-    ) => Effect.Effect<string | null, BuildArtifactFailure>
+    ) => Effect.Effect<
+        string | null,
+        unknown,
+        DeploymentArtifactBuilderRequirements
+    >
 }
 
-export type DeploymentArtifactBuilderPorts = {
-    readonly gitService: Context.Service.Shape<typeof BuilderGitPort>
-    readonly stateMachine: Context.Service.Shape<typeof BuilderStateMachinePort>
-    readonly builderRegistry: Context.Service.Shape<typeof BuilderRegistry>
-}
-
+/**
+ * Turns a deployment's source into its artifact: validates the planner's decision, resolves the build context
+ * (clone or upload extraction), guards the context against the builder's precondition, writes the custom-command
+ * Dockerfile when one was asked for, then dispatches to the strategy the registry resolves.
+ *
+ * Each collaborator is yielded in the branch that uses it, so a build that never clones, or one that resolves to
+ * `external`, does not require the checkout service at all. There is no `ports` record and no
+ * `makeDeploymentArtifactBuilder(ports)` factory (`docs/architecture/service-implementation-rule.md`).
+ */
 export class DeploymentArtifactBuilder extends Context.Service<
     DeploymentArtifactBuilder,
     DeploymentArtifactBuilderShape
 >()('runtime/DeploymentArtifactBuilder') {
-    /** The collaborators are yielded when a method runs, so this is a constant a module provides with `useValue`. */
-    static readonly live = serviceOver(
-        Effect.all({
-            gitService: BuilderGitPort,
-            stateMachine: BuilderStateMachinePort,
-            builderRegistry: BuilderRegistry,
-        }),
-        makeDeploymentArtifactBuilder
-    )
-}
-
-export function makeDeploymentArtifactBuilder(
-    ports: DeploymentArtifactBuilderPorts
-): DeploymentArtifactBuilderShape {
-    const {
-        gitService,
-        stateMachine: deploymentStateMachineService,
-        builderRegistry,
-    } = ports
-
-    const buildContainerizedArtifact = (input: BuildArtifactInput) =>
-        Effect.gen(function* () {
-            const hasCustomCommands = hasCustomCommandsIn(
-                input.customCommands ?? null
-            )
-            const stateMachine = deploymentStateMachineService.evaluate({
-                provider: resolveProviderKind(input.sourceCheckout),
-                builder: input.builder,
-                runner: null,
-                hasContainerImage: Boolean(
-                    input.fallbackContainerImage?.trim()
-                ),
-                hasCustomBuildCommand: Boolean(
-                    input.customCommands?.buildCommand?.trim()
-                ),
-                hasCustomRunCommand: Boolean(
-                    input.customCommands?.runCommand?.trim()
-                ),
-            })
-            if (!stateMachine.canProceed) {
-                return yield* new RuntimeInvalid({
-                    reason: stateMachine.violations
-                        .map((v) => v.message)
-                        .join(' '),
+    static readonly live = class DeploymentArtifactBuilderImpl
+        implements DeploymentArtifactBuilderShape
+    {
+        buildContainerizedArtifact(
+            input: BuildArtifactInput
+        ): ReturnType<
+            DeploymentArtifactBuilderShape['buildContainerizedArtifact']
+        > {
+            return Effect.gen(function* () {
+                const deploymentStateMachineService =
+                    yield* BuilderStateMachinePort
+                const hasCustomCommands = hasCustomCommandsIn(
+                    input.customCommands ?? null
+                )
+                const stateMachine = deploymentStateMachineService.evaluate({
+                    provider: resolveProviderKind(input.sourceCheckout),
+                    builder: input.builder,
+                    runner: null,
+                    hasContainerImage: Boolean(
+                        input.fallbackContainerImage?.trim()
+                    ),
+                    hasCustomBuildCommand: Boolean(
+                        input.customCommands?.buildCommand?.trim()
+                    ),
+                    hasCustomRunCommand: Boolean(
+                        input.customCommands?.runCommand?.trim()
+                    ),
                 })
-            }
-
-            const isCustomManagedBuilder = !input.builder && hasCustomCommands
-            let effectiveBuilder: DeploymentBuilderKind | null =
-                stateMachine.normalizedBuilder
-
-            if (effectiveBuilder === 'external') {
-                if (hasCustomCommands) {
+                if (!stateMachine.canProceed) {
                     return yield* new RuntimeInvalid({
-                        reason: "Custom build/run commands require a containerized builder and cannot be used with builder 'external'",
-                    })
-                }
-                if (
-                    !input.fallbackContainerImage ||
-                    input.fallbackContainerImage.trim().length === 0
-                ) {
-                    return yield* new RuntimeInvalid({
-                        reason: "Builder 'external' requires an explicit prebuilt container image",
-                    })
-                }
-                return input.fallbackContainerImage
-            }
-
-            const sourceCheckout = input.sourceCheckout
-
-            // Resolve build context from source provider
-            let buildContextPath: string
-
-            if (sourceCheckout?.provider === 'github') {
-                // Clone the GitHub repository as the build context
-                buildContextPath = yield* gitService.cloneRepository({
-                    url: sourceCheckout.repositoryUrl,
-                    branch: sourceCheckout.branch,
-                    commit: sourceCheckout.commitSha,
-                    deploymentId: input.deploymentId,
-                })
-            } else if (sourceCheckout?.provider === 'upload') {
-                if (!sourceCheckout.uploadPath?.trim()) {
-                    return yield* new RuntimeInvalid({
-                        reason: 'Upload source checkout must include uploadPath for build stage',
+                        reason: stateMachine.violations
+                            .map((v) => v.message)
+                            .join(' '),
                     })
                 }
 
-                const uploadPath = sourceCheckout.uploadPath
-                const uploadStat = yield* attempt(() => stat(uploadPath))
-                buildContextPath = uploadStat.isFile()
-                    ? yield* gitService.extractUploadedFile({
-                          filePath: uploadPath,
-                          deploymentId: input.deploymentId,
-                      })
-                    : uploadPath
-            } else {
-                return yield* new RuntimeInvalid({
-                    reason:
-                        `Provider '${sourceCheckout?.provider ?? 'none'}' is not supported for builder '${effectiveBuilder ?? 'none'}'. ` +
-                        'Supported providers: github, upload',
-                })
-            }
+                const isCustomManagedBuilder =
+                    !input.builder && hasCustomCommands
+                let effectiveBuilder: DeploymentBuilderKind | null =
+                    stateMachine.normalizedBuilder
 
-            // With no builder configured, a context that ships a Dockerfile is a
-            // Dockerfile build — not a reason to give up. Before this, `undefined`
-            // builder fell straight through to the (then-`nginx:alpine`) runner.
-            if (
-                !effectiveBuilder &&
-                existsSync(path.join(buildContextPath, 'Dockerfile'))
-            ) {
-                effectiveBuilder = 'dockerfile'
-            }
-
-            if (!effectiveBuilder) {
-                if (input.fallbackContainerImage?.trim()) {
+                if (effectiveBuilder === 'external') {
+                    if (hasCustomCommands) {
+                        return yield* new RuntimeInvalid({
+                            reason: "Custom build/run commands require a containerized builder and cannot be used with builder 'external'",
+                        })
+                    }
+                    if (
+                        !input.fallbackContainerImage ||
+                        input.fallbackContainerImage.trim().length === 0
+                    ) {
+                        return yield* new RuntimeInvalid({
+                            reason: "Builder 'external' requires an explicit prebuilt container image",
+                        })
+                    }
                     return input.fallbackContainerImage
                 }
-                return yield* new RuntimeInvalid({
-                    reason:
-                        'No builder could be resolved and the build context has no Dockerfile at its root. ' +
-                        'Add a Dockerfile, choose a builder explicitly, or provide a prebuilt container image.',
-                })
-            }
 
-            yield* assertBuilderContextGuards(
-                effectiveBuilder,
-                buildContextPath,
-                {
-                    allowDockerfileGuardBypass: isCustomManagedBuilder,
-                }
-            )
+                const sourceCheckout = input.sourceCheckout
 
-            const customDockerfileName =
-                yield* prepareCustomBuilderDockerfileIfNeeded({
-                    builder: effectiveBuilder,
-                    buildContextPath,
-                    customCommands: input.customCommands ?? null,
-                })
+                // Resolve build context from source provider
+                let buildContextPath: string
 
-            // Dispatch goes through the registry, not an if-chain: the old chain sent nixpacks/
-            // buildpack/railpack to `buildImage` with no Dockerfile and threw "Dockerfile not found".
-            // Everything above is builder-independent (checkout, extraction, guard, custom-command
-            // Dockerfile); only artifact production lives in a strategy.
-            const strategy = yield* builderRegistry.resolve(effectiveBuilder)
-
-            // An image build is CPU/IO heavy and long-lived; report it so an image scan
-            // started meanwhile plans itself serial (see `docker/services/scan-concurrency.ts`).
-            const builder = effectiveBuilder
-            const result = yield* Effect.acquireUseRelease(
-                Effect.sync(() => beginHeavyWork('build')),
-                () =>
-                    strategy.build({
-                        buildContextPath,
+                if (sourceCheckout?.provider === 'github') {
+                    // Clone the GitHub repository as the build context
+                    const gitService = yield* BuilderGitPort
+                    buildContextPath = yield* gitService.cloneRepository({
+                        url: sourceCheckout.repositoryUrl,
+                        branch: sourceCheckout.branch,
+                        commit: sourceCheckout.commitSha,
                         deploymentId: input.deploymentId,
-                        serviceId: input.serviceId,
-                        dockerfileName: customDockerfileName,
-                        imageTag: createImageTag({
-                            serviceId: input.serviceId,
+                    })
+                } else if (sourceCheckout?.provider === 'upload') {
+                    if (!sourceCheckout.uploadPath?.trim()) {
+                        return yield* new RuntimeInvalid({
+                            reason: 'Upload source checkout must include uploadPath for build stage',
+                        })
+                    }
+
+                    const uploadPath = sourceCheckout.uploadPath
+                    const uploadStat = yield* attempt(() => stat(uploadPath))
+                    if (uploadStat.isFile()) {
+                        const gitService = yield* BuilderGitPort
+                        buildContextPath = yield* gitService.extractUploadedFile(
+                            {
+                                filePath: uploadPath,
+                                deploymentId: input.deploymentId,
+                            }
+                        )
+                    } else {
+                        buildContextPath = uploadPath
+                    }
+                } else {
+                    return yield* new RuntimeInvalid({
+                        reason:
+                            `Provider '${sourceCheckout?.provider ?? 'none'}' is not supported for builder '${effectiveBuilder ?? 'none'}'. ` +
+                            'Supported providers: github, upload',
+                    })
+                }
+
+                // With no builder configured, a context that ships a Dockerfile is a
+                // Dockerfile build — not a reason to give up. Before this, `undefined`
+                // builder fell straight through to the (then-`nginx:alpine`) runner.
+                if (
+                    !effectiveBuilder &&
+                    existsSync(path.join(buildContextPath, 'Dockerfile'))
+                ) {
+                    effectiveBuilder = 'dockerfile'
+                }
+
+                if (!effectiveBuilder) {
+                    if (input.fallbackContainerImage?.trim()) {
+                        return input.fallbackContainerImage
+                    }
+                    return yield* new RuntimeInvalid({
+                        reason:
+                            'No builder could be resolved and the build context has no Dockerfile at its root. ' +
+                            'Add a Dockerfile, choose a builder explicitly, or provide a prebuilt container image.',
+                    })
+                }
+
+                yield* assertBuilderContextGuards(
+                    effectiveBuilder,
+                    buildContextPath,
+                    {
+                        allowDockerfileGuardBypass: isCustomManagedBuilder,
+                    }
+                )
+
+                const customDockerfileName =
+                    yield* prepareCustomBuilderDockerfileIfNeeded({
+                        builder: effectiveBuilder,
+                        buildContextPath,
+                        customCommands: input.customCommands ?? null,
+                    })
+
+                // Dispatch goes through the registry, not an if-chain: the old chain sent nixpacks/
+                // buildpack/railpack to `buildImage` with no Dockerfile and threw "Dockerfile not found".
+                // Everything above is builder-independent (checkout, extraction, guard, custom-command
+                // Dockerfile); only artifact production lives in a strategy.
+                const builderRegistry = yield* BuilderRegistry
+                const strategy =
+                    yield* builderRegistry.resolve(effectiveBuilder)
+
+                // An image build is CPU/IO heavy and long-lived; report it so an image scan
+                // started meanwhile plans itself serial (see `docker/services/scan-concurrency.ts`).
+                const builder = effectiveBuilder
+                const result = yield* Effect.acquireUseRelease(
+                    Effect.sync(() => beginHeavyWork('build')),
+                    () =>
+                        strategy.build({
+                            buildContextPath,
                             deploymentId: input.deploymentId,
-                            builder,
+                            serviceId: input.serviceId,
+                            dockerfileName: customDockerfileName,
+                            imageTag: createImageTag({
+                                serviceId: input.serviceId,
+                                deploymentId: input.deploymentId,
+                                builder,
+                            }),
+                            signal: input.signal,
                         }),
-                        signal: input.signal,
-                    }),
-                (release) => Effect.sync(release)
-            )
+                    (release) => Effect.sync(release)
+                )
 
-            // `null` is a legitimate result for compose: the runtime is addressed by project name.
-            return result.image
-        })
-
-    // `findComposeFile` lives in the docker_compose strategy: the compose-file probe is that
-    // strategy's precondition, and a copy here could disagree about which filenames count.
-
-    return { buildContainerizedArtifact }
+                // `null` is a legitimate result for compose: the runtime is addressed by project name.
+                return result.image
+            })
+        }
+    }
 }
 
 function hasCustomCommandsIn(
