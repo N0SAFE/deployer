@@ -1,6 +1,6 @@
 import { PassThrough } from 'node:stream'
 
-import { Effect } from 'effect'
+import { Context, Effect } from 'effect'
 
 import { engineMessage } from '../../errors/classify'
 import { DockerUnavailable, type DockerError } from '../../errors/errors'
@@ -57,17 +57,25 @@ export type ExecShape = {
     ) => Effect.Effect<ExecResult>
 }
 
-export function makeExec(client: Docker): ExecShape {
+/**
+ * The one implementation of `ExecShape`.
+ *
+ * Declared at module scope rather than as a class expression on the service: declaration emit
+ * cannot describe the private members of an anonymous exported class (TS4094).
+ */
+class ExecImpl implements ExecShape {
+    constructor(private readonly client: Docker) {}
+
     /** One exec: create, start, collect the output, read the exit code. */
-    const once = (
+    private once(
         idOrName: string,
         cmd: string[],
         input: string | undefined,
         hijack: boolean,
         signal: AbortSignal
-    ): Promise<ExecResult> =>
-        (async () => {
-            const exec = await client.getContainer(idOrName).exec({
+    ): Promise<ExecResult> {
+        return (async () => {
+            const exec = await this.client.getContainer(idOrName).exec({
                 Cmd: cmd,
                 AttachStdout: true,
                 AttachStderr: true,
@@ -100,7 +108,7 @@ export function makeExec(client: Docker): ExecShape {
             const stderr = new PassThrough()
             let output = ''
             try {
-                client.modem.demuxStream(raw, stdout, stderr)
+                this.client.modem.demuxStream(raw, stdout, stderr)
             } catch {
                 // Not multiplexed: read the raw stream as stdout.
                 raw.on('data', (chunk: Buffer) => stdout.write(chunk))
@@ -130,35 +138,37 @@ export function makeExec(client: Docker): ExecShape {
             })
             return { exitCode: await exitCodeOf(), output }
         })()
+    }
 
     /**
      * Some transports and proxies refuse the hijack upgrade (`HTTP code 101`) but stream fine
      * without it, so that one failure is retried once without hijack.
      */
-    const attemptExec = (
+    private attemptExec(
         idOrName: string,
         cmd: string[],
         input: string | undefined
-    ) =>
-        engineCall(`exec in container ${idOrName}`, (signal) =>
-            once(idOrName, cmd, input, true, signal)
+    ) {
+        return engineCall(`exec in container ${idOrName}`, (signal) =>
+            this.once(idOrName, cmd, input, true, signal)
         ).pipe(
             Effect.catch((failure) =>
                 /http code\s*101/i.test(engineMessage(failure.cause ?? failure))
                     ? engineCall(
                           `exec in container ${idOrName} (without hijack)`,
-                          (signal) => once(idOrName, cmd, input, false, signal)
+                          (signal) => this.once(idOrName, cmd, input, false, signal)
                       )
                     : Effect.fail(failure)
             )
         )
+    }
 
-    const startInteractive = (
+    private startInteractive(
         exec: Docker.Exec,
         startOptions: { hijack: boolean; stdin: boolean },
         signal: AbortSignal
-    ): Promise<unknown> =>
-        (async () => {
+    ): Promise<unknown> {
+        return (async () => {
             try {
                 return await exec.start({
                     ...startOptions,
@@ -179,12 +189,16 @@ export function makeExec(client: Docker): ExecShape {
                 })
             }
         })()
+    }
 
-    const interactive: ExecShape['interactive'] = (idOrName, options) =>
-        engineCall(
+    interactive(
+        idOrName: string,
+        options: InteractiveExecOptions
+    ): Effect.Effect<NodeJS.ReadWriteStream, DockerError> {
+        return engineCall(
             `open an interactive shell in container ${idOrName}`,
             async (signal) => {
-                const exec = await client.getContainer(idOrName).exec({
+                const exec = await this.client.getContainer(idOrName).exec({
                     AttachStdin: true,
                     AttachStdout: true,
                     AttachStderr: true,
@@ -195,7 +209,7 @@ export function makeExec(client: Docker): ExecShape {
                     Env: options.env,
                     abortSignal: signal,
                 })
-                const stream = await startInteractive(
+                const stream = await this.startInteractive(
                     exec,
                     { hijack: options.hijack, stdin: true },
                     signal
@@ -218,11 +232,17 @@ export function makeExec(client: Docker): ExecShape {
                     ),
             })
         )
+    }
 
-    return {
-        interactive,
-        run: Effect.fn('DockerExec.run')(function* (idOrName, cmd, input) {
-            const result = yield* attemptExec(idOrName, cmd, input)
+    run(
+        idOrName: string,
+        cmd: string[],
+        input?: string
+    ): Effect.Effect<ExecResult, DockerError> {
+        const attempt = (id: string, c: string[], i: string | undefined) =>
+            this.attemptExec(id, c, i)
+        return Effect.fn('DockerExec.run')(function* () {
+            const result = yield* attempt(idOrName, cmd, input)
             if (result.exitCode !== 0) {
                 return yield* Effect.fail(
                     new DockerUnavailable({
@@ -231,19 +251,31 @@ export function makeExec(client: Docker): ExecShape {
                 )
             }
             return result
-        }),
-
-        capture: Effect.fn('DockerExec.capture')(
-            function* (idOrName, cmd, input) {
-                return yield* attemptExec(idOrName, cmd, input).pipe(
-                    Effect.catch((failure) =>
-                        Effect.succeed({
-                            exitCode: -1,
-                            output: engineMessage(failure),
-                        })
-                    )
-                )
-            }
-        ),
+        })()
     }
+
+    capture(
+        idOrName: string,
+        cmd: string[],
+        input?: string
+    ): Effect.Effect<ExecResult> {
+        const attempt = (id: string, c: string[], i: string | undefined) =>
+            this.attemptExec(id, c, i)
+        return Effect.fn('DockerExec.capture')(function* () {
+            return yield* attempt(idOrName, cmd, input).pipe(
+                Effect.catch((failure) =>
+                    Effect.succeed({
+                        exitCode: -1,
+                        output: engineMessage(failure),
+                    })
+                )
+            )
+        })()
+    }
+}
+
+/** Commands inside running containers, as an Effect service. */
+export class Exec extends Context.Service<Exec, ExecShape>()('docker/Exec') {
+    /** The implementation: it owns every member body and takes the engine client. */
+    static readonly live = ExecImpl
 }

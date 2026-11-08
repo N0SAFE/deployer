@@ -1,4 +1,4 @@
-import { Effect, Stream } from 'effect'
+import { Context, Effect, Stream } from 'effect'
 
 import { DockerUnavailable, type DockerError } from '../../errors/errors'
 import { engineCall } from '../call'
@@ -29,12 +29,26 @@ export type LogsShape = {
     ) => Stream.Stream<string, DockerError>
 }
 
-export function makeLogs(client: Docker): LogsShape {
-    const read: LogsShape['read'] = Effect.fn('DockerLogs.read')(function* (
-        idOrName,
-        options = { stdout: true, stderr: true, tail: 200 }
-    ) {
-        return yield* engineCall(
+/**
+ * The one implementation of `LogsShape`.
+ *
+ * Declared at module scope rather than as a class expression on the service: declaration emit
+ * cannot describe the private members of an anonymous exported class (TS4094).
+ */
+class LogsImpl implements LogsShape {
+    constructor(private readonly client: Docker) {}
+
+    read(
+        idOrName: string,
+        options: Docker.ContainerLogsOptions = {
+            stdout: true,
+            stderr: true,
+            tail: 200,
+        }
+    ): Effect.Effect<string, DockerError> {
+        const client = this.client
+        return Effect.fn('DockerLogs.read')(function* (this: void) {
+            return yield* engineCall(
             `fetch logs for container ${idOrName}`,
             async (signal) => {
                 const raw: unknown = await (
@@ -62,10 +76,15 @@ export function makeLogs(client: Docker): LogsShape {
             },
             `container '${idOrName}'`
         )
-    })
+        })()
+    }
 
-    const stream: LogsShape['stream'] = (idOrName, options = {}) =>
-        Stream.unwrap(
+    stream(
+        idOrName: string,
+        options: Docker.ContainerLogsOptions & { stderrPrefix?: string } = {}
+    ): Stream.Stream<string, DockerError> {
+        const client = this.client
+        return Stream.unwrap(
             engineCall(
                 `follow logs of container ${idOrName}`,
                 async () =>
@@ -119,6 +138,11 @@ export function makeLogs(client: Docker): LogsShape {
                 })
             )
         )
+    }
+}
 
-    return { read, stream }
+/** Container logs as text or as a live line stream, as an Effect service. */
+export class Logs extends Context.Service<Logs, LogsShape>()('docker/Logs') {
+    /** The implementation: it owns every member body and takes the engine client. */
+    static readonly live = LogsImpl
 }

@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import { access } from 'node:fs/promises'
 import * as path from 'node:path'
 
-import { Effect } from 'effect'
+import { Context, Effect } from 'effect'
 
 import { fromAbortable } from '@deployer/effect-core'
 
@@ -85,9 +85,22 @@ function runDockerCli(
     })
 }
 
-export function makeBuild(client: Docker): BuildShape {
-    const image: BuildShape['image'] = Effect.fn('DockerBuild.image')(
-        function* (sourcePath, imageTag, options = {}) {
+/**
+ * The one implementation of `BuildShape`.
+ *
+ * Declared at module scope rather than as a class expression on the service: declaration emit
+ * cannot describe the private members of an anonymous exported class (TS4094).
+ */
+class BuildImpl implements BuildShape {
+    constructor(private readonly client: Docker) {}
+
+    image(
+        sourcePath: string,
+        imageTag: string,
+        options: BuildImageOptions = {}
+    ): Effect.Effect<void, DockerError> {
+        const client = this.client
+        return Effect.fn('DockerBuild.image')(function* () {
             yield* Effect.logInfo(
                 `Building image ${imageTag} from ${sourcePath}`
             )
@@ -115,11 +128,14 @@ export function makeBuild(client: Docker): BuildShape {
                 await followProgress(client, stream, options.onProgressLine)
             })
             yield* Effect.logInfo(`Image ${imageTag} built successfully`)
-        }
-    )
+        })()
+    }
 
-    const compose: BuildShape['compose'] = Effect.fn('DockerBuild.compose')(
-        function* (sourcePath, options = {}) {
+    compose(
+        sourcePath: string,
+        options: BuildComposeOptions = {}
+    ): Effect.Effect<{ projectName: string; services: string[] }, DockerError> {
+        return Effect.fn('DockerBuild.compose')(function* () {
             const composeFilePath = path.join(
                 sourcePath,
                 options.composeFileName ?? 'docker-compose.yml'
@@ -154,8 +170,14 @@ export function makeBuild(client: Docker): BuildShape {
                     })
             )
             return { projectName, services: options.serviceNames ?? [] }
-        }
-    )
+        })()
+    }
+}
 
-    return { image, compose }
+/** Image and compose builds, as an Effect service. */
+export class Build extends Context.Service<Build, BuildShape>()(
+    'docker/Build'
+) {
+    /** The implementation: it owns every member body and takes the engine client. */
+    static readonly live = BuildImpl
 }

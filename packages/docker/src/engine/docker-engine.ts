@@ -4,13 +4,13 @@ import { DockerClient } from '../client/docker-client'
 
 import { engineCall } from './call'
 import { makeContainers, type ContainersShape } from './containers/containers'
-import { makeExec, type ExecShape } from './containers/exec'
-import { makeLogs, type LogsShape } from './containers/logs'
+import { Exec, type ExecShape } from './containers/exec'
+import { Logs, type LogsShape } from './containers/logs'
 import { makeEvents, type EventsShape } from './events/events'
-import { makeBuild, type BuildShape } from './images/build'
-import { makeImages, type ImagesShape } from './images/images'
+import { Build, type BuildShape } from './images/build'
+import { Images, type ImagesShape } from './images/images'
 import { makeNetworks, type NetworksShape } from './networking/networks'
-import { makeVolumes, type VolumesShape } from './networking/volumes'
+import { Volumes, type VolumesShape } from './networking/volumes'
 import {
     SwarmCluster,
     SwarmConfigs,
@@ -75,18 +75,18 @@ export class DockerEngine extends Context.Service<
 }
 
 export function makeDockerEngine(client: Docker): DockerEngineShape {
-    const images = makeImages(client)
+    const images = new Images.live(client)
     const swarmServices = makeSwarmServices(client)
     return {
         containers: makeContainers(client, images),
         images,
         swarmServices,
         networks: makeNetworks(client, swarmServices),
-        volumes: makeVolumes(client),
-        exec: makeExec(client),
-        logs: makeLogs(client),
+        volumes: new Volumes.live(client),
+        exec: new Exec.live(client),
+        logs: new Logs.live(client),
         events: makeEvents(client),
-        build: makeBuild(client),
+        build: new Build.live(client),
         info: () => engineCall('read engine info', () => client.info()),
         ping: () =>
             // `ping` takes no options, so there is no signal to pass on.

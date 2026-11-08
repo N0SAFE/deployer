@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import { Context, Effect } from 'effect'
 import z from 'zod/v4'
 
 import {
@@ -54,9 +54,18 @@ export type ImagesShape = {
     ) => Effect.Effect<void, DockerError>
 }
 
-export function makeImages(client: Docker): ImagesShape {
-    const pullOnce = (image: string, options: PullOptions) =>
-        engineCall(`pull image ${image}`, async (signal) => {
+/**
+ * The one implementation of `ImagesShape`.
+ *
+ * Declared at module scope rather than as a class expression on the service: declaration emit
+ * cannot describe the private members of an anonymous exported class (TS4094).
+ */
+class ImagesImpl implements ImagesShape {
+    constructor(private readonly client: Docker) {}
+
+    private pullOnce(image: string, options: PullOptions) {
+        const client = this.client
+        return engineCall(`pull image ${image}`, async (signal) => {
             const stream = await client.pull(image, {
                 ...(options.registryAuth
                     ? { authconfig: options.registryAuth }
@@ -65,11 +74,14 @@ export function makeImages(client: Docker): ImagesShape {
             })
             await followProgress(client, stream, options.onProgressLine)
         })
+    }
 
-    const pull: ImagesShape['pull'] = Effect.fn('DockerImages.pull')(function* (
-        image,
-        options = {}
-    ) {
+    pull(
+        image: string,
+        options: PullOptions = {}
+    ): Effect.Effect<void, DockerError> {
+        const pullOnce = (i: string, o: PullOptions) => this.pullOnce(i, o)
+        return Effect.fn('DockerImages.pull')(function* () {
         const retries = options.retries ?? 3
         let backoffMs = options.backoffMs ?? 2000
         let lastFailure: DockerError | null = null
@@ -99,11 +111,17 @@ export function makeImages(client: Docker): ImagesShape {
                 cause: lastFailure,
             })
         )
-    })
+        })()
+    }
 
-    const ensurePresent: ImagesShape['ensurePresent'] = Effect.fn(
-        'DockerImages.ensurePresent'
-    )(function* (image, policy, registryAuth) {
+    ensurePresent(
+        image: string,
+        policy: ImagePullPolicy,
+        registryAuth?: Docker.AuthConfig
+    ): Effect.Effect<void, DockerError> {
+        const client = this.client
+        const pull = (i: string, o: PullOptions) => this.pull(i, o)
+        return Effect.fn('DockerImages.ensurePresent')(function* () {
         if (policy !== 'Always') {
             const present = yield* engineCall(`inspect image ${image}`, () =>
                 client.getImage(image).inspect()
@@ -121,43 +139,56 @@ export function makeImages(client: Docker): ImagesShape {
             }
         }
         yield* pull(image, { registryAuth })
-    })
+        })()
+    }
 
-    const remove: ImagesShape['remove'] = Effect.fn('DockerImages.remove')(
-        function* (imageTag) {
+    remove(imageTag: string): Effect.Effect<void, DockerError> {
+        const client = this.client
+        return Effect.fn('DockerImages.remove')(function* () {
             yield* engineCall(
                 `remove image ${imageTag}`,
                 () => client.getImage(imageTag).remove({ force: true }),
                 `image '${imageTag}'`
             ).pipe(Effect.catchTag('DockerNotFound', () => Effect.void))
             yield* Effect.logInfo(`Removed image ${imageTag}`)
-        }
-    )
+        })()
+    }
 
-    const list: ImagesShape['list'] = Effect.fn('DockerImages.list')(
-        function* () {
+    list(): Effect.Effect<z.infer<typeof dockerodeImageSummarySchema>[], DockerError> {
+        const client = this.client
+        return Effect.fn('DockerImages.list')(function* () {
             return yield* engineCall('list engine images', async () =>
                 z
                     .array(dockerodeImageSummarySchema)
                     .parse(await client.listImages({ all: false }))
             )
-        }
-    )
+        })()
+    }
 
-    const exists: ImagesShape['exists'] = (image) =>
-        engineCall(`inspect image ${image}`, () =>
+    exists(image: string): Effect.Effect<boolean, never> {
+        const client = this.client
+        return engineCall(`inspect image ${image}`, () =>
             client.getImage(image).inspect()
         ).pipe(
             Effect.as(true),
             Effect.catch(() => Effect.succeed(false))
         )
+    }
 
-    const inspect: ImagesShape['inspect'] = (image) =>
-        engineCall(
+    inspect(image: string): Effect.Effect<Docker.ImageInspectInfo, DockerError> {
+        const client = this.client
+        return engineCall(
             `inspect image ${image}`,
             () => client.getImage(image).inspect(),
             `image '${image}'`
         )
+    }
+}
 
-    return { pull, ensurePresent, remove, list, exists, inspect }
+/** Engine images, as an Effect service. */
+export class Images extends Context.Service<Images, ImagesShape>()(
+    'docker/Images'
+) {
+    /** The implementation: it owns every member body and takes the engine client. */
+    static readonly live = ImagesImpl
 }
