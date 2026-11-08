@@ -141,6 +141,8 @@ const swarmProviders = (options: {
             new ServiceLifecycleRunner(
                 'SwarmLifecycle',
                 {
+                    // `onBoot` yields `SwarmParticipation`; the runner executes it on the app
+                    // runtime, which resolves the tag from the container this module registered.
                     onModuleInit: () => services.bootstrap.onBoot,
                     run: () => services.leadership.run,
                 },

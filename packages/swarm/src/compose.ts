@@ -83,10 +83,7 @@ export const makeSwarmServices = (
         config: options.join,
         participation: options.participation,
     })
-    const bootstrap = new SwarmBootstrap.live(
-        participation,
-        options.convergeOnBoot ?? true
-    )
+    const bootstrap = new SwarmBootstrap.live(options.convergeOnBoot ?? true)
     const leadership = makeSwarmLeadership({
         cluster,
         clusterNode,

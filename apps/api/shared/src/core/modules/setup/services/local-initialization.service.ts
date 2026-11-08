@@ -1,3 +1,4 @@
+import type { EffectHostShape } from '@deployer/nest-effect'
 import { randomUUID } from 'node:crypto'
 
 import { Logger } from '@nestjs/common'
@@ -136,6 +137,11 @@ type Ports = {
      * than on the supervisor's 30s cadence (see the call site).
      */
     readonly supervisors: SupervisorOrchestratorShape
+    /**
+     * The app runtime. `SwarmBootstrap.converge` yields `SwarmParticipation`, so it runs here rather
+     * than through the bare `runPromiseUnwrapped`, which has no context to resolve it from.
+     */
+    readonly host: EffectHostShape
     readonly steps?: Partial<LocalInitializationSteps>
 }
 
@@ -153,6 +159,7 @@ export function makeLocalInitializationService(
         swarmBootstrap,
         swarmCluster,
         supervisors,
+        host,
     } = ports
     const logger = new Logger('LocalInitializationService')
 
@@ -329,7 +336,7 @@ export function makeLocalInitializationService(
                         '  → participation persisted (node_config.swarmConfig)'
                     )
 
-                    await runPromiseUnwrapped(swarmBootstrap.converge('setup'))
+                    await host.runUnwrapped(swarmBootstrap.converge('setup'))
                     const snapshot = await runPromiseUnwrapped(
                         swarmCluster.getLocalClusterSnapshot()
                     )

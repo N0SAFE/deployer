@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import { Cause, Effect } from 'effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { MeshSwarmJoinGrant } from '@deployer/contracts-entities'
@@ -211,6 +211,16 @@ function makeJoiner(
     } as unknown as EnvService
 
     const shape = makeRemoteInitializationService({
+        host: {
+            run: (effect) => Effect.runPromise(effect as never),
+            // Mirrors `runPromiseUnwrapped`: reject with the ORIGINAL failure, not a wrapper, so a
+            // spec can assert on the typed error the step produced.
+            runUnwrapped: async (effect) => {
+                const exit = await Effect.runPromiseExit(effect as never)
+                if (exit._tag === 'Failure') throw Cause.squash(exit.cause)
+                return exit.value
+            },
+        } as never,
         nodeConfigRepository: repository,
         envService: env,
         swarmBootstrap,

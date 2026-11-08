@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import { Cause, Effect } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { NodeDoorClient } from '@deployer/mesh-client'
@@ -19,6 +19,16 @@ function serviceWith(
     agent?: ClientLink<ClientContext>
 ) {
     return makeRemoteInitializationService({
+        host: {
+            run: (effect) => Effect.runPromise(effect as never),
+            // Mirrors `runPromiseUnwrapped`: reject with the ORIGINAL failure, not a wrapper, so a
+            // spec can assert on the typed error the step produced.
+            runUnwrapped: async (effect) => {
+                const exit = await Effect.runPromiseExit(effect as never)
+                if (exit._tag === 'Failure') throw Cause.squash(exit.cause)
+                return exit.value
+            },
+        } as never,
         nodeConfigRepository: {
             find: () => Effect.succeed(null),
         } as unknown as NodeConfigRepositoryShape,

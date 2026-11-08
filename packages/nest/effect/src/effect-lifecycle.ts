@@ -96,14 +96,14 @@ const lifecycleToken = (key: string): symbol =>
  * Every hook runs through `EffectHost`, whose runtime is built over the whole
  * container — which is what lets a hook `yield*` a service.
  */
-export class ServiceLifecycleRunner
+export class ServiceLifecycleRunner<R = never>
     implements OnModuleInit, OnApplicationBootstrap, OnModuleDestroy
 {
     private stopProgram: (() => Promise<void>) | undefined
 
     constructor(
         private readonly label: string,
-        private readonly service: ServiceLifecycleShape<unknown>,
+        private readonly service: ServiceLifecycleShape<R>,
         private readonly host: EffectHostShape
     ) {}
 
@@ -150,14 +150,18 @@ export class ServiceLifecycleRunner
  * tag must be resolvable there (Nest injects the instance); it can come from an
  * imported module's exports.
  */
-export function serviceLifecycle<I, S extends ServiceLifecycleShape<unknown>>(
+export function serviceLifecycle<
+    I,
+    R,
+    S extends ServiceLifecycleShape<R>,
+>(
     tag: Context.Service<I, S> &
         (DeclaresLifecycle<S> extends true ? unknown : NoLifecycleInShape)
 ): Provider {
     return {
         provide: lifecycleToken(tag.key),
         useFactory: (host: EffectHostShape, service: S) =>
-            new ServiceLifecycleRunner(tag.key, service, host),
+            new ServiceLifecycleRunner<R>(tag.key, service, host),
         // The intersection above is a compile-time gate only; Nest needs the bare
         // tag as the token.
         inject: [EffectHost, tag as unknown as Type<S>],

@@ -1,17 +1,20 @@
 import { Context, Effect, Layer } from 'effect'
 
-import {
-    SwarmParticipation,
-    type SwarmParticipationShape,
-} from '../participation/swarm-participation'
+import { SwarmParticipation } from '../participation/swarm-participation'
 
 export type SwarmBootstrapShape = {
     /**
      * Converges the cluster from the PERSISTED participation. The setup flow calls it as its final step
      * and the app calls it again at boot for an already-set-up node. Never fails: a failed convergence
      * degrades the supervisors, it does not crash the platform.
+     *
+     * It YIELDS `SwarmParticipation`: the run is on the app runtime, whose context carries every
+     * Effect-keyed provider, so the dependency is resolved where the work happens instead of being
+     * handed to the constructor.
      */
-    readonly converge: (trigger: 'boot' | 'setup') => Effect.Effect<void>
+    readonly converge: (
+        trigger: 'boot' | 'setup'
+    ) => Effect.Effect<void, never, SwarmParticipation>
     /**
      * Converges at boot when this app may and setup is done; otherwise says why it did not. Whether THIS
      * app converges at boot depends on who owns the cluster decision: the API must re-converge on restart
@@ -19,30 +22,31 @@ export type SwarmBootstrapShape = {
      * operator-driven flow and would otherwise touch the engine on every restart before anything was
      * triggered, then converge a second time from the trigger itself.
      */
-    readonly onBoot: Effect.Effect<void>
+    readonly onBoot: Effect.Effect<void, never, SwarmParticipation>
 }
 
 /**
  * The one implementation of `SwarmBootstrapShape`.
  *
  * A NAMED class: this package emits declarations, and TS4094 forbids private members on an
- * anonymous exported class. Both collaborators are constructor arguments.
+ * anonymous exported class.
+ *
+ * The only field is `convergeOnBoot`, which is genuine per-instance configuration (the API and
+ * setup converge differently, and that is decided at module assembly). `SwarmParticipation` is not
+ * a field: it is yielded inside each member, so it comes from the runtime that runs the work.
  */
 class SwarmBootstrapImpl implements SwarmBootstrapShape {
-    private readonly participation: SwarmParticipationShape
     private readonly convergeOnBoot: boolean
 
-    constructor(
-        participation: SwarmParticipationShape,
-        convergeOnBoot: boolean
-    ) {
-        this.participation = participation
+    constructor(convergeOnBoot: boolean) {
         this.convergeOnBoot = convergeOnBoot
     }
 
-    converge(trigger: 'boot' | 'setup'): Effect.Effect<void> {
-        const { participation } = this
+    converge(
+        trigger: 'boot' | 'setup'
+    ): Effect.Effect<void, never, SwarmParticipation> {
         return Effect.fn('SwarmBootstrap.converge')(function* () {
+            const participation = yield* SwarmParticipation
             yield* participation.converge().pipe(
                 Effect.matchEffect({
                     onSuccess: (snapshot) =>
@@ -67,14 +71,15 @@ class SwarmBootstrapImpl implements SwarmBootstrapShape {
         })()
     }
 
-    get onBoot(): Effect.Effect<void> {
-        const { participation, convergeOnBoot } = this
+    get onBoot(): Effect.Effect<void, never, SwarmParticipation> {
+        const { convergeOnBoot } = this
         return Effect.gen({ self: this }, function* () {
             if (!convergeOnBoot) {
                 return yield* Effect.logInfo(
                     'Swarm boot convergence is disabled for this app — the cluster is converged by its own flow, not at startup'
                 )
             }
+            const participation = yield* SwarmParticipation
             const done = yield* participation
                 .setupDone()
                 .pipe(Effect.orElseSucceed(() => false))
@@ -99,17 +104,16 @@ export class SwarmBootstrap extends Context.Service<
     SwarmBootstrap,
     SwarmBootstrapShape
 >()('swarm/SwarmBootstrap') {
+    /**
+     * The `Layer` no longer needs `SwarmParticipation`: the service resolves it per call. Only the
+     * per-instance flag is supplied here.
+     */
     static readonly layer = (options: {
         readonly convergeOnBoot: boolean
-    }): Layer.Layer<SwarmBootstrap, never, SwarmParticipation> =>
-        Layer.effect(
+    }): Layer.Layer<SwarmBootstrap> =>
+        Layer.succeed(
             SwarmBootstrap,
-            Effect.gen(function* () {
-                return new SwarmBootstrap.live(
-                    yield* SwarmParticipation,
-                    options.convergeOnBoot
-                )
-            })
+            new SwarmBootstrap.live(options.convergeOnBoot)
         )
 
     /** The implementation: it owns both collaborators. */

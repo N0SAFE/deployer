@@ -1,3 +1,4 @@
+import type { EffectHostShape } from '@deployer/nest-effect'
 import { Context, Effect } from 'effect'
 import z from 'zod/v4'
 
@@ -69,6 +70,11 @@ type Ports = {
     readonly swarmBootstrap: SwarmBootstrapShape
     /** Read-back of the engine state for the finalize report. */
     readonly swarmCluster: SwarmClusterShape
+    /**
+     * The app runtime. `SwarmBootstrap.converge` yields `SwarmParticipation`, so it runs here rather
+     * than through the bare `runPromiseUnwrapped`, which has no context to resolve it from.
+     */
+    readonly host: EffectHostShape
     /** This node's agent, over its node door: how the token is redeemed. Overridable in tests. */
     readonly nodeDoor?: () => NodeDoorClient
     /** The link to this node's agent: the way a node that is not in the fleet yet reaches it. Overridable in tests. */
@@ -80,6 +86,7 @@ export function makeRemoteInitializationService(
 ): RemoteInitializationServiceShape {
     const { nodeConfigRepository, envService, swarmBootstrap, swarmCluster } =
         ports
+    const { host } = ports
     const nodeDoor = ports.nodeDoor ?? (() => nodeDoorFromEnv(envService))
     const agentLink = ports.agentLink ?? (() => nodeAgentLink())
 
@@ -383,7 +390,7 @@ export function makeRemoteInitializationService(
                             : '⚠️  No mesh link yet — attempting the join anyway'
                     )
                 }
-                await runPromiseUnwrapped(swarmBootstrap.converge('setup'))
+                await host.runUnwrapped(swarmBootstrap.converge('setup'))
                 const snapshot = await runPromiseUnwrapped(
                     swarmCluster.getLocalClusterSnapshot()
                 )

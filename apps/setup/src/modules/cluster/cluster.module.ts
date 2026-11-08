@@ -7,7 +7,11 @@ import { Context, Effect } from 'effect'
 
 import { DockerEngine, type DockerEngineShape } from '@deployer/docker'
 import { nodeDoorFromEnv } from '@deployer/mesh-client'
-import { createModuleContext, serviceLifecycle } from '@deployer/nest-effect'
+import {
+    createModuleContext,
+    serviceLifecycle,
+    type ServiceLifecycleShape,
+} from '@deployer/nest-effect'
 import {
     ClusterNodeRepository,
     NodeConfigRepository,
@@ -54,10 +58,7 @@ const SWARM_SERVICES = Symbol('SWARM_SERVICES')
  * here: setup founds the cluster from its own flow) runs in `onModuleInit`, and the election loop is `run`, which the
  * runner forks after `onModuleInit` and interrupts on shutdown.
  */
-export interface SwarmLifecycleShape {
-    readonly onModuleInit: () => Effect.Effect<void, unknown>
-    readonly run: () => Effect.Effect<void, unknown>
-}
+export type SwarmLifecycleShape = ServiceLifecycleShape<SwarmParticipation>
 
 export class SwarmLifecycle extends Context.Service<
     SwarmLifecycle,
@@ -121,6 +122,8 @@ const swarmProviders = (config: {
     {
         provide: SwarmLifecycle,
         useFactory: (services: SwarmServices): SwarmLifecycleShape => ({
+            // `onBoot` yields `SwarmParticipation`; the runner executes it on the app runtime,
+            // which resolves the tag from the container the module registered.
             onModuleInit: () => services.bootstrap.onBoot,
             run: () => services.leadership.run,
         }),

@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import { Cause, Effect } from 'effect'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 import type { PostgresProvisionerShape } from '@deployer/docker'
@@ -66,6 +66,18 @@ function makeService(
     steps: Partial<LocalInitializationSteps> = {}
 ) {
     return makeLocalInitializationService({
+        // The real host runs on the app runtime; here the fake bootstrap yields nothing, so the bare
+        // runtime is enough to observe the flow.
+        host: {
+            run: (effect) => Effect.runPromise(effect as never),
+            // Mirrors `runPromiseUnwrapped`: reject with the ORIGINAL failure, not a wrapper, so a
+            // spec can assert on the typed error the step produced.
+            runUnwrapped: async (effect) => {
+                const exit = await Effect.runPromiseExit(effect as never)
+                if (exit._tag === 'Failure') throw Cause.squash(exit.cause)
+                return exit.value
+            },
+        } as never,
         postgresProvisioner: mocks.postgresProvisioner,
         dockerEngine: mocks.dockerService,
         env: mocks.env,
@@ -296,6 +308,16 @@ function makeMatrixService(options: {
                   : flags[key],
     } as unknown as EnvService
     const service = makeLocalInitializationService({
+        host: {
+            run: (effect) => Effect.runPromise(effect as never),
+            // Mirrors `runPromiseUnwrapped`: reject with the ORIGINAL failure, not a wrapper, so a
+            // spec can assert on the typed error the step produced.
+            runUnwrapped: async (effect) => {
+                const exit = await Effect.runPromiseExit(effect as never)
+                if (exit._tag === 'Failure') throw Cause.squash(exit.cause)
+                return exit.value
+            },
+        } as never,
         postgresProvisioner: {
             ensure: vi.fn(() => Effect.succeed({ name: 'pg' })),
         } as unknown as PostgresProvisionerShape,

@@ -7,8 +7,10 @@ import {
 import { AppLifecycle, type AppLifecycleShape } from '@deployer/lifecycle'
 import {
     createModuleContext,
+    EffectHost,
     effectHostProvider,
     serviceLifecycle,
+    type EffectHostShape,
 } from '@deployer/nest-effect'
 import {
     NodeConfigRepository,
@@ -108,7 +110,8 @@ export class CoreInitializationModule extends createModuleContext({
                 nodeConfigRepository: NodeConfigRepositoryShape,
                 swarmBootstrap: SwarmBootstrapShape,
                 swarmCluster: SwarmClusterShape,
-                supervisors: SupervisorOrchestratorShape
+                supervisors: SupervisorOrchestratorShape,
+                host: EffectHostShape
             ) =>
                 makeLocalInitializationService({
                     postgresProvisioner,
@@ -118,6 +121,7 @@ export class CoreInitializationModule extends createModuleContext({
                     swarmBootstrap,
                     swarmCluster,
                     supervisors,
+                    host,
                 }),
             inject: [
                 PostgresProvisioner,
@@ -127,6 +131,7 @@ export class CoreInitializationModule extends createModuleContext({
                 SwarmBootstrap,
                 SwarmCluster,
                 SupervisorOrchestrator,
+                EffectHost,
             ],
         },
         {
@@ -135,19 +140,22 @@ export class CoreInitializationModule extends createModuleContext({
                 nodeConfigRepository: NodeConfigRepositoryShape,
                 envService: EnvService,
                 swarmBootstrap: SwarmBootstrapShape,
-                swarmCluster: SwarmClusterShape
+                swarmCluster: SwarmClusterShape,
+                host: EffectHostShape
             ) =>
                 makeRemoteInitializationService({
                     nodeConfigRepository,
                     envService,
                     swarmBootstrap,
                     swarmCluster,
+                    host,
                 }),
             inject: [
                 NodeConfigRepository,
                 EnvService,
                 SwarmBootstrap,
                 SwarmCluster,
+                EffectHost,
             ],
         },
         {
