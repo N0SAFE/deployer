@@ -201,73 +201,30 @@ export class UserService extends Context.Service<
                         value: (member as (...a: unknown[]) => unknown).bind(
                             this.shape
                         ),
+                        // `provideTo` proxies the instance; a non-configurable
+                        // own property breaks the proxy invariant on read.
+                        configurable: true,
                     })
             }
         }
 
-        list(query: UserQuery): ReturnType<UserServiceShape['list']> {
-            return this.shape.list(query)
-        }
-        count(filter: UserFilter): ReturnType<UserServiceShape['count']> {
-            return this.shape.count(filter)
-        }
-        deleteSelf(): ReturnType<UserServiceShape['deleteSelf']> {
-            return this.shape.deleteSelf()
-        }
-        exportSelf(): ReturnType<UserServiceShape['exportSelf']> {
-            return this.shape.exportSelf()
-        }
-        findById(id: string): ReturnType<UserServiceShape['findById']> {
-            return this.shape.findById(id)
-        }
-        checkEmail(email: string): ReturnType<UserServiceShape['checkEmail']> {
-            return this.shape.checkEmail(email)
-        }
-        create(input: NewUser): ReturnType<UserServiceShape['create']> {
-            return this.shape.create(input)
-        }
-        update(
-            id: string,
-            patch: UserPatch,
-            raw: Record<string, unknown>
-        ): ReturnType<UserServiceShape['update']> {
-            return this.shape.update(id, patch, raw)
-        }
-        setBanned(
-            id: string,
-            banned: boolean
-        ): ReturnType<UserServiceShape['setBanned']> {
-            return this.shape.setBanned(id, banned)
-        }
-        setRole(
-            id: string,
-            role: NonNullable<User['role']>
-        ): ReturnType<UserServiceShape['setRole']> {
-            return this.shape.setRole(id, role)
-        }
-        listSessions(id: string): ReturnType<UserServiceShape['listSessions']> {
-            return this.shape.listSessions(id)
-        }
-        revokeSession(
-            id: string,
-            sessionId: string
-        ): ReturnType<UserServiceShape['revokeSession']> {
-            return this.shape.revokeSession(id, sessionId)
-        }
-        setPassword(
-            id: string,
-            password: string
-        ): ReturnType<UserServiceShape['setPassword']> {
-            return this.shape.setPassword(id, password)
-        }
-        revokeSessions(
-            id: string
-        ): ReturnType<UserServiceShape['revokeSessions']> {
-            return this.shape.revokeSessions(id)
-        }
-        delete(id: string): ReturnType<UserServiceShape['delete']> {
-            return this.shape.delete(id)
-        }
+        // Declared, not forwarded: the members are bound from the factory on
+        // construction, so restating them here would only re-forward each call.
+        declare readonly list: UserServiceShape['list']
+        declare readonly count: UserServiceShape['count']
+        declare readonly deleteSelf: UserServiceShape['deleteSelf']
+        declare readonly exportSelf: UserServiceShape['exportSelf']
+        declare readonly findById: UserServiceShape['findById']
+        declare readonly checkEmail: UserServiceShape['checkEmail']
+        declare readonly create: UserServiceShape['create']
+        declare readonly update: UserServiceShape['update']
+        declare readonly setBanned: UserServiceShape['setBanned']
+        declare readonly setRole: UserServiceShape['setRole']
+        declare readonly listSessions: UserServiceShape['listSessions']
+        declare readonly revokeSession: UserServiceShape['revokeSession']
+        declare readonly setPassword: UserServiceShape['setPassword']
+        declare readonly revokeSessions: UserServiceShape['revokeSessions']
+        declare readonly delete: UserServiceShape['delete']
     }
 }
 

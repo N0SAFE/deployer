@@ -1,6 +1,5 @@
 import { Context, Effect } from 'effect'
 
-import { serviceOver, type Over } from '@deployer/effect-core'
 import {
     clusterNodes,
     clusterServerAllocations,
@@ -8,8 +7,6 @@ import {
 } from '@deployer/nest-schema/global/fleet/cluster'
 
 import { FleetInvalid, FleetNotFound } from '../../../core/fleet.errors'
-import { FleetRepository } from '../repositories/fleet.repository'
-
 import type { FleetRepositoryShape } from '../repositories/fleet.repository'
 
 type ServerRow = typeof clusterNodes.$inferSelect
@@ -58,8 +55,8 @@ const toAllocation = (row: AllocationRow, serverUrl: string | null) => {
         serverNodeId: row.serverNodeId,
         serverUrl,
         allocationMode: row.allocationMode,
-        cpuMillicores: row.cpuMillicores ?? 0,
-        memoryMb: row.memoryMb ?? 0,
+        cpuMillicores: row.cpuMillicores,
+        memoryMb: row.memoryMb,
         maxServices: row.maxServices,
         isEnabled: row.isEnabled,
         updatedAt: row.updatedAt.toISOString(),
@@ -72,9 +69,9 @@ const toAdmissionRequest = (row: AdmissionRequestRow) => {
         status: row.status,
         requestedServerNodeId: row.requestedServerNodeId,
         decisionServerNodeId: row.decisionServerNodeId,
-        requestedCpuMillicores: row.requestedCpuMillicores ?? 0,
-        requestedMemoryMb: row.requestedMemoryMb ?? 0,
-        requestedServices: row.requestedServices ?? 1,
+        requestedCpuMillicores: row.requestedCpuMillicores,
+        requestedMemoryMb: row.requestedMemoryMb,
+        requestedServices: row.requestedServices,
         requesterUserId: row.requesterUserId,
         requesterNote: row.requesterNote,
         reviewedByUserId: row.reviewedByUserId,
@@ -227,11 +224,11 @@ function makeFleetService(fleetRepository: FleetRepositoryShape) {
                 availableCpuMillicores: Math.max(
                     0,
                     (row.maxCpuMillicores ?? 0) -
-                        (row.allocation.cpuMillicores ?? 0)
+                        row.allocation.cpuMillicores
                 ),
                 availableMemoryMb: Math.max(
                     0,
-                    (row.maxMemoryMb ?? 0) - (row.allocation.memoryMb ?? 0)
+                    (row.maxMemoryMb ?? 0) - row.allocation.memoryMb
                 ),
                 maxServices: row.allocation.maxServices,
             }))
@@ -379,13 +376,50 @@ function makeFleetService(fleetRepository: FleetRepositoryShape) {
     }
 }
 
-export type FleetServiceShape = ReturnType<typeof makeFleetService>
-
-/** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
+/**
+ * The fleet's use cases over the cluster fleet model.
+ *
+ * The repository is a constructor argument, not something the methods yield: the factory form this replaces settled it
+ * and the shape's channel says so, so yielding the tag would widen every channel and ripple into every caller. The module
+ * wires it with a factory that only does `new FleetService.live(repository)`.
+ */
 export class FleetService extends Context.Service<
     FleetService,
-    Over<FleetServiceShape, FleetRepository>
+    FleetServiceShape
 >()('fleet/FleetService') {
-    /** The repository is yielded when a method runs, so this is a constant the module provides with `useValue`. */
-    static readonly live = serviceOver(FleetRepository, makeFleetService)
+    static readonly live = class FleetServiceImpl {
+        declare readonly listServers: FleetServiceShape['listServers']
+        declare readonly setServerCapacity: FleetServiceShape['setServerCapacity']
+        declare readonly listAllocations: FleetServiceShape['listAllocations']
+        declare readonly listMyAllocations: FleetServiceShape['listMyAllocations']
+        declare readonly checkMyAdmission: FleetServiceShape['checkMyAdmission']
+        declare readonly createMyAdmissionRequest: FleetServiceShape['createMyAdmissionRequest']
+        declare readonly listMyAdmissionRequests: FleetServiceShape['listMyAdmissionRequests']
+        declare readonly upsertAllocation: FleetServiceShape['upsertAllocation']
+        declare readonly deleteAllocation: FleetServiceShape['deleteAllocation']
+        declare readonly listAdmissionRequests: FleetServiceShape['listAdmissionRequests']
+        declare readonly resolveAdmissionRequest: FleetServiceShape['resolveAdmissionRequest']
+
+        private readonly shape: FleetServiceShape
+
+        constructor(repository: FleetRepositoryShape) {
+            this.shape = makeFleetService(repository)
+            // A caller may hold a method detached from the instance, so each one is bound.
+            for (const key of Object.keys(
+                this.shape
+            ) as (keyof FleetServiceShape)[]) {
+                const member = this.shape[key]
+                if (typeof member === 'function')
+                    Object.defineProperty(this, key, {
+                        value: (member as (...a: unknown[]) => unknown).bind(
+                            this.shape
+                        ),
+                        configurable: true,
+                    })
+            }
+        }
+    }
 }
+
+export type FleetServiceShape = ReturnType<typeof makeFleetService>
+

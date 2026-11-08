@@ -7,6 +7,7 @@ import { FleetController } from './controllers/fleet.controller'
 import {
     FleetDatabasePort,
     FleetRepository,
+    type FleetRepositoryShape,
 } from './repositories/fleet.repository'
 import { FleetService } from './services/fleet.service'
 
@@ -24,7 +25,13 @@ export class FleetModule extends createModuleContext({
     controllers: [FleetController],
     providers: [
         { provide: FleetDatabasePort, useExisting: GlobalDatabaseService },
-        { provide: FleetRepository, useValue: FleetRepository.live },
-        { provide: FleetService, useValue: FleetService.live },
+        { provide: FleetRepository, useClass: FleetRepository.live },
+        // The service takes its repository as a constructor argument (see the class doc).
+        {
+            provide: FleetService,
+            useFactory: (repository: FleetRepositoryShape) =>
+                new FleetService.live(repository),
+            inject: [FleetRepository],
+        },
     ],
 }) {}

@@ -416,6 +416,9 @@ export class ApprovalService extends Context.Service<
                         value: (member as (...a: unknown[]) => unknown).bind(
                             this.shape
                         ),
+                        // `provideTo` proxies the instance; a non-configurable
+                        // own property breaks the proxy invariant on read.
+                        configurable: true,
                     })
             }
         }

@@ -52,7 +52,7 @@ export class PlatformModule extends createModuleContext({
         { provide: PlatformRefresherPort, useExisting: TraefikConfigRefresher },
         {
             provide: PlatformManagedWebService,
-            useValue: PlatformManagedWebService.live,
+            useClass: PlatformManagedWebService.live,
         },
     ],
 }) {}

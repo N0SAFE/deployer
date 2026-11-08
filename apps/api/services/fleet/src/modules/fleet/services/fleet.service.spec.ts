@@ -83,7 +83,9 @@ function mkAllocationRow(overrides: Record<string, unknown> = {}) {
 }
 
 describe('FleetService', () => {
-    let service: ReturnType<typeof provideTo<typeof FleetService.live>>
+    let service: ReturnType<
+        typeof provideTo<InstanceType<typeof FleetService.live>>
+    >
     let repo: {
         listServersWithMetrics: ReturnType<typeof vi.fn>
         listEnabledAllocations: ReturnType<typeof vi.fn>
@@ -116,12 +118,14 @@ describe('FleetService', () => {
             insertAllocation: vi.fn().mockResolvedValue([]),
             deleteAllocation: vi.fn().mockResolvedValue({ rowCount: 0 }),
         }
-        service = provideTo(FleetService.live, (effect) =>
+        service = provideTo(
+            new FleetService.live(asEffects(repo) as never),
+            (effect) =>
             effect.pipe(
                 Effect.provideService(FleetRepository, asEffects(repo)),
                 // The fake repository never reaches the database; the port is discharged so the run stays `R = never`.
-                Effect.provideService(FleetDatabasePort, {} as never)
-            )
+                    Effect.provideService(FleetDatabasePort, {} as never)
+                )
         )
     })
 

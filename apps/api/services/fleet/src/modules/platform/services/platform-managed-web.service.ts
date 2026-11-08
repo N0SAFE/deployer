@@ -2,19 +2,13 @@ import { Context, Effect } from 'effect'
 
 import {
     bindServices,
-    serviceOver,
     type Bound,
-    type Over,
     type RequirementsOf,
 } from '@deployer/effect-core'
 import { ServiceUnavailableError } from '@deployer/errors'
 import { type ManagedWebState } from '@deployer/fleet-contracts'
 import { PLATFORM_MANAGED_WEB_SUPERVISOR_ID } from '@deployer/platform-supervisors'
-import type { EnvService } from '@deployer/shared/config/env/env.module'
-import type { HostnameService } from '@deployer/shared/core/modules/platform-ingress/services/hostname.service'
-import type { PlatformConfigServiceShape } from '@deployer/shared/core/modules/platform-ingress/services/platform-config.service'
 import { platformTraefikContainerName } from '@deployer/shared/core/modules/platform-ingress/services/platform-names'
-import type { TraefikConfigRefresherShape } from '@deployer/shared/core/modules/traefik/services/traefik-config-refresher.service'
 import type { SupervisorOrchestratorShape } from '@deployer/supervision'
 
 import {
@@ -26,7 +20,6 @@ import {
     type CloudflareTunnelServiceShape,
 } from '@/modules/providers/dns/cloudflare/services/cloudflare-tunnel.service'
 
-import { attempt } from '../../../core/effects'
 import { FleetInvalid } from '../../../core/fleet.errors'
 import {
     PlatformConfigPort,
@@ -121,154 +114,209 @@ type PlatformManagedWebRequirements =
     | CloudflareRequirements
     | PlatformRefresherPort
 
-type Ports = {
-    readonly env: EnvService
-    readonly hostnameService: HostnameService
-    readonly platformConfig: PlatformConfigServiceShape
-    readonly orchestrator: SupervisorOrchestratorShape
-    readonly tunnelService: SettledTunnels
-    readonly cloudflareApps: SettledApps
-    readonly ingressRefresher: TraefikConfigRefresherShape
-}
-
-/** Tag and implementation together: the tag is the contract, `Live` the one implementation. */
-export class PlatformManagedWebService extends Context.Service<
-    PlatformManagedWebService,
-    Over<PlatformManagedWebServiceShape, PlatformManagedWebRequirements>
->()('fleet/PlatformManagedWebService') {
-    /** The ports are yielded when a method runs, so this is a constant the module provides with `useValue`. */
-    static readonly live = serviceOver(
-        Effect.gen(function* () {
-            // The Cloudflare services read their own collaborators from the context; hand them over with that settled.
-            const settled = yield* Effect.context<CloudflareRequirements>()
-            return {
-                env: yield* PlatformEnvPort,
-                hostnameService: yield* PlatformHostnamesPort,
-                platformConfig: yield* PlatformConfigPort,
-                orchestrator: yield* SupervisorsPort,
-                tunnelService: bindServices(
-                    yield* CloudflareTunnelService,
-                    settled
-                ),
-                cloudflareApps: bindServices(
-                    yield* CloudflareAppService,
-                    settled
-                ),
-                ingressRefresher: yield* PlatformRefresherPort,
-            }
-        }),
-        makePlatformManagedWebService
-    )
-}
+/** One instance the supervisor orchestrator exposes. */
+type SupervisorInstance = ReturnType<SupervisorOrchestratorShape['list']>[number]
 
 const describe = (error: unknown) =>
     error instanceof Error ? error.message : String(error)
 
-function makePlatformManagedWebService(
-    ports: Ports
-): PlatformManagedWebServiceShape {
-    const {
-        env,
-        hostnameService,
-        platformConfig,
-        orchestrator,
-        tunnelService,
-        cloudflareApps,
-        ingressRefresher,
-    } = ports
-
-    const supervisor = () =>
-        orchestrator.list().find((s) => s.id === CONSOLE_SUPERVISOR_ID)
-
-    const state = Effect.fn('PlatformManagedWebService.state')(function* () {
-        const current = supervisor()
-        const snapshot =
-            current !== undefined ? yield* current.getStateSnapshot : null
-        const health = current !== undefined ? yield* current.getHealth : null
-
-        return {
-            enabled: yield* platformConfig.isManagedWebAppEnabled(),
-            external: Boolean(env.get('MANAGED_WEB_APP_EXTERNAL')),
-            webHostname: hostnameService.webHostname(),
-            customOrigin: yield* platformConfig.getManagedWebOrigin(),
-            tunnel: yield* platformConfig.getManagedWebTunnel(),
-            supervisorState: snapshot?.state ?? null,
-            healthy: health?.healthy ?? null,
-            detail: health?.detail ?? null,
-        } satisfies ManagedWebState
-    })
-
-    /** Converge after a config change: refresh live Traefik routes + reconcile the managed web
-     *  container (env with the new origin/allowlist). */
-    const converge = Effect.fn('PlatformManagedWebService.converge')(
-        function* () {
-            ingressRefresher.refresh()
-            const current = supervisor()
-            if (current !== undefined) yield* current.ensureDesiredState
+/** Tag and implementation together: the tag is the contract, `live` the one implementation. */
+export class PlatformManagedWebService extends Context.Service<
+    PlatformManagedWebService,
+    PlatformManagedWebServiceShape
+>()('fleet/PlatformManagedWebService') {
+    static readonly live = class PlatformManagedWebServiceImpl
+        implements PlatformManagedWebServiceShape
+    {
+        /** The managed-web supervisor, when the orchestrator has registered it. */
+        private current(): Effect.Effect<
+            SupervisorInstance | undefined,
+            never,
+            PlatformManagedWebRequirements
+        > {
+            return Effect.map(SupervisorsPort, (orchestrator) =>
+                orchestrator.list().find((s) => s.id === CONSOLE_SUPERVISOR_ID)
+            )
         }
-    )
 
-    /**
-     * Pick the Cloudflare app that owns tunnel creation. Explicit env override wins; otherwise the
-     * first tunnel-capable Cloudflare app (same surface as the node's global tunnel flow).
-     */
-    const resolveTunnelProvider = Effect.fn(
-        'PlatformManagedWebService.resolveTunnelProvider'
-    )(function* () {
-        const explicit = process.env.CLOUDFLARE_WEB_TUNNEL_PROVIDER_ID?.trim()
-        if (explicit !== undefined && explicit !== '')
-            return { providerId: explicit }
-
-        const apps = yield* cloudflareApps.listTunnelCapableApps()
-        const first = apps[0]
-        if (first === undefined) {
-            return yield* new FleetInvalid({
-                reason: 'no Cloudflare app is configured for tunnels — add one in Providers → DNS → Cloudflare first',
+        /**
+         * The Cloudflare services read their own collaborators from the
+         * context; hand them over with that settled so an operation sees a
+         * service whose channel is closed.
+         */
+        private tunnels(): Effect.Effect<
+            SettledTunnels,
+            never,
+            PlatformManagedWebRequirements
+        > {
+            return Effect.gen(function* () {
+                const settled = yield* Effect.context<CloudflareRequirements>()
+                return bindServices(yield* CloudflareTunnelService, settled)
             })
         }
-        return { providerId: first.id }
-    })
 
-    /** Best-effort rollback of a tunnel that cannot be used: its failure is not worth reporting. */
-    const rollbackTunnel = (
-        providerId: string,
-        tunnelId: string,
-        options?: { hostname: string }
-    ) =>
-        tunnelService
-            .deleteTunnel(providerId, tunnelId, options)
-            .pipe(Effect.ignore)
+        private apps(): Effect.Effect<
+            SettledApps,
+            never,
+            PlatformManagedWebRequirements
+        > {
+            return Effect.gen(function* () {
+                const settled = yield* Effect.context<CloudflareRequirements>()
+                return bindServices(yield* CloudflareAppService, settled)
+            })
+        }
 
-    return {
-        state,
+        /** Converge after a config change: refresh live Traefik routes + reconcile the managed web container. */
+        private converge(): Effect.Effect<
+            void,
+            unknown,
+            PlatformManagedWebRequirements
+        > {
+            return Effect.gen({ self: this }, function* () {
+                const ingressRefresher = yield* PlatformRefresherPort
+                ingressRefresher.refresh()
+                const current = yield* this.current()
+                if (current !== undefined) yield* current.ensureDesiredState
+            })
+        }
 
-        toggle: Effect.fn('PlatformManagedWebService.toggle')(function* () {
-            const current = yield* platformConfig.isManagedWebAppEnabled()
-            yield* platformConfig.setManagedWebAppEnabled(!current)
-            yield* converge()
-            return yield* state()
-        }),
+        /**
+         * Pick the Cloudflare app that owns tunnel creation. Explicit env
+         * override wins; otherwise the first tunnel-capable Cloudflare app
+         * (same surface as the node's global tunnel flow).
+         */
+        private resolveTunnelProvider(): Effect.Effect<
+            { providerId: string },
+            unknown,
+            PlatformManagedWebRequirements
+        > {
+            return Effect.gen({ self: this }, function* () {
+                const explicit =
+                    process.env.CLOUDFLARE_WEB_TUNNEL_PROVIDER_ID?.trim()
+                if (explicit !== undefined && explicit !== '')
+                    return { providerId: explicit }
 
-        restart: Effect.fn('PlatformManagedWebService.restart')(function* () {
-            yield* platformConfig.setManagedWebAppEnabled(true)
-            yield* converge()
-            return yield* state()
-        }),
+                const cloudflareApps = yield* this.apps()
+                const apps = yield* cloudflareApps.listTunnelCapableApps()
+                const first = apps[0]
+                if (first === undefined) {
+                    return yield* new FleetInvalid({
+                        reason: 'no Cloudflare app is configured for tunnels — add one in Providers → DNS → Cloudflare first',
+                    })
+                }
+                return { providerId: first.id }
+            })
+        }
 
-        setOrigin: Effect.fn('PlatformManagedWebService.setOrigin')(
-            function* (origin) {
+        /** Best-effort rollback of a tunnel that cannot be used: its failure is not worth reporting. */
+        private rollback(
+            providerId: string,
+            tunnelId: string,
+            options?: { hostname: string }
+        ): Effect.Effect<void, never, PlatformManagedWebRequirements> {
+            return Effect.gen({ self: this }, function* () {
+                const tunnelService = yield* this.tunnels()
+                yield* tunnelService
+                    .deleteTunnel(providerId, tunnelId, options)
+                    .pipe(Effect.ignore)
+            })
+        }
+
+        state(): Effect.Effect<
+            ManagedWebState,
+            unknown,
+            PlatformManagedWebRequirements
+        > {
+            return Effect.gen({ self: this }, function* () {
+                const env = yield* PlatformEnvPort
+                const hostnameService = yield* PlatformHostnamesPort
+                const platformConfig = yield* PlatformConfigPort
+                const current = yield* this.current()
+                const snapshot =
+                    current !== undefined
+                        ? yield* current.getStateSnapshot
+                        : null
+                const health =
+                    current !== undefined ? yield* current.getHealth : null
+
+                return {
+                    enabled: yield* platformConfig.isManagedWebAppEnabled(),
+                    external: env.get('MANAGED_WEB_APP_EXTERNAL'),
+                    webHostname: hostnameService.webHostname(),
+                    customOrigin: yield* platformConfig.getManagedWebOrigin(),
+                    tunnel: yield* platformConfig.getManagedWebTunnel(),
+                    supervisorState: snapshot?.state ?? null,
+                    healthy: health?.healthy ?? null,
+                    detail: health?.detail ?? null,
+                } satisfies ManagedWebState
+            })
+        }
+
+        /** Flip the flag and converge — Traefik re-writes the console route so the single URL switches visual. */
+        toggle(): Effect.Effect<
+            ManagedWebState,
+            unknown,
+            PlatformManagedWebRequirements
+        > {
+            return Effect.gen({ self: this }, function* () {
+                const platformConfig = yield* PlatformConfigPort
+                const current = yield* platformConfig.isManagedWebAppEnabled()
+                yield* platformConfig.setManagedWebAppEnabled(!current)
+                yield* this.converge()
+                return yield* this.state()
+            })
+        }
+
+        /** Force a restart (also records enabled). */
+        restart(): Effect.Effect<
+            ManagedWebState,
+            unknown,
+            PlatformManagedWebRequirements
+        > {
+            return Effect.gen({ self: this }, function* () {
+                const platformConfig = yield* PlatformConfigPort
+                yield* platformConfig.setManagedWebAppEnabled(true)
+                yield* this.converge()
+                return yield* this.state()
+            })
+        }
+
+        /** Set (or clear with null) the custom public origin. */
+        setOrigin(
+            origin: string | null
+        ): Effect.Effect<
+            ManagedWebState,
+            unknown,
+            PlatformManagedWebRequirements
+        > {
+            return Effect.gen({ self: this }, function* () {
+                const platformConfig = yield* PlatformConfigPort
                 yield* platformConfig.setManagedWebOrigin(origin)
-                yield* converge()
+                yield* this.converge()
                 yield* Effect.logInfo(
-                    `Managed web origin set to ${origin === null ? '<platform default>' : origin}`
+                    `Managed web origin set to ${origin ?? '<platform default>'}`
                 )
-                return yield* state()
-            }
-        ),
+                return yield* this.state()
+            })
+        }
 
-        enableTunnel: Effect.fn('PlatformManagedWebService.enableTunnel')(
-            function* (hostname) {
-                const provider = yield* resolveTunnelProvider()
+        /**
+         * Provision the web app's OWN Cloudflare tunnel: create tunnel + CNAME
+         * on the provider, point its ingress at the platform TRAEFIK (web:80) —
+         * Traefik routes `Host(hostname) → web` — persist the identity and
+         * restart the app so its public origin becomes the tunnel hostname.
+         */
+        enableTunnel(
+            hostname: string
+        ): Effect.Effect<
+            ManagedWebState,
+            unknown,
+            PlatformManagedWebRequirements
+        > {
+            return Effect.gen({ self: this }, function* () {
+                const platformConfig = yield* PlatformConfigPort
+                const tunnelService = yield* this.tunnels()
+                const provider = yield* this.resolveTunnelProvider()
                 const name = `deployer-web-${hostname
                     .replace(/[^a-z0-9]+/gi, '-')
                     .replace(/^-+|-+$/g, '')
@@ -280,7 +328,7 @@ function makePlatformManagedWebService(
                 const tunnelHostname = created.hostname
                 if (tunnelHostname === null) {
                     // No zone matched → no CNAME. Roll back the freshly created tunnel.
-                    yield* rollbackTunnel(
+                    yield* this.rollback(
                         provider.providerId,
                         created.tunnel.id
                     )
@@ -292,7 +340,7 @@ function makePlatformManagedWebService(
                 // Ingress → the platform TRAEFIK (web:80): cloudflared delivers to Traefik, which routes the
                 // hostname to the web container.
                 const service =
-                    process.env.CLOUDFLARE_TUNNEL_SERVICE_URL?.trim() ||
+                    process.env.CLOUDFLARE_TUNNEL_SERVICE_URL?.trim() ??
                     `http://${platformTraefikContainerName(process.env.DEPLOYER_PREFIX)}:80`
                 yield* tunnelService
                     .configureIngress(
@@ -304,19 +352,20 @@ function makePlatformManagedWebService(
                     .pipe(
                         Effect.catch((err) =>
                             // Ingress is what makes the tunnel usable — roll the whole thing back and surface the failure.
-                            rollbackTunnel(
-                                provider.providerId,
-                                created.tunnel.id,
-                                { hostname: tunnelHostname }
-                            ).pipe(
-                                Effect.andThen(
-                                    Effect.fail(
-                                        new ServiceUnavailableError(
-                                            `ingress configuration failed (${describe(err)}) — tunnel rolled back`
+                            this.rollback(
+                                    provider.providerId,
+                                    created.tunnel.id,
+                                    { hostname: tunnelHostname }
+                                )
+                                .pipe(
+                                    Effect.andThen(
+                                        Effect.fail(
+                                            new ServiceUnavailableError(
+                                                `ingress configuration failed (${describe(err)}) — tunnel rolled back`
+                                            )
                                         )
                                     )
                                 )
-                            )
                         )
                     )
 
@@ -325,18 +374,25 @@ function makePlatformManagedWebService(
                     hostname: tunnelHostname,
                     providerId: provider.providerId,
                 })
-                yield* converge()
+                yield* this.converge()
                 yield* Effect.logInfo(
                     `Managed web tunnel provisioned: ${tunnelHostname} → ${service}`
                 )
-                return yield* state()
-            }
-        ),
+                return yield* this.state()
+            })
+        }
 
-        disableTunnel: Effect.fn('PlatformManagedWebService.disableTunnel')(
-            function* () {
+        /** Remove the web tunnel: delete tunnel + CNAME and restart the app. */
+        disableTunnel(): Effect.Effect<
+            ManagedWebState,
+            unknown,
+            PlatformManagedWebRequirements
+        > {
+            return Effect.gen({ self: this }, function* () {
+                const platformConfig = yield* PlatformConfigPort
                 const tunnel = yield* platformConfig.getManagedWebTunnel()
                 if (tunnel !== null) {
+                    const tunnelService = yield* this.tunnels()
                     yield* tunnelService
                         .deleteTunnel(tunnel.providerId, tunnel.tunnelId, {
                             hostname: tunnel.hostname,
@@ -349,13 +405,13 @@ function makePlatformManagedWebService(
                             )
                         )
                     yield* platformConfig.clearManagedWebTunnel()
-                    yield* converge()
+                    yield* this.converge()
                     yield* Effect.logInfo(
                         `Managed web tunnel removed: ${tunnel.hostname}`
                     )
                 }
-                return yield* state()
-            }
-        ),
+                return yield* this.state()
+            })
+        }
     }
 }

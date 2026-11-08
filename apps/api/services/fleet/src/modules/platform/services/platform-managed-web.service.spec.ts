@@ -54,7 +54,7 @@ describe('PlatformManagedWebService', () => {
     }
     const ensured = vi.fn()
     let service: ReturnType<
-        typeof provideTo<typeof PlatformManagedWebService.live>
+        typeof provideTo<InstanceType<typeof PlatformManagedWebService.live>>
     >
     let enabled: boolean
 
@@ -101,7 +101,7 @@ describe('PlatformManagedWebService', () => {
         // The fakes need nothing from the context beyond what is provided here, so the leftover
         // requirements of the Cloudflare services are discharged.
         service = provideTo(
-            PlatformManagedWebService.live,
+            new PlatformManagedWebService.live(),
             (effect) =>
                 effect.pipe(
                     Effect.provideService(PlatformEnvPort, {

@@ -3,7 +3,6 @@ import { Context, Effect } from 'effect'
 import type { DatabasePort, StorageFailure } from '../../database/storage'
 import {
     ServiceDomainMappingRepository,
-    type ServiceDomainMappingRepositoryShape,
 } from '../repositories/service-domain-mapping.repository'
 
 import type {
@@ -22,8 +21,7 @@ export type DomainConflictServiceShape = {
     ) => Effect.Effect<
         SubdomainAvailabilityResult,
         StorageFailure,
-        ServiceDomainMappingRepository
-        | ServiceDomainMappingRepositoryShape
+        | ServiceDomainMappingRepository
         | DatabasePort
     >
 }
