@@ -33,7 +33,6 @@ import { SupervisorsPlatformModule } from '../supervisors/platform/platform-supe
 
 import {
     BootstrapOrchestratorService,
-    makeBootstrapOrchestratorService,
 } from './bootstrap-orchestrator.service'
 
 import type { GlobalDatabase } from '../database/global/global-database.service'
@@ -90,7 +89,7 @@ export const BootstrapModule = createGlobalModule({
                 bootstrapLock: BootstrapAdvisoryLockServiceShape,
                 orchestrator: SupervisorOrchestratorShape
             ) =>
-                makeBootstrapOrchestratorService({
+                new BootstrapOrchestratorService.live({
                     pool,
                     db,
                     nodeConfigRepository,

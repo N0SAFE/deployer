@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { SWARM_APP_WIRING_SUPERVISOR_ID } from '../supervisors/platform/swarm-app-wiring.supervisor'
 
-import { makeBootstrapOrchestratorService } from './bootstrap-orchestrator.service'
+import { BootstrapOrchestratorService } from './bootstrap-orchestrator.service'
 
 /**
  * The API tier boots BEHIND setup. Until the operator's decision has been executed (`setup_done`), the boot pipeline
@@ -22,7 +22,7 @@ function makeOrchestrator(
         markErrorNow: vi.fn(),
     }
 
-    const service = makeBootstrapOrchestratorService({
+    const service = new BootstrapOrchestratorService.live({
         pool: {} as never,
         db: {} as never,
         nodeConfigRepository: { find: () => Effect.succeed(config) } as never,
@@ -32,7 +32,7 @@ function makeOrchestrator(
         orchestrator: { convergeNow } as never,
     })
     /** The boot pipeline is the service's `onReady` lifecycle step: it runs once every module has initialised. */
-    const boot = () => Effect.runPromise(service.onReady?.() ?? Effect.void)
+    const boot = () => Effect.runPromise(service.onReady())
     return { boot, convergeNow, ensureDatabaseAvailable, acquire, lifecycle }
 }
 
