@@ -28,8 +28,6 @@ import {
 type GithubRepositoryConfig = typeof githubRepositoryConfigs.$inferSelect
 type GithubRepositoryConfigInsert = typeof githubRepositoryConfigs.$inferInsert
 
-type Ports = { readonly database: Context.Service.Shape<typeof DatabasePort> }
-
 export type GithubRepositoryConfigRepositoryShape = {
     readonly findById: (
         id: string
@@ -61,15 +59,29 @@ export type GithubRepositoryConfigRepositoryShape = {
     readonly delete: (id: string) => Effect.Effect<boolean, StorageFailure>
 }
 
-export function makeGithubRepositoryConfigRepository({
-    database,
-}: Ports): GithubRepositoryConfigRepositoryShape {
-    return {
-        /**
-         * Find config by ID
-         */
-        findById: (id: string) =>
-            Effect.logDebug(`Finding GitHub config by ID: ${id}`).pipe(
+export class GithubRepositoryConfigRepository extends Context.Service<
+    GithubRepositoryConfigRepository,
+    GithubRepositoryConfigRepositoryShape
+>()('shared/GithubRepositoryConfigRepository') {
+    /**
+     * The pool is the only collaborator, so it is a constructor argument: the
+     * shape's channel is `StorageFailure` alone.
+     */
+    static readonly live = class GithubRepositoryConfigRepositoryImpl
+        implements GithubRepositoryConfigRepositoryShape
+    {
+        constructor(
+            private readonly database: Context.Service.Shape<
+                typeof DatabasePort
+            >
+        ) {}
+
+        /** Find config by ID. */
+        findById(
+            id: string
+        ): Effect.Effect<GithubRepositoryConfig | null, StorageFailure> {
+            const { database } = this
+            return Effect.logDebug(`Finding GitHub config by ID: ${id}`).pipe(
                 Effect.andThen(
                     storage(database, async (db) => {
                         const [config] = await db
@@ -81,13 +93,15 @@ export function makeGithubRepositoryConfigRepository({
                         return config ?? null
                     })
                 )
-            ),
+            )
+        }
 
-        /**
-         * Find config by repository ID
-         */
-        findByRepositoryId: (repositoryId: string) =>
-            Effect.logDebug(
+        /** Find config by repository ID. */
+        findByRepositoryId(
+            repositoryId: string
+        ): Effect.Effect<GithubRepositoryConfig | null, StorageFailure> {
+            const { database } = this
+            return Effect.logDebug(
                 `Finding GitHub config by repository ID: ${repositoryId}`
             ).pipe(
                 Effect.andThen(
@@ -106,13 +120,15 @@ export function makeGithubRepositoryConfigRepository({
                         return config ?? null
                     })
                 )
-            ),
+            )
+        }
 
-        /**
-         * Find config by repository full name (owner/repo)
-         */
-        findByFullName: (fullName: string) =>
-            Effect.logDebug(
+        /** Find config by repository full name (owner/repo). */
+        findByFullName(
+            fullName: string
+        ): Effect.Effect<GithubRepositoryConfig | null, StorageFailure> {
+            const { database } = this
+            return Effect.logDebug(
                 `Finding GitHub config by full name: ${fullName}`
             ).pipe(
                 Effect.andThen(
@@ -131,16 +147,18 @@ export function makeGithubRepositoryConfigRepository({
                         return config ?? null
                     })
                 )
-            ),
+            )
+        }
 
-        /**
-         * Find config by repository ID or full name
-         */
-        findByRepositoryIdOrFullName: (
+        /** Find config by repository ID or full name. */
+        findByRepositoryIdOrFullName(
             repositoryId?: string,
             fullName?: string
-        ) =>
-            Effect.logDebug(`Finding GitHub config by ID or full name`).pipe(
+        ): Effect.Effect<GithubRepositoryConfig | null, StorageFailure> {
+            const { database } = this
+            return Effect.logDebug(
+                `Finding GitHub config by ID or full name`
+            ).pipe(
                 Effect.andThen(
                     storage(database, async (db) => {
                         if (!repositoryId && !fullName) {
@@ -174,13 +192,15 @@ export function makeGithubRepositoryConfigRepository({
                         return config ?? null
                     })
                 )
-            ),
+            )
+        }
 
-        /**
-         * Find all configs for a project
-         */
-        findByProjectId: (projectId: string) =>
-            Effect.logDebug(
+        /** Find all configs for a project. */
+        findByProjectId(
+            projectId: string
+        ): Effect.Effect<GithubRepositoryConfig[], StorageFailure> {
+            const { database } = this
+            return Effect.logDebug(
                 `Finding GitHub configs for project: ${projectId}`
             ).pipe(
                 Effect.andThen(
@@ -193,13 +213,16 @@ export function makeGithubRepositoryConfigRepository({
                             )
                     })
                 )
-            ),
+            )
+        }
 
-        /**
-         * Find config by project and repository
-         */
-        findByProjectAndRepository: (projectId: string, repositoryId: string) =>
-            Effect.logDebug(
+        /** Find config by project and repository. */
+        findByProjectAndRepository(
+            projectId: string,
+            repositoryId: string
+        ): Effect.Effect<GithubRepositoryConfig | null, StorageFailure> {
+            const { database } = this
+            return Effect.logDebug(
                 `Finding GitHub config for project ${projectId} and repository ${repositoryId}`
             ).pipe(
                 Effect.andThen(
@@ -224,13 +247,15 @@ export function makeGithubRepositoryConfigRepository({
                         return config ?? null
                     })
                 )
-            ),
+            )
+        }
 
-        /**
-         * Create a new GitHub repository config
-         */
-        create: (data: GithubRepositoryConfigInsert) =>
-            Effect.logInfo(
+        /** Create a new GitHub repository config. */
+        create(
+            data: GithubRepositoryConfigInsert
+        ): Effect.Effect<GithubRepositoryConfig, StorageFailure> {
+            const { database } = this
+            return Effect.logInfo(
                 `Creating GitHub repository config for: ${data.repositoryFullName}`
             ).pipe(
                 Effect.andThen(
@@ -249,13 +274,18 @@ export function makeGithubRepositoryConfigRepository({
                         return config
                     })
                 )
-            ),
+            )
+        }
 
-        /**
-         * Update a GitHub repository config
-         */
-        update: (id: string, data: Partial<GithubRepositoryConfigInsert>) =>
-            Effect.logInfo(`Updating GitHub repository config: ${id}`).pipe(
+        /** Update a GitHub repository config. */
+        update(
+            id: string,
+            data: Partial<GithubRepositoryConfigInsert>
+        ): Effect.Effect<GithubRepositoryConfig | null, StorageFailure> {
+            const { database } = this
+            return Effect.logInfo(
+                `Updating GitHub repository config: ${id}`
+            ).pipe(
                 Effect.andThen(
                     storage(database, async (db) => {
                         const [config] = await db
@@ -270,13 +300,15 @@ export function makeGithubRepositoryConfigRepository({
                         return config ?? null
                     })
                 )
-            ),
+            )
+        }
 
-        /**
-         * Delete a GitHub repository config
-         */
-        delete: (id: string) =>
-            Effect.logInfo(`Deleting GitHub repository config: ${id}`).pipe(
+        /** Delete a GitHub repository config. */
+        delete(id: string): Effect.Effect<boolean, StorageFailure> {
+            const { database } = this
+            return Effect.logInfo(
+                `Deleting GitHub repository config: ${id}`
+            ).pipe(
                 Effect.andThen(
                     storage(database, async (db) => {
                         const result = await db
@@ -286,11 +318,7 @@ export function makeGithubRepositoryConfigRepository({
                         return result.rowCount ? result.rowCount > 0 : false
                     })
                 )
-            ),
+            )
+        }
     }
 }
-
-export class GithubRepositoryConfigRepository extends Context.Service<
-    GithubRepositoryConfigRepository,
-    GithubRepositoryConfigRepositoryShape
->()('shared/GithubRepositoryConfigRepository') {}

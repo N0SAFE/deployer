@@ -28,8 +28,6 @@ import {
 type GithubDeploymentRule = typeof githubDeploymentRules.$inferSelect
 type GithubDeploymentRuleInsert = typeof githubDeploymentRules.$inferInsert
 
-type Ports = { readonly database: Context.Service.Shape<typeof DatabasePort> }
-
 export type GithubDeploymentRulesRepositoryShape = {
     readonly findById: (
         id: string
@@ -54,15 +52,31 @@ export type GithubDeploymentRulesRepositoryShape = {
     readonly delete: (id: string) => Effect.Effect<boolean, StorageFailure>
 }
 
-export function makeGithubDeploymentRulesRepository({
-    database,
-}: Ports): GithubDeploymentRulesRepositoryShape {
-    return {
-        /**
-         * Find a GitHub deployment rule by ID
-         */
-        findById: (id: string) =>
-            Effect.logDebug(`Finding GitHub deployment rule by ID: ${id}`).pipe(
+export class GithubDeploymentRulesRepository extends Context.Service<
+    GithubDeploymentRulesRepository,
+    GithubDeploymentRulesRepositoryShape
+>()('shared/GithubDeploymentRulesRepository') {
+    /**
+     * The pool is the only collaborator, so it is a constructor argument: the
+     * shape's channel is `StorageFailure` alone.
+     */
+    static readonly live = class GithubDeploymentRulesRepositoryImpl
+        implements GithubDeploymentRulesRepositoryShape
+    {
+        constructor(
+            private readonly database: Context.Service.Shape<
+                typeof DatabasePort
+            >
+        ) {}
+
+        /** Find a GitHub deployment rule by ID. */
+        findById(
+            id: string
+        ): Effect.Effect<GithubDeploymentRule | null, StorageFailure> {
+            const { database } = this
+            return Effect.logDebug(
+                `Finding GitHub deployment rule by ID: ${id}`
+            ).pipe(
                 Effect.andThen(
                     storage(database, async (db) => {
                         const [rule] = await db
@@ -74,13 +88,16 @@ export function makeGithubDeploymentRulesRepository({
                         return rule ?? null
                     })
                 )
-            ),
+            )
+        }
 
-        /**
-         * Find rules by project ID and event
-         */
-        findByProjectAndEvent: (projectId: string, event: string) =>
-            Effect.logDebug(
+        /** Find rules by project ID and event. */
+        findByProjectAndEvent(
+            projectId: string,
+            event: string
+        ): Effect.Effect<GithubDeploymentRule[], StorageFailure> {
+            const { database } = this
+            return Effect.logDebug(
                 `Finding GitHub deployment rules for project ${projectId} and event ${event}`
             ).pipe(
                 Effect.andThen(
@@ -99,13 +116,15 @@ export function makeGithubDeploymentRulesRepository({
                             )
                     })
                 )
-            ),
+            )
+        }
 
-        /**
-         * Find all rules for a project
-         */
-        findByProjectId: (projectId: string) =>
-            Effect.logDebug(
+        /** Find all rules for a project. */
+        findByProjectId(
+            projectId: string
+        ): Effect.Effect<GithubDeploymentRule[], StorageFailure> {
+            const { database } = this
+            return Effect.logDebug(
                 `Finding all GitHub deployment rules for project: ${projectId}`
             ).pipe(
                 Effect.andThen(
@@ -119,13 +138,15 @@ export function makeGithubDeploymentRulesRepository({
                             .orderBy(desc(githubDeploymentRules.priority))
                     })
                 )
-            ),
+            )
+        }
 
-        /**
-         * Find active rules for a project (ordered by priority)
-         */
-        findActiveByProjectId: (projectId: string) =>
-            Effect.logDebug(
+        /** Find active rules for a project, ordered by priority. */
+        findActiveByProjectId(
+            projectId: string
+        ): Effect.Effect<GithubDeploymentRule[], StorageFailure> {
+            const { database } = this
+            return Effect.logDebug(
                 `Finding active GitHub deployment rules for project: ${projectId}`
             ).pipe(
                 Effect.andThen(
@@ -145,13 +166,15 @@ export function makeGithubDeploymentRulesRepository({
                             .orderBy(desc(githubDeploymentRules.priority))
                     })
                 )
-            ),
+            )
+        }
 
-        /**
-         * Create a new GitHub deployment rule
-         */
-        create: (data: GithubDeploymentRuleInsert) =>
-            Effect.logInfo(
+        /** Create a new GitHub deployment rule. */
+        create(
+            data: GithubDeploymentRuleInsert
+        ): Effect.Effect<GithubDeploymentRule, StorageFailure> {
+            const { database } = this
+            return Effect.logInfo(
                 `Creating GitHub deployment rule: ${data.name}`
             ).pipe(
                 Effect.andThen(
@@ -170,13 +193,18 @@ export function makeGithubDeploymentRulesRepository({
                         return rule
                     })
                 )
-            ),
+            )
+        }
 
-        /**
-         * Update a GitHub deployment rule
-         */
-        update: (id: string, data: Partial<GithubDeploymentRuleInsert>) =>
-            Effect.logInfo(`Updating GitHub deployment rule: ${id}`).pipe(
+        /** Update a GitHub deployment rule. */
+        update(
+            id: string,
+            data: Partial<GithubDeploymentRuleInsert>
+        ): Effect.Effect<GithubDeploymentRule | null, StorageFailure> {
+            const { database } = this
+            return Effect.logInfo(
+                `Updating GitHub deployment rule: ${id}`
+            ).pipe(
                 Effect.andThen(
                     storage(database, async (db) => {
                         const [rule] = await db
@@ -191,13 +219,15 @@ export function makeGithubDeploymentRulesRepository({
                         return rule ?? null
                     })
                 )
-            ),
+            )
+        }
 
-        /**
-         * Delete a GitHub deployment rule
-         */
-        delete: (id: string) =>
-            Effect.logInfo(`Deleting GitHub deployment rule: ${id}`).pipe(
+        /** Delete a GitHub deployment rule. */
+        delete(id: string): Effect.Effect<boolean, StorageFailure> {
+            const { database } = this
+            return Effect.logInfo(
+                `Deleting GitHub deployment rule: ${id}`
+            ).pipe(
                 Effect.andThen(
                     storage(database, async (db) => {
                         const result = await db
@@ -207,11 +237,7 @@ export function makeGithubDeploymentRulesRepository({
                         return result.rowCount ? result.rowCount > 0 : false
                     })
                 )
-            ),
+            )
+        }
     }
 }
-
-export class GithubDeploymentRulesRepository extends Context.Service<
-    GithubDeploymentRulesRepository,
-    GithubDeploymentRulesRepositoryShape
->()('shared/GithubDeploymentRulesRepository') {}

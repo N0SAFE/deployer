@@ -5,14 +5,8 @@ import { DatabasePort } from '../../database/storage'
 import {
     GithubDeploymentCacheRepository,
 } from './repositories/github-deployment-cache.repository'
-import {
-    GithubDeploymentRulesRepository,
-    makeGithubDeploymentRulesRepository,
-} from './repositories/github-deployment-rules.repository'
-import {
-    GithubRepositoryConfigRepository,
-    makeGithubRepositoryConfigRepository,
-} from './repositories/github-repository-config.repository'
+import { GithubDeploymentRulesRepository } from './repositories/github-deployment-rules.repository'
+import { GithubRepositoryConfigRepository } from './repositories/github-repository-config.repository'
 import { GitHubService, makeGitHubService } from './services/github.service'
 
 import type { Context } from 'effect'
@@ -39,8 +33,8 @@ export class GitHubModule extends createModuleContext({
         // The App registry is in-memory state: one instance per process.
         { provide: GitHubService, useFactory: makeGitHubService },
         { provide: GithubDeploymentCacheRepository, useClass: GithubDeploymentCacheRepository.live },
-        { provide: GithubDeploymentRulesRepository, useFactory: makeGithubDeploymentRulesRepository },
-        { provide: GithubRepositoryConfigRepository, useFactory: makeGithubRepositoryConfigRepository },
+        { provide: GithubDeploymentRulesRepository, useClass: GithubDeploymentRulesRepository.live },
+        { provide: GithubRepositoryConfigRepository, useClass: GithubRepositoryConfigRepository.live },
     ],
     exports: [
         GitHubService,
