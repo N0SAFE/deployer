@@ -26,7 +26,6 @@ import {
     type NodeMeshConfigRepositoryShape,
 } from './repositories/node-mesh-config.repository'
 import {
-    makeSystemMeshClusterRepository,
     SystemMeshClusterRepository,
 } from './repositories/system-mesh-cluster.repository'
 import {
@@ -88,11 +87,11 @@ export class MeshCoreModule extends createModuleContext({
                 nodeConfig: NodeConfigRepositoryShape,
                 env: EnvService
             ) =>
-                makeSystemMeshClusterRepository({
+                new SystemMeshClusterRepository.live(
                     database,
                     nodeConfig,
-                    nodeDoor: nodeDoorFromEnv(env),
-                }),
+                    nodeDoorFromEnv(env)
+                ),
             inject: [DatabasePort, NodeConfigRepository, EnvService],
         },
     ],

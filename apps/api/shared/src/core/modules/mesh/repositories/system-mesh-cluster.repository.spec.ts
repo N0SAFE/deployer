@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { NodeConfigRepositoryShape } from '@deployer/node-state'
 
-import { makeSystemMeshClusterRepository } from './system-mesh-cluster.repository'
+import { SystemMeshClusterRepository } from './system-mesh-cluster.repository'
 
 const GRANT_ID = '9f1b7a2e-0b4e-4f6a-9c1d-1f2e3d4c5b6a'
 const EXPIRES_AT = new Date('2026-10-30T12:00:00.000Z')
@@ -16,8 +16,8 @@ function repository(
         ) => Promise<{ token: string; expiresAt: number } | null>
     } | null = null
 ) {
-    return makeSystemMeshClusterRepository({
-        database: {
+    return new SystemMeshClusterRepository.live(
+        {
             db: {
                 insert: () => ({
                     values: () => ({
@@ -29,11 +29,11 @@ function repository(
                 }),
             },
         } as never,
-        nodeConfig: {
+        {
             find: () => Effect.succeed(null),
         } as unknown as NodeConfigRepositoryShape,
-        nodeDoor: door,
-    })
+        door
+    )
 }
 
 const input = { issuedByUserId: 'user-1', ttlSeconds: 900 }
