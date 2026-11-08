@@ -30,7 +30,6 @@ import {
     SystemMeshClusterRepository,
 } from './repositories/system-mesh-cluster.repository'
 import {
-    makeSystemMeshConfigService,
     SystemMeshConfigService,
 } from './services/system-mesh-config.service'
 
@@ -66,7 +65,7 @@ export class MeshCoreModule extends createModuleContext({
                 meshConfigs: NodeMeshConfigRepositoryShape,
                 env: EnvService
             ) =>
-                makeSystemMeshConfigService({
+                new SystemMeshConfigService.live({
                     nodeConfig,
                     meshConfigs,
                     env: {

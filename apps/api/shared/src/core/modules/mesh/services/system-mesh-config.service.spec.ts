@@ -1,7 +1,7 @@
 import { Effect } from 'effect'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { makeSystemMeshConfigService } from './system-mesh-config.service'
+import { SystemMeshConfigService } from './system-mesh-config.service'
 
 import type { NodeRecord } from './node-record.client'
 import type { NodeMeshConfigRow } from '../repositories/node-mesh-config.repository'
@@ -25,7 +25,7 @@ function serviceWith(
         upsert: (data: unknown) =>
             Effect.succeed(mesh.upsert ? mesh.upsert(data) : null),
     } as never
-    const service = makeSystemMeshConfigService({
+    const service = new SystemMeshConfigService.live({
         nodeConfig,
         meshConfigs,
         env: { appUrl: () => undefined, bootstrapPeers: () => undefined },
