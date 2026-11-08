@@ -45,9 +45,8 @@
 import { existsSync } from 'node:fs'
 
 import { Logger } from '@nestjs/common'
-import { Context, Effect } from 'effect'
+import { Cause, Context, Effect } from 'effect'
 
-import { runPromiseUnwrapped } from '@deployer/effect-core'
 // The migration directory is owned by the schema package; resolving it there is
 // what keeps the restart path's "apply pending migrations" step from silently
 // finding nothing (see `resolveMigrationsFolder`).
@@ -72,6 +71,12 @@ import type { DatabaseStartupGuardShape } from '../database/services/database-st
 import type { Pool } from 'pg'
 
 export type BootstrapOrchestratorServiceShape = ServiceLifecycleShape
+
+/** The supervisor that owns the global Postgres service this API depends on. */
+const GLOBAL_DB_SUPERVISOR_ID = 'global-db-postgres'
+
+const describe = (error: unknown): string =>
+    error instanceof Error ? error.message : String(error)
 
 /** What the orchestrator is built from. */
 export type BootstrapOrchestratorOptions = {
@@ -131,198 +136,205 @@ export class BootstrapOrchestratorService extends Context.Service<
             this.orchestrator = options.orchestrator
         }
 
-    private async bootstrap(): Promise<void> {
-        this.logger.log('🚀 Bootstrap starting…')
-
-        try {
-            const config = await runPromiseUnwrapped(
-                this.nodeConfigRepository.find()
+        // Runs once every module has finished initialising (the supervisors registered their work), and a failure fails
+        // the boot: refusing to report READY is correct, breaking the PROCESS is wrong only when the database is merely
+        // absent.
+        onReady(): Effect.Effect<void, BootstrapFailed> {
+            return this.runPipeline().pipe(
+                Effect.catchCause((cause) =>
+                    Effect.suspend(() => {
+                        const error = Cause.squash(cause)
+                        const message = describe(error)
+                        this.logger.error(`❌ Bootstrap failed: ${message}`)
+                        this.lifecycle.markErrorNow(message)
+                        return Effect.fail(
+                            new BootstrapFailed({ reason: message, cause: error })
+                        )
+                    })
+                )
             )
-            const databaseUrl = this.resolveDatabaseUrl(
-                config?.databaseUrl?.trim() ?? null
-            )
-
-            if (databaseUrl === null || databaseUrl.length === 0) {
-                // NOT an error: this happens on a node whose onboarding has not
-                // reached the database step. Reported as not-ready so compose
-                // keeps waiting for the gate (plan §7.3).
-                this.logger.warn(
-                    '⏳ No global database configured yet — the API will report NOT READY ' +
-                        'until onboarding (apps/setup) completes.'
-                )
-                return
-            }
-
-            // ── A FRESH INSTALL IS PROVISIONED BY THE WIZARD, NOT HERE ──────
-            // `setup_done` is written by the setup flow once provisioning
-            // succeeded. Before that, the node has a database URL but an EMPTY
-            // schema, and running this sequence would be actively wrong:
-            //
-            //   - the operator's credentials are in the wizard's trigger, not in
-            //     the environment, so `ensureDefaultAdmin` would create an admin
-            //     from `DEFAULT_ADMIN_*` defaults — the WRONG account on a real
-            //     install, and one the operator never chose;
-            //   - migrations would run concurrently with the wizard's own
-            //     `migrate` step, which is what `LocalInitializationService`
-            //     already performs as part of the flow the operator is watching.
-            //
-            // So this pipeline is the RESTART path: it applies the delta on a
-            // node that a previous run brought up (see `checkConfigAndEmit`,
-            // which unblocks the graph on exactly this condition).
-            if (config?.setupState !== 'setup_done') {
-                this.logger.log(
-                    `⏳ Setup state is "${config?.setupState ?? 'unknown'}" — the wizard is ` +
-                        'provisioning this node; the boot pipeline will run on the next start.'
-                )
-                return
-            }
-
-            // 1. Join the swarm overlay FIRST when the engine is swarm-active.
-            //    The supervised services (the managed Postgres, Redis) are swarm
-            //    SERVICES on that overlay, and the swarm ingress port is not
-            //    reachable from a container on the bridge network (IPVS rejects
-            //    traffic arriving via the bridge gateway). So the app must be on
-            //    the overlay BEFORE the connectivity probe below, or the probe
-            //    fails against a database that is actually running. No-op while
-            //    the engine is not in a swarm.
-            try {
-                await runPromiseUnwrapped(
-                    this.orchestrator.convergeNow(SWARM_APP_WIRING_SUPERVISOR_ID)
-                )
-            } catch (error: unknown) {
-                // Non-fatal by design: pre-swarm on a single node there is
-                // nothing to wire, and failing the boot for it would make the
-                // simple case the fragile one.
-                this.logger.warn(
-                    `Swarm overlay wiring skipped: ${error instanceof Error ? error.message : String(error)}`
-                )
-            }
-
-            // 2. CREATE THE DATABASE IF THIS NODE OWNS IT, BEFORE WAITING FOR IT.
-            //
-            //    ── WHY THIS STEP EXISTS, AND WHAT IT FIXES ─────────────────────
-            //    The global Postgres is a SWARM SERVICE that this API's own
-            //    supervisor creates. Nothing else makes it: on a swarm-managed
-            //    profile (`dev-supervised`, `prod`) compose starts no database,
-            //    and setup only schedules THIS API.
-            //
-            //    So waiting for the database before anything has created it waits
-            //    forever. On a fresh install the boot died with
-            //
-            //      ❌ DATABASE CONNECTION FAILED
-            //         URL: postgresql://***:***@global-db:5432/deployer
-            //         Error: Hostname not resolved — check DNS.
-            //
-            //    because `global-db` is the ALIAS of a service that had not been
-            //    created yet. The supervisor was registered and healthy; it simply
-            //    never got a converge pass before the guard gave up.
-            //
-            //    Converging it here is what breaks the cycle: the supervisor
-            //    creates the service (idempotent), and the guard below then waits
-            //    for the task it just scheduled to accept connections.
-            //
-            //    NON-FATAL, like the wiring above: on a profile where the
-            //    deployment owns the database (plain `dev`, or an external URL)
-            //    there is no supervisor to converge, and the guard is the correct
-            //    authority on whether the database is usable.
-            try {
-                const databaseState = await runPromiseUnwrapped(
-                    this.orchestrator.convergeNow('global-db-postgres')
-                )
-                if (databaseState !== null) {
-                    this.logger.log(
-                        `Global Postgres supervisor converged (state=${databaseState})`
-                    )
-                }
-            } catch (error: unknown) {
-                this.logger.warn(
-                    `Global Postgres convergence skipped: ${error instanceof Error ? error.message : String(error)}`
-                )
-            }
-
-            // 3. Verify reachability. Throws when the database is unreachable in
-            //    a mode where it is mandatory (SETUP_AUTO) — this is the one
-            //    place a missing database SHOULD stop the boot, and the guard
-            //    owns that policy rather than this service guessing at it.
-            //
-            //    It also WAITS for the dependency: the database may be a swarm
-            //    service whose task is still being scheduled, so a single-shot
-            //    check would fail at random on a boot that is merely early.
-            await runPromiseUnwrapped(
-                this.startupGuard.ensureDatabaseAvailable(this.pool)
-            )
-
-            // 4. Migrations and the default admin, UNDER AN ADVISORY LOCK.
-            //    Both are convergent but not atomic: two replicas booting at once
-            //    run the same DDL and the same admin upsert, and the loser fails on
-            //    a duplicate object (or both create an admin). The lock makes one
-            //    replica the writer; a loser skips and proceeds — it booted against
-            //    the schema the winner is applying.
-            //
-            //    A migration failure is FATAL: booting against a schema nobody
-            //    verified fails later on an unrelated query, which is a much worse
-            //    place to discover it. See `applyGlobalMigrations`.
-            const lockAcquired = await runPromiseUnwrapped(
-                this.bootstrapLock.acquire()
-            )
-            if (!lockAcquired) {
-                this.logger.warn(
-                    '⏭  Another replica holds the bootstrap lock — migrations and the ' +
-                        'default admin are being applied there; continuing to readiness.'
-                )
-            } else {
-                try {
-                    await this.runGlobalMigrations(databaseUrl)
-                    await this.bootstrapSeededAdmin(databaseUrl)
-                } finally {
-                    await runPromiseUnwrapped(this.bootstrapLock.release())
-                }
-            }
-
-            this.lifecycle.transitionNow(AppLifecyclePhase.READY, {
-                message:
-                    'Database reachable, migrations applied — the platform is ready',
-                databaseReachable: true,
-            })
-            this.lifecycle.markReadyNow()
-
-            this.logger.log('✅ Bootstrap completed')
-        } catch (err) {
-            const message = err instanceof Error ? err.message : String(err)
-            this.logger.error(`❌ Bootstrap failed: ${message}`)
-            this.lifecycle.markErrorNow(message)
-            throw err
         }
-    }
 
-    /**
-     * Resolve the database URL the SAME WAY THE SHARED POOL DOES.
-     *
-     * ── WHY THIS METHOD EXISTS ──────────────────────────────────────────────
-     * This service used to read `node_config.databaseUrl` directly and hand it
-     * to the migrator and to `ensureDefaultAdmin`, while the pool that serves
-     * every query resolved its URL from `MANAGED_GLOBAL_DB_*` instead. TWO
-     * resolvers for one platform, and they disagreed:
-     *
-     *   pool (query path)   → postgresql://…@nextjs-nestjs-global-db:5432/deployer
-     *   bootstrap (DDL path)→ postgresql://…@global-db:5432/deployer   ← stale row
-     *
-     * The second URL is AMBIGUOUS, because `global-db` is carried by two
-     * containers on two networks and the answer depends on the caller's network
-     * attachments. The BFF is on the overlay as well as the bridge, so its
-     * migrations and its admin bootstrap landed on the SWARM database (91
-     * tables, `admin@admin.com` present) while its queries landed on the empty
-     * COMPOSE one. That is what produced
-     *
-     *   {"message":"Invalid email or password"}   ← sign-in against the empty DB
-     *   GET /analytics/metrics/realtime → 500     ← svc-identity had no schema
-     *
-     * after the migrations had just been logged as applied.
-     *
-     * The pool's precedence is authoritative — compose-managed env first, the
-     * persisted row only when no managed database is configured — so this
-     * mirrors it exactly. Anything else reintroduces the split.
-     */
+        /**
+         * The sequence itself. Every failure and defect leaves through the single
+         * `catchCause` in `onReady`, which is where the original's one `try` block
+         * was — so no step translates errors of its own.
+         */
+        private runPipeline(): Effect.Effect<void, unknown> {
+            return Effect.gen({ self: this }, function* () {
+                this.logger.log('🚀 Bootstrap starting…')
+
+                const config = yield* this.nodeConfigRepository.find()
+                const databaseUrl = this.resolveDatabaseUrl(
+                    config?.databaseUrl?.trim() ?? null
+                )
+
+                if (databaseUrl === null || databaseUrl.length === 0) {
+                    // NOT an error: this happens on a node whose onboarding has
+                    // not reached the database step. Reported as not-ready so
+                    // compose keeps waiting for the gate (plan §7.3).
+                    this.logger.warn(
+                        '⏳ No global database configured yet — the API will report NOT READY ' +
+                            'until onboarding (apps/setup) completes.'
+                    )
+                    return
+                }
+
+                // ── A FRESH INSTALL IS PROVISIONED BY THE WIZARD, NOT HERE ──
+                // `setup_done` is written by the setup flow once provisioning
+                // succeeded. Before that, the node has a database URL but an EMPTY
+                // schema, and running this sequence would be actively wrong:
+                //
+                //   - the operator's credentials are in the wizard's trigger, not
+                //     in the environment, so `ensureDefaultAdmin` would create an
+                //     admin from `DEFAULT_ADMIN_*` defaults — the WRONG account on
+                //     a real install, and one the operator never chose;
+                //   - migrations would run concurrently with the wizard's own
+                //     `migrate` step, which is what `LocalInitializationService`
+                //     already performs as part of the flow the operator watches.
+                //
+                // So this pipeline is the RESTART path: it applies the delta on a
+                // node that a previous run brought up (see `checkConfigAndEmit`,
+                // which unblocks the graph on exactly this condition).
+                if (config?.setupState !== 'setup_done') {
+                    this.logger.log(
+                        `⏳ Setup state is "${config?.setupState ?? 'unknown'}" — the wizard is ` +
+                            'provisioning this node; the boot pipeline will run on the next start.'
+                    )
+                    return
+                }
+
+                // 1. Join the swarm overlay FIRST when the engine is swarm-active.
+                //    The supervised services (the managed Postgres, Redis) are
+                //    swarm SERVICES on that overlay, and the swarm ingress port is
+                //    not reachable from a container on the bridge network (IPVS
+                //    rejects traffic arriving via the bridge gateway). So the app
+                //    must be on the overlay BEFORE the connectivity probe below, or
+                //    the probe fails against a database that is actually running.
+                //    No-op while the engine is not in a swarm.
+                //
+                //    NON-FATAL by design: pre-swarm on a single node there is
+                //    nothing to wire, and failing the boot for it would make the
+                //    simple case the fragile one.
+                yield* this.orchestrator
+                    .convergeNow(SWARM_APP_WIRING_SUPERVISOR_ID)
+                    .pipe(this.optional('Swarm overlay wiring skipped'))
+
+                // 2. CREATE THE DATABASE IF THIS NODE OWNS IT, BEFORE WAITING FOR IT.
+                //
+                //    ── WHY THIS STEP EXISTS, AND WHAT IT FIXES ─────────────────
+                //    The global Postgres is a SWARM SERVICE that this API's own
+                //    supervisor creates. Nothing else makes it: on a swarm-managed
+                //    profile (`dev-supervised`, `prod`) compose starts no database,
+                //    and setup only schedules THIS API.
+                //
+                //    So waiting for the database before anything has created it
+                //    waits forever. On a fresh install the boot died with
+                //
+                //      ❌ DATABASE CONNECTION FAILED
+                //         URL: postgresql://***:***@global-db:5432/deployer
+                //         Error: Hostname not resolved — check DNS.
+                //
+                //    because `global-db` is the ALIAS of a service that had not
+                //    been created yet. The supervisor was registered and healthy;
+                //    it simply never got a converge pass before the guard gave up.
+                //
+                //    Converging it here is what breaks the cycle: the supervisor
+                //    creates the service (idempotent), and the guard below then
+                //    waits for the task it just scheduled to accept connections.
+                //
+                //    NON-FATAL, like the wiring above: on a profile where the
+                //    deployment owns the database (plain `dev`, or an external URL)
+                //    there is no supervisor to converge, and the guard is the
+                //    correct authority on whether the database is usable.
+                yield* this.orchestrator.convergeNow(GLOBAL_DB_SUPERVISOR_ID).pipe(
+                    Effect.tap((state) =>
+                        Effect.sync(() => {
+                            if (state !== null)
+                                this.logger.log(
+                                    `Global Postgres supervisor converged (state=${state})`
+                                )
+                        })
+                    ),
+                    this.optional('Global Postgres convergence skipped')
+                )
+
+                // 3. Verify reachability. Fails when the database is unreachable in
+                //    a mode where it is mandatory (SETUP_AUTO) — this is the one
+                //    place a missing database SHOULD stop the boot, and the guard
+                //    owns that policy rather than this service guessing at it.
+                //
+                //    It also WAITS for the dependency: the database may be a swarm
+                //    service whose task is still being scheduled, so a single-shot
+                //    check would fail at random on a boot that is merely early.
+                yield* this.startupGuard.ensureDatabaseAvailable(this.pool)
+
+                // 4. Migrations and the default admin, UNDER AN ADVISORY LOCK.
+                //    Both are convergent but not atomic: two replicas booting at
+                //    once run the same DDL and the same admin upsert, and the loser
+                //    fails on a duplicate object (or both create an admin). The
+                //    lock makes one replica the writer; a loser skips and proceeds —
+                //    it booted against the schema the winner is applying.
+                //
+                //    `acquireUseRelease` is the same guarantee the original's
+                //    `try/finally` gave, and `release` is a no-op when this replica
+                //    never held the lock.
+                yield* Effect.acquireUseRelease(
+                    this.bootstrapLock.acquire(),
+                    (acquired) =>
+                        acquired
+                            ? this.provisionUnderLock(databaseUrl)
+                            : Effect.sync(() => {
+                                  this.logger.warn(
+                                      '⏭  Another replica holds the bootstrap lock — migrations and the ' +
+                                          'default admin are being applied there; continuing to readiness.'
+                                  )
+                              }),
+                    () => this.bootstrapLock.release()
+                )
+
+                yield* Effect.sync(() => {
+                    this.lifecycle.transitionNow(AppLifecyclePhase.READY, {
+                        message:
+                            'Database reachable, migrations applied — the platform is ready',
+                        databaseReachable: true,
+                    })
+                    this.lifecycle.markReadyNow()
+                    this.logger.log('✅ Bootstrap completed')
+                })
+            })
+        }
+
+        /**
+         * A step whose failure is a warning, not a boot failure. Catches the
+         * CAUSE, so a defect is reported the way the original's `catch` reported
+         * it instead of escaping the sequence.
+         */
+        private optional(
+            skipped: string
+        ): (self: Effect.Effect<unknown, unknown>) => Effect.Effect<unknown> {
+            return (effect) =>
+                effect.pipe(
+                    Effect.catchCause((cause) =>
+                        Effect.sync(() => {
+                            this.logger.warn(
+                                `${skipped}: ${describe(Cause.squash(cause))}`
+                            )
+                        })
+                    )
+                )
+        }
+
+        /** Step 4's body: migrations then the admin, with the lock already held. */
+        private provisionUnderLock(
+            databaseUrl: string
+        ): Effect.Effect<void, unknown> {
+            return Effect.andThen(
+                this.runGlobalMigrations(databaseUrl),
+                this.bootstrapSeededAdmin(databaseUrl)
+            )
+        }
+
     private resolveDatabaseUrl(
         configuredUrl: string | null
     ): string | null {
@@ -395,20 +407,28 @@ export class BootstrapOrchestratorService extends Context.Service<
      * `already-applied`, decided by SQLSTATE inside `applyGlobalMigrations` —
      * not by matching words in the driver's message.
      */
-    private async runGlobalMigrations(databaseUrl: string): Promise<void> {
-        const migrationsFolder = this.resolveMigrationsFolder()
+    private runGlobalMigrations(
+        databaseUrl: string
+    ): Effect.Effect<void, unknown> {
+        return Effect.gen({ self: this }, function* () {
+            const migrationsFolder = this.resolveMigrationsFolder()
 
-        this.logger.log(
-            `🔄 Running global Postgres migrations (${databaseUrl.replace(/:[^:@/]*@/, ':***@')})…`
-        )
-        this.logger.log(`   migrations: ${migrationsFolder}`)
+            this.logger.log(
+                `🔄 Running global Postgres migrations (${databaseUrl.replace(/:[^:@/]*@/, ':***@')})…`
+            )
+            this.logger.log(`   migrations: ${migrationsFolder}`)
 
-        const outcome = await applyGlobalMigrations(this.db, { migrationsFolder })
-        if (outcome === 'already-applied') {
-            this.logger.log('✅ Global Postgres migrations: schema already current')
-        } else {
-            this.logger.log('✅ Global Postgres migrations applied')
-        }
+            // Drizzle's migrator is Promise-based: the one genuine boundary in
+            // this step.
+            const outcome = yield* Effect.tryPromise(() =>
+                applyGlobalMigrations(this.db, { migrationsFolder })
+            )
+            this.logger.log(
+                outcome === 'already-applied'
+                    ? '✅ Global Postgres migrations: schema already current'
+                    : '✅ Global Postgres migrations applied'
+            )
+        })
     }
 
     /**
@@ -425,56 +445,49 @@ export class BootstrapOrchestratorService extends Context.Service<
      * fails. An install that must be usable but has no credentials is orphaned,
      * and failing loudly here is the only way that becomes visible.
      */
-    private async bootstrapSeededAdmin(
+    private bootstrapSeededAdmin(
         databaseUrl: string
-    ): Promise<void> {
-        const { decision: admin, reason: adminReason } =
-            adminBootstrapDecisionFromProcessEnv()
+    ): Effect.Effect<void, unknown> {
+        return Effect.gen({ self: this }, function* () {
+            const { decision: admin, reason: adminReason } =
+                adminBootstrapDecisionFromProcessEnv()
 
-        if (admin === 'never') {
-            this.logger.log(`⏭  Default-admin bootstrap skipped (${adminReason})`)
-            return
-        }
-        if (adminReason.includes('deprecated alias')) {
-            this.logger.warn(
-                `⚠️  ${adminReason} — prefer ADMIN_BOOTSTRAP=auto|true|false`
-            )
-        }
+            if (admin === 'never') {
+                this.logger.log(
+                    `⏭  Default-admin bootstrap skipped (${adminReason})`
+                )
+                return
+            }
+            if (adminReason.includes('deprecated alias')) {
+                this.logger.warn(
+                    `⚠️  ${adminReason} — prefer ADMIN_BOOTSTRAP=auto|true|false`
+                )
+            }
 
-        this.logger.log(
-            `🔐 Ensuring default admin (decision=${admin}: ${adminReason})…`
-        )
-
-        const result = await ensureDefaultAdmin(databaseUrl)
-
-        if (result.outcome === 'failed') {
-            throw new AppError(
-                `Failed to ensure default admin: ${result.error}`,
-                'INTERNAL_ERROR'
-            )
-        }
-        if (result.outcome === 'created') {
-            this.logger.log(`✅ Default admin created (id=${result.userId})`)
-        } else if (result.outcome === 'promoted') {
             this.logger.log(
-                `✅ Existing user promoted to superAdmin (id=${result.userId})`
+                `🔐 Ensuring default admin (decision=${admin}: ${adminReason})…`
             )
-        } else {
-            this.logger.log(`ℹ️  Default admin already exists (id=${result.userId})`)
-        }
-    }
 
-    // Runs once every module has finished initialising (the supervisors registered their work), and a failure fails the
-    // boot: refusing to report READY is correct, breaking the PROCESS is wrong only when the database is merely absent.
-    onReady(): Effect.Effect<void, BootstrapFailed> {
-        return Effect.tryPromise({
-            try: () => this.bootstrap(),
-            catch: (cause) =>
-                new BootstrapFailed({
-                    reason:
-                        cause instanceof Error ? cause.message : String(cause),
-                    cause,
-                }),
+            // The admin bootstrap owns its own connection and is Promise-based.
+            const result = yield* Effect.tryPromise(() =>
+                ensureDefaultAdmin(databaseUrl)
+            )
+
+            if (result.outcome === 'failed')
+                return yield* Effect.fail(
+                    new AppError(
+                        `Failed to ensure default admin: ${result.error}`,
+                        'INTERNAL_ERROR'
+                    )
+                )
+
+            this.logger.log(
+                result.outcome === 'created'
+                    ? `✅ Default admin created (id=${result.userId})`
+                    : result.outcome === 'promoted'
+                      ? `✅ Existing user promoted to superAdmin (id=${result.userId})`
+                      : `ℹ️  Default admin already exists (id=${result.userId})`
+            )
         })
     }
     }
