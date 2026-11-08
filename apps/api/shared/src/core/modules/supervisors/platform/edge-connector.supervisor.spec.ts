@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { defaultIngressLanes } from '@deployer/contracts-entities/entities/ingress/index'
 import type { DockerEngineShape } from '@deployer/docker'
-import { makeSupervisorOrchestrator } from '@deployer/supervision'
+import { SupervisorOrchestrator } from '@deployer/supervision'
 
 import { testEdgeRegistry } from '../../edge/testing/edge-registry.fixture'
 import { harness, testBus } from '../supervisor-test-harness'
@@ -82,7 +82,7 @@ function make(
             bus: testBus(),
         })
     )
-    const orchestrator = makeSupervisorOrchestrator()
+    const orchestrator = new SupervisorOrchestrator.live()
     return { supervisor, orchestrator, reconciled, edge, lanes }
 }
 

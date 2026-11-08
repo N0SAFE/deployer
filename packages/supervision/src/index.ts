@@ -43,7 +43,7 @@ export type {
     Supervisor,
 } from './supervisor/supervisor'
 
-export { makeSupervisorEventBus, SupervisorEventBus } from './events/event-bus'
+export { SupervisorEventBus } from './events/event-bus'
 export type { SupervisorEventBusShape } from './events/event-bus'
 export { matchesEventFilter } from './events/supervisor-event'
 export type {
@@ -53,7 +53,7 @@ export type {
 } from './events/supervisor-event'
 
 export {
-    makeSupervisorRegistry,
+    SupervisorRegistry,
     DEFAULT_REGISTRATION_WAIT_MS,
 } from './orchestration/registry'
 export type { SupervisorRegistryShape } from './orchestration/registry'
@@ -62,7 +62,6 @@ export {
     RECONCILE_SWEEP_INTERVAL_MS,
 } from './orchestration/drift-control'
 export {
-    makeSupervisorOrchestrator,
     SupervisorOrchestrator,
 } from './orchestration/orchestrator'
 export type { SupervisorOrchestratorShape } from './orchestration/orchestrator'

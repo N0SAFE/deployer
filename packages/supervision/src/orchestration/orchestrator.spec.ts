@@ -2,14 +2,14 @@ import { Cause, Effect, Exit } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
-    makeSupervisorEventBus,
+    SupervisorEventBus,
     type SupervisorEventBusShape,
 } from '../events/event-bus'
 import { baseSupervisorPayloadSchema } from '../schemas/probe'
 import { baseSupervisorProcessInfoSchema } from '../schemas/process-info'
 import { makeSupervisor, type AnySupervisor } from '../supervisor/supervisor'
 
-import { makeSupervisorOrchestrator } from './orchestrator'
+import { SupervisorOrchestrator } from './orchestrator'
 
 async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
     const exit = await Effect.runPromiseExit(effect)
@@ -42,7 +42,7 @@ function supervisor(
 
 describe('SupervisorOrchestrator', () => {
     it('registers once and rejects another supervisor with the same id', async () => {
-        const orchestrator = makeSupervisorOrchestrator()
+        const orchestrator = new SupervisorOrchestrator.live()
         const first = supervisor('a', Effect.void, { n: 1 })
         await run(orchestrator.register(first))
         await run(orchestrator.register(first))
@@ -54,7 +54,7 @@ describe('SupervisorOrchestrator', () => {
     })
 
     it('converges everything in parallel, isolating a failure', async () => {
-        const orchestrator = makeSupervisorOrchestrator()
+        const orchestrator = new SupervisorOrchestrator.live()
         await run(orchestrator.register(supervisor('ok')))
         await run(
             orchestrator.register(
@@ -72,7 +72,7 @@ describe('SupervisorOrchestrator', () => {
     })
 
     it('converges one supervisor on demand, and answers null for an unknown id', async () => {
-        const orchestrator = makeSupervisorOrchestrator()
+        const orchestrator = new SupervisorOrchestrator.live()
         await run(orchestrator.register(supervisor('a')))
 
         expect(await run(orchestrator.convergeNow('a'))).toBe('converged')
@@ -80,7 +80,7 @@ describe('SupervisorOrchestrator', () => {
     })
 
     it('waits for a supervisor that registers late, and gives up after the timeout', async () => {
-        const orchestrator = makeSupervisorOrchestrator()
+        const orchestrator = new SupervisorOrchestrator.live()
 
         const waiting = run(orchestrator.getById('late', { timeoutMs: 2_000 }))
         setTimeout(
@@ -96,7 +96,7 @@ describe('SupervisorOrchestrator', () => {
 
     it('finds a supervisor by the object it was built from', async () => {
         class Marker {}
-        const orchestrator = makeSupervisorOrchestrator()
+        const orchestrator = new SupervisorOrchestrator.live()
         await run(
             orchestrator.register(supervisor('m', Effect.void, new Marker()))
         )
@@ -109,9 +109,9 @@ describe('SupervisorOrchestrator', () => {
     })
 
     it('probes every supervisor and publishes each snapshot', async () => {
-        const bus = await run(makeSupervisorEventBus())
+        const bus = await run(SupervisorEventBus.live)
         const emit = vi.spyOn(bus, 'emit')
-        const orchestrator = makeSupervisorOrchestrator(bus)
+        const orchestrator = new SupervisorOrchestrator.live(bus)
         await run(
             orchestrator.register(supervisor('a', Effect.void, null, bus))
         )
@@ -134,7 +134,7 @@ describe('SupervisorOrchestrator', () => {
                 ? Effect.fail(new Error('db not ready'))
                 : Effect.void
         )
-        const orchestrator = makeSupervisorOrchestrator(undefined, {
+        const orchestrator = new SupervisorOrchestrator.live(undefined, {
             degradedRetryMs: 20,
             reconcileSweepMs: 60_000,
         })
@@ -151,7 +151,7 @@ describe('SupervisorOrchestrator', () => {
     it('corrects drift: a converged supervisor is converged again by the sweep', async () => {
         let passes = 0
         const counting = Effect.sync(() => void (passes += 1))
-        const orchestrator = makeSupervisorOrchestrator(undefined, {
+        const orchestrator = new SupervisorOrchestrator.live(undefined, {
             degradedRetryMs: 60_000,
             reconcileSweepMs: 20,
         })

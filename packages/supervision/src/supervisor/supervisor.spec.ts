@@ -2,7 +2,7 @@ import { Cause, Effect, Exit, Fiber, Stream } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
 import z from 'zod/v4'
 
-import { makeSupervisorEventBus } from '../events/event-bus'
+import { SupervisorEventBus } from '../events/event-bus'
 import { baseSupervisorPayloadSchema } from '../schemas/probe'
 import { baseSupervisorProcessInfoSchema } from '../schemas/process-info'
 
@@ -145,7 +145,7 @@ describe('makeSupervisor', () => {
     })
 
     it('publishes state changes, the reconcile and health snapshots on the bus', async () => {
-        const bus = await run(makeSupervisorEventBus())
+        const bus = await run(SupervisorEventBus.live)
         const supervisor = makeSupervisor(spec(), { bus })
 
         const types = await run(

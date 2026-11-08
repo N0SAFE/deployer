@@ -14,7 +14,7 @@ import {
 } from './drift-control'
 import {
     DEFAULT_REGISTRATION_WAIT_MS,
-    makeSupervisorRegistry,
+    SupervisorRegistry,
     type SupervisorRegistryShape,
 } from './registry'
 
@@ -52,26 +52,124 @@ export type SupervisorOrchestratorShape = SupervisorRegistryShape & {
     }>
 }
 
-export function makeSupervisorOrchestrator(
-    bus?: SupervisorEventBusShape,
-    intervals: { degradedRetryMs?: number; reconcileSweepMs?: number } = {}
-): SupervisorOrchestratorShape {
-    const registry = makeSupervisorRegistry(bus)
+/**
+ * The one implementation of `SupervisorOrchestratorShape`.
+ *
+ * A NAMED class: declaration emit cannot describe the private members of an anonymous exported
+ * class (TS4094), and this package emits declarations.
+ *
+ * The registry members are the ONE delegation in this class, and they are deliberate: the shape is
+ * `SupervisorRegistryShape & {…}`, and the registry is a separate service with its own map that the
+ * app registers supervisors through (`orchestrator.register(…)`). Its methods are bound to the
+ * registry instance at construction so a caller that reads one off the orchestrator and calls it
+ * detached still reaches that map.
+ */
+class SupervisorOrchestratorImpl implements SupervisorOrchestratorShape {
+    private readonly registry: SupervisorRegistryShape
+    private readonly intervals: {
+        readonly degradedRetryMs?: number
+        readonly reconcileSweepMs?: number
+    }
+    declare readonly register: SupervisorRegistryShape['register']
+    declare readonly list: SupervisorRegistryShape['list']
+    declare readonly has: SupervisorRegistryShape['has']
+    declare readonly get: SupervisorRegistryShape['get']
+    declare readonly find: SupervisorRegistryShape['find']
+    declare readonly awaitMatch: SupervisorRegistryShape['awaitMatch']
 
-    const ensureAll: SupervisorOrchestratorShape['ensureAll'] = Effect.suspend(
-        () =>
-            convergeAll(registry.list()).pipe(
+    constructor(
+        bus?: SupervisorEventBusShape,
+        intervals: {
+            degradedRetryMs?: number
+            reconcileSweepMs?: number
+        } = {}
+    ) {
+        this.registry = new SupervisorRegistry.live(bus)
+        this.intervals = intervals
+        for (const key of [
+            'register',
+            'list',
+            'has',
+            'get',
+            'find',
+            'awaitMatch',
+        ] as const) {
+            Object.defineProperty(this, key, {
+                value: this.registry[key].bind(this.registry),
+                configurable: true,
+            })
+        }
+    }
+
+    getMatching(
+        predicate: (supervisor: AnySupervisor) => boolean,
+        options: { timeoutMs?: number } = {}
+    ): Effect.Effect<AnySupervisor | null> {
+        return this.registry.awaitMatch(
+            predicate,
+            options.timeoutMs ?? DEFAULT_REGISTRATION_WAIT_MS
+        )
+    }
+
+    getById(
+        supervisorId: string,
+        options: { timeoutMs?: number } = {}
+    ): Effect.Effect<AnySupervisor | null> {
+        return this.registry.awaitMatch(
+            (supervisor: AnySupervisor) => supervisor.id === supervisorId,
+            options.timeoutMs ?? DEFAULT_REGISTRATION_WAIT_MS
+        )
+    }
+
+    get ensureAll(): Effect.Effect<Map<string, SupervisorState>> {
+        return Effect.suspend(() =>
+            convergeAll(this.registry.list()).pipe(
                 Effect.map((states) => new Map(states))
             )
-    )
+        )
+    }
 
-    const startDriftControl: SupervisorOrchestratorShape['startDriftControl'] =
-        Effect.gen(function* () {
+    convergeNow(
+        supervisorId: string
+    ): Effect.Effect<SupervisorState | null> {
+        const supervisor = this.registry.get(supervisorId)
+        return supervisor === null
+            ? Effect.succeed(null)
+            : supervisor.ensureDesiredState
+    }
+
+    get degraded(): Effect.Effect<AnySupervisor[]> {
+        return Effect.suspend(() =>
+            Effect.forEach(this.registry.list(), (supervisor) =>
+                supervisor.getStateSnapshot.pipe(
+                    Effect.map((snapshot) =>
+                        snapshot.state === 'degraded' ? [supervisor] : []
+                    )
+                )
+            ).pipe(Effect.map((groups) => groups.flat()))
+        )
+    }
+
+    get healthOfAll(): Effect.Effect<HealthSnapshot<unknown>[]> {
+        return Effect.suspend(() =>
+            Effect.forEach(
+                this.registry.list(),
+                (supervisor) => supervisor.getHealthAndNotify,
+                { concurrency: 'unbounded' }
+            )
+        )
+    }
+
+    get startDriftControl(): Effect.Effect<{
+        readonly stop: Effect.Effect<void>
+    }> {
+        const { intervals } = this
+        return Effect.gen({ self: this }, function* () {
             const loops = yield* Effect.forkDetach(
-                Effect.gen(function* () {
-                    const results = yield* ensureAll
+                Effect.gen({ self: this }, function* () {
+                    const results = yield* this.ensureAll
                     for (const [id, state] of results) {
-                        const snapshot = yield* registry.get(id)
+                        const snapshot = yield* this.registry.get(id)
                             ?.getStateSnapshot ??
                             Effect.succeed({ state, detail: null })
                         if (state === 'degraded') {
@@ -93,56 +191,21 @@ export function makeSupervisorOrchestrator(
                             'Degraded-supervisor retry',
                             intervals.degradedRetryMs ??
                                 DEGRADED_RETRY_INTERVAL_MS,
-                            Effect.suspend(() => retryDegraded(registry.list()))
+                            Effect.suspend(() =>
+                                retryDegraded(this.registry.list())
+                            )
                         ),
                         everyInterval(
                             'Reconcile sweep',
                             intervals.reconcileSweepMs ??
                                 RECONCILE_SWEEP_INTERVAL_MS,
-                            ensureAll
+                            this.ensureAll
                         ),
                     ])
                 })
             )
             return { stop: Fiber.interrupt(loops) }
         })
-
-    return {
-        ...registry,
-        getMatching: (predicate, options = {}) =>
-            registry.awaitMatch(
-                predicate,
-                options.timeoutMs ?? DEFAULT_REGISTRATION_WAIT_MS
-            ),
-        getById: (supervisorId, options = {}) =>
-            registry.awaitMatch(
-                (supervisor) => supervisor.id === supervisorId,
-                options.timeoutMs ?? DEFAULT_REGISTRATION_WAIT_MS
-            ),
-        ensureAll,
-        convergeNow: (supervisorId) => {
-            const supervisor = registry.get(supervisorId)
-            return supervisor === null
-                ? Effect.succeed(null)
-                : supervisor.ensureDesiredState
-        },
-        degraded: Effect.suspend(() =>
-            Effect.forEach(registry.list(), (supervisor) =>
-                supervisor.getStateSnapshot.pipe(
-                    Effect.map((snapshot) =>
-                        snapshot.state === 'degraded' ? [supervisor] : []
-                    )
-                )
-            ).pipe(Effect.map((groups) => groups.flat()))
-        ),
-        healthOfAll: Effect.suspend(() =>
-            Effect.forEach(
-                registry.list(),
-                (supervisor) => supervisor.getHealthAndNotify,
-                { concurrency: 'unbounded' }
-            )
-        ),
-        startDriftControl,
     }
 }
 
@@ -158,7 +221,7 @@ export class SupervisorOrchestrator extends Context.Service<
     > = Layer.effect(
         SupervisorOrchestrator,
         Effect.gen(function* () {
-            const orchestrator = makeSupervisorOrchestrator(
+            const orchestrator = new SupervisorOrchestrator.live(
                 yield* SupervisorEventBus
             )
             const control = yield* orchestrator.startDriftControl
@@ -166,4 +229,7 @@ export class SupervisorOrchestrator extends Context.Service<
             return orchestrator
         })
     )
+
+    /** The implementation: it owns the registry and takes the bus. */
+    static readonly live = SupervisorOrchestratorImpl
 }

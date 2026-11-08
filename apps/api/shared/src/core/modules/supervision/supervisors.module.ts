@@ -10,7 +10,6 @@ import {
     type ServiceLifecycleShape,
 } from '@deployer/nest-effect'
 import {
-    makeSupervisorOrchestrator,
     SupervisorOrchestrator,
     type SupervisorOrchestratorShape,
 } from '@deployer/supervision'
@@ -70,7 +69,7 @@ class SupervisorsNestModule {
                     {
                         provide: SupervisorOrchestrator,
                         useFactory: (bus: SupervisorEventBusFacade) =>
-                            makeSupervisorOrchestrator(bus.core),
+                            new SupervisorOrchestrator.live(bus.core),
                         inject: [SupervisorEventBus],
                     },
                     {

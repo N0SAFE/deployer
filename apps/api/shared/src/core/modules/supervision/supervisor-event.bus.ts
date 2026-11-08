@@ -2,8 +2,8 @@ import { Context, Effect } from 'effect'
 import { Observable, Subject, filter, firstValueFrom } from 'rxjs'
 
 import {
-    makeSupervisorEventBus,
     matchesEventFilter,
+    SupervisorEventBus as PackageEventBus,
     type SupervisorEvent,
     type SupervisorEventBusShape,
     type SupervisorEventFilter,
@@ -29,13 +29,17 @@ export type SupervisorEventBusFacade = {
 /** One bus per container: built once, it owns the RxJS subject. */
 export function makeSupervisorEventBusFacade(): SupervisorEventBusFacade {
     const subject = new Subject<SupervisorEvent>()
-    const inner = Effect.runSync(makeSupervisorEventBus())
+    const inner = Effect.runSync(PackageEventBus.live)
+    // The inner bus's methods live on its prototype, so they are delegated explicitly rather than
+    // copied by a spread: only `emit` is replaced, and it must still reach the inner bus.
     const core: SupervisorEventBusShape = {
-        ...inner,
         emit: (event: SupervisorEvent) =>
             Effect.sync(() => {
                 subject.next(event)
             }).pipe(Effect.flatMap(() => inner.emit(event))),
+        events: inner.events,
+        of: (filterSpec) => inner.of(filterSpec),
+        once: (filterSpec) => inner.once(filterSpec),
     }
     const events$ = subject.asObservable()
     const of = (filterSpec: SupervisorEventFilter = {}) =>

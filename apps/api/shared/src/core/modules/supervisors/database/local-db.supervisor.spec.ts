@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/bun-sqlite'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { LocalDb } from '@deployer/node-state'
-import { makeSupervisorOrchestrator } from '@deployer/supervision'
+import { SupervisorOrchestrator } from '@deployer/supervision'
 
 import { harness, testBus } from '../supervisor-test-harness'
 
@@ -40,14 +40,14 @@ function makeSupervisor(
 describe('local-db supervisor registration', () => {
     it('registers with the orchestrator unless the deployment owns the file', async () => {
         const registered = makeSupervisor(makeInMemoryDb())
-        const orchestrator = makeSupervisorOrchestrator()
+        const orchestrator = new SupervisorOrchestrator.live()
         await registered.register(orchestrator)
         expect(orchestrator.has(LOCAL_DB_SUPERVISOR_ID)).toBe(true)
 
         const composeOwned = makeSupervisor(makeInMemoryDb(), {
             MANAGED_LOCAL_DB_ENABLED: true,
         })
-        const other = makeSupervisorOrchestrator()
+        const other = new SupervisorOrchestrator.live()
         await composeOwned.register(other)
         expect(other.has(LOCAL_DB_SUPERVISOR_ID)).toBe(false)
     })

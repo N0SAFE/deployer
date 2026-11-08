@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { DockerNotFound } from '@deployer/docker'
 import type { DockerEngineShape } from '@deployer/docker'
 import type { NodeConfigRepositoryShape } from '@deployer/node-state'
-import { makeSupervisorOrchestrator } from '@deployer/supervision'
+import { SupervisorOrchestrator } from '@deployer/supervision'
 
 import { makeNodeConfigSnapshot } from '../../node-state/node-config.snapshot'
 import { harness, testBus } from '../supervisor-test-harness'
@@ -130,7 +130,7 @@ describe('global-db supervisor — conditional registration', () => {
     it('registers into the orchestrator when the database is LOCALLY managed', async () => {
         const mocks = makeMocks('local')
         const supervisor = await makeSupervisor(mocks)
-        const orchestrator = makeSupervisorOrchestrator()
+        const orchestrator = new SupervisorOrchestrator.live()
 
         await supervisor.register(orchestrator)
 
@@ -143,7 +143,7 @@ describe('global-db supervisor — conditional registration', () => {
     it('does NOT register when the database is externally managed', async () => {
         const mocks = makeMocks('external')
         const supervisor = await makeSupervisor(mocks)
-        const orchestrator = makeSupervisorOrchestrator()
+        const orchestrator = new SupervisorOrchestrator.live()
 
         await supervisor.register(orchestrator)
 
@@ -153,7 +153,7 @@ describe('global-db supervisor — conditional registration', () => {
     it('does NOT register when provisioning is unknown (legacy config)', async () => {
         const mocks = makeMocks(null)
         const supervisor = await makeSupervisor(mocks)
-        const orchestrator = makeSupervisorOrchestrator()
+        const orchestrator = new SupervisorOrchestrator.live()
 
         await supervisor.register(orchestrator)
 

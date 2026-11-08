@@ -2,7 +2,7 @@ import { Effect } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { DockerEngineShape } from '@deployer/docker'
-import { makeSupervisorOrchestrator } from '@deployer/supervision'
+import { SupervisorOrchestrator } from '@deployer/supervision'
 
 import { harness, testBus } from '../supervisor-test-harness'
 
@@ -49,7 +49,7 @@ function makeSupervisor(values: Record<string, unknown>) {
             bus: testBus(),
         })
     )
-    const orchestrator = makeSupervisorOrchestrator()
+    const orchestrator = new SupervisorOrchestrator.live()
     return { supervisor, orchestrator, reconciled }
 }
 
