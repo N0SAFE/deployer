@@ -42,13 +42,9 @@ import {
 
 import {
     GlobalClusterNodesRepository,
-    makeGlobalClusterNodesRepository,
     type GlobalClusterNodesRepositoryShape,
 } from './repositories/global-cluster-nodes.repository'
-import {
-    makeNodeInventoryService,
-    NodeInventoryService,
-} from './services/node-inventory.service'
+import { NodeInventoryService } from './services/node-inventory.service'
 import { SwarmCoreModule } from './swarm.module'
 
 import type { Context } from 'effect'
@@ -64,7 +60,7 @@ export class SwarmInventoryModule extends createModuleContext({
             useFactory: (
                 database: Context.Service.Shape<typeof DatabasePort>,
                 meshConfig: SystemMeshConfigServiceShape
-            ) => makeGlobalClusterNodesRepository({ database, meshConfig }),
+            ) => new GlobalClusterNodesRepository.live(database, meshConfig),
             inject: [DatabasePort, SystemMeshConfigService],
         },
         {
@@ -74,11 +70,11 @@ export class SwarmInventoryModule extends createModuleContext({
                 inventory: ClusterNodeInventoryRepositoryShape,
                 globalClusterNodes: GlobalClusterNodesRepositoryShape
             ) =>
-                makeNodeInventoryService({
+                new NodeInventoryService.live(
                     cluster,
                     inventory,
-                    globalClusterNodes,
-                }),
+                    globalClusterNodes
+                ),
             inject: [
                 SwarmCluster,
                 ClusterNodeInventoryRepository,

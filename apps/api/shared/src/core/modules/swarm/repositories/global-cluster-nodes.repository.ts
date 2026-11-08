@@ -31,21 +31,35 @@ export type GlobalClusterNodesRepositoryShape = {
     }) => Effect.Effect<boolean, StorageFailure>
 }
 
-type Ports = {
-    readonly database: Context.Service.Shape<typeof DatabasePort>
-    readonly meshConfig: Pick<
-        SystemMeshConfigServiceShape,
-        'getNodeId' | 'getNodeServerUrl'
-    >
-}
+/** The mesh-identity fields this repository reads, and nothing else. */
+type MeshIdentity = Pick<
+    SystemMeshConfigServiceShape,
+    'getNodeId' | 'getNodeServerUrl'
+>
 
-export function makeGlobalClusterNodesRepository({
-    database,
-    meshConfig,
-}: Ports): GlobalClusterNodesRepositoryShape {
-    return {
-        enrollLocalNode: (options) =>
-            Effect.gen(function* () {
+export class GlobalClusterNodesRepository extends Context.Service<
+    GlobalClusterNodesRepository,
+    GlobalClusterNodesRepositoryShape
+>()('shared/GlobalClusterNodesRepository') {
+    /**
+     * Both collaborators are constructor arguments: the shape's channel is
+     * `StorageFailure` alone, and yielding a tag here would widen it.
+     */
+    static readonly live = class GlobalClusterNodesRepositoryImpl
+        implements GlobalClusterNodesRepositoryShape
+    {
+        constructor(
+            private readonly database: Context.Service.Shape<
+                typeof DatabasePort
+            >,
+            private readonly meshConfig: MeshIdentity
+        ) {}
+
+        enrollLocalNode(options?: {
+            swarmNodeId?: string
+        }): Effect.Effect<boolean, StorageFailure> {
+            const { database, meshConfig } = this
+            return Effect.gen(function* () {
                 const nodeId = meshConfig.getNodeId()
                 if (nodeId.length === 0) return false
 
@@ -80,11 +94,7 @@ export function makeGlobalClusterNodesRepository({
                         })
                 )
                 return true
-            }),
+            })
+        }
     }
 }
-
-export class GlobalClusterNodesRepository extends Context.Service<
-    GlobalClusterNodesRepository,
-    GlobalClusterNodesRepositoryShape
->()('shared/GlobalClusterNodesRepository') {}

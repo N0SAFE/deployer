@@ -39,93 +39,105 @@ export type NodeInventoryServiceShape = ServiceLifecycleShape & {
     readonly syncOnce: () => Effect.Effect<number, SyncFailure>
 }
 
-type Ports = {
-    readonly cluster: Pick<
-        SwarmClusterShape,
-        'getLocalClusterSnapshot' | 'listSwarmNodes'
-    >
-    readonly inventory: Pick<
-        ClusterNodeInventoryRepositoryShape,
-        'upsertFromEngine' | 'markMissingNodeDown'
-    >
-    readonly globalClusterNodes: GlobalClusterNodesRepositoryShape
-    /** Overridable cadences, for a spec. */
-    readonly timing?: {
-        readonly intervalMs: number
-        readonly startDelayMs: number
-    }
-}
+export class NodeInventoryService extends Context.Service<
+    NodeInventoryService,
+    NodeInventoryServiceShape
+>()('shared/NodeInventoryService') {
+    /**
+     * Collaborators are constructor arguments: every member of the shape has an
+     * empty requirement channel (a lifecycle member cannot yield a tag).
+     * `timing` stays overridable for a spec.
+     */
+    static readonly live = class NodeInventoryServiceImpl
+        implements NodeInventoryServiceShape
+    {
+        private readonly dbNotReady = new DatabaseNotReadyReporter()
+        private readonly intervalMs: number
+        private readonly startDelayMs: number
 
-export function makeNodeInventoryService({
-    cluster,
-    inventory,
-    globalClusterNodes,
-    timing = { intervalMs: SYNC_INTERVAL_MS, startDelayMs: START_DELAY_MS },
-}: Ports): NodeInventoryServiceShape {
-    const dbNotReady = new DatabaseNotReadyReporter()
+        constructor(
+            private readonly cluster: Pick<
+                SwarmClusterShape,
+                'getLocalClusterSnapshot' | 'listSwarmNodes'
+            >,
+            private readonly inventory: Pick<
+                ClusterNodeInventoryRepositoryShape,
+                'upsertFromEngine' | 'markMissingNodeDown'
+            >,
+            private readonly globalClusterNodes: GlobalClusterNodesRepositoryShape,
+            timing?: {
+                readonly intervalMs: number
+                readonly startDelayMs: number
+            }
+        ) {
+            this.intervalMs = timing?.intervalMs ?? SYNC_INTERVAL_MS
+            this.startDelayMs = timing?.startDelayMs ?? START_DELAY_MS
+        }
 
-    /** The shared enrollment is best-effort: a database that is not up yet is reported once, then quietly retried. */
-    const enroll = (options?: { swarmNodeId?: string }) =>
-        globalClusterNodes.enrollLocalNode(options).pipe(
-            Effect.asVoid,
-            Effect.catch((failure) =>
-                dbNotReady.reportEffect(
-                    'Global node enrollment failed',
-                    failure.message,
-                    failure.cause ?? failure
+        /** The shared enrollment is best-effort: a database that is not up yet is reported once, then quietly retried. */
+        private enroll(options?: {
+            swarmNodeId?: string
+        }): Effect.Effect<void> {
+            const { dbNotReady, globalClusterNodes } = this
+            return globalClusterNodes.enrollLocalNode(options).pipe(
+                Effect.asVoid,
+                Effect.catch((failure) =>
+                    dbNotReady.reportEffect(
+                        'Global node enrollment failed',
+                        failure.message,
+                        failure.cause ?? failure
+                    )
                 )
             )
-        )
+        }
 
-    const syncOnce: NodeInventoryServiceShape['syncOnce'] = () =>
-        Effect.gen(function* () {
-            // Cluster gate: nothing to inventory outside an active swarm.
-            const snapshot = yield* cluster.getLocalClusterSnapshot()
-            if (snapshot.localNodeState !== 'active') return 0
+        syncOnce(): Effect.Effect<number, SyncFailure> {
+            const { cluster, inventory } = this
+            return Effect.gen({ self: this }, function* () {
+                // Cluster gate: nothing to inventory outside an active swarm.
+                const snapshot = yield* cluster.getLocalClusterSnapshot()
+                if (snapshot.localNodeState !== 'active') return 0
 
-            const nodes = yield* cluster.listSwarmNodes()
-            for (const node of nodes) {
-                yield* inventory.upsertFromEngine(toEngineNodeRow(node))
-            }
-            const markedDown = yield* inventory.markMissingNodeDown(
-                nodes.map((node) => node.ID)
-            )
-            yield* Effect.logDebug(
-                `Fleet inventory synced: ${String(nodes.length)} nodes, ${String(markedDown)} marked down`
-            )
+                const nodes = yield* cluster.listSwarmNodes()
+                for (const node of nodes) {
+                    yield* inventory.upsertFromEngine(toEngineNodeRow(node))
+                }
+                const markedDown = yield* inventory.markMissingNodeDown(
+                    nodes.map((node) => node.ID)
+                )
+                yield* Effect.logDebug(
+                    `Fleet inventory synced: ${String(nodes.length)} nodes, ${String(markedDown)} marked down`
+                )
 
-            // Keep the shared cluster_nodes enrollment fresh (heartbeat) on every sweep. Pass the Swarm node ID so the fleet
-            // API can return it for navigation.
-            yield* enroll({ swarmNodeId: snapshot.localNode.nodeId })
-            return nodes.length
-        })
-
-    return {
-        syncOnce,
+                // Keep the shared cluster_nodes enrollment fresh (heartbeat) on every sweep. Pass the Swarm node ID so the
+                // fleet API can return it for navigation.
+                yield* this.enroll({ swarmNodeId: snapshot.localNode.nodeId })
+                return nodes.length
+            })
+        }
 
         // Enroll the LOCAL platform node into the shared cluster_nodes table IMMEDIATELY (not after the first sweep) so mesh
         // resource-ownership inserts (FK → cluster_nodes.node_id) never fail at registration. Not awaited: the database may
         // not be up yet.
-        onStart: () => Effect.forkDetach(enroll()).pipe(Effect.asVoid),
+        onStart(): Effect.Effect<void> {
+            return Effect.forkDetach(this.enroll()).pipe(Effect.asVoid)
+        }
 
-        run: () =>
-            Effect.gen(function* () {
-                yield* Effect.sleep(timing.startDelayMs)
+        run(): Effect.Effect<never> {
+            const { intervalMs, startDelayMs } = this
+            return Effect.gen({ self: this }, function* () {
+                yield* Effect.sleep(startDelayMs)
                 for (;;) {
-                    yield* syncOnce().pipe(
+                    yield* this.syncOnce().pipe(
                         Effect.catch((error) =>
                             Effect.logWarning(
                                 `Fleet inventory sync failed: ${error instanceof Error ? error.message : String(error)}`
                             )
                         )
                     )
-                    yield* Effect.sleep(timing.intervalMs)
+                    yield* Effect.sleep(intervalMs)
                 }
-            }),
+            })
+        }
     }
 }
-
-export class NodeInventoryService extends Context.Service<
-    NodeInventoryService,
-    NodeInventoryServiceShape
->()('shared/NodeInventoryService') {}

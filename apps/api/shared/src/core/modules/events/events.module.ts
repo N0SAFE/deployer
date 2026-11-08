@@ -21,7 +21,6 @@ import {
 } from './base/index'
 import {
     LocalEventOutboxDispatcherService,
-    makeLocalEventOutboxDispatcherService,
 } from './outbox/local-event-outbox-dispatcher.service'
 import {
     LocalEventOutboxRepository,
@@ -122,7 +121,7 @@ export const EventsModule = createGlobalModule({
             useFactory: (
                 outbox: LocalEventOutboxRepositoryShape,
                 lifecycle: AppLifecycleShape
-            ) => makeLocalEventOutboxDispatcherService({ outbox, lifecycle }),
+            ) => new LocalEventOutboxDispatcherService.live(outbox, lifecycle),
             inject: [LocalEventOutboxRepository, AppLifecycle],
         },
         serviceLifecycle(LocalEventOutboxDispatcherService),

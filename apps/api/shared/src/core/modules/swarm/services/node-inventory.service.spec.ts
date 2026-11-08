@@ -4,7 +4,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { StorageFailure } from '../../database/storage'
 
 import {
-    makeNodeInventoryService,
+    NodeInventoryService,
     type NodeInventoryServiceShape,
 } from './node-inventory.service'
 
@@ -64,11 +64,11 @@ describe('NodeInventoryService', () => {
         globalClusterNodes = {
             enrollLocalNode: vi.fn().mockReturnValue(Effect.succeed(true)),
         }
-        service = makeNodeInventoryService({
-            cluster: clusterService as never,
-            inventory: repository as never,
-            globalClusterNodes: globalClusterNodes as never,
-        })
+        service = new NodeInventoryService.live(
+            clusterService as never,
+            repository as never,
+            globalClusterNodes as never
+        )
     })
 
     const sync = () => Effect.runPromise(service.syncOnce())

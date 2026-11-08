@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AppLifecyclePhase, type AppLifecycleShape } from '@deployer/lifecycle'
 
-import { makeLocalEventOutboxDispatcherService } from './local-event-outbox-dispatcher.service'
+import { LocalEventOutboxDispatcherService } from './local-event-outbox-dispatcher.service'
 
 import type { LocalEventOutboxRepositoryShape } from './local-event-outbox.repository'
 
@@ -102,10 +102,7 @@ describe('LocalEventOutboxDispatcherService', () => {
 
     it('marks invalid envelopes as dead-letter', async () => {
         const mock = createOutboxRepositoryMock()
-        const service = makeLocalEventOutboxDispatcherService({
-            outbox: mock.repository,
-            lifecycle: createLifecycleMock(),
-        })
+        const service = new LocalEventOutboxDispatcherService.live(mock.repository, createLifecycleMock())
 
         mock.rows.push({
             id: 'outbox-1',
@@ -124,10 +121,7 @@ describe('LocalEventOutboxDispatcherService', () => {
 
     it('marks duplicate sent event envelopes as sent without re-dispatch', async () => {
         const mock = createOutboxRepositoryMock()
-        const service = makeLocalEventOutboxDispatcherService({
-            outbox: mock.repository,
-            lifecycle: createLifecycleMock(),
-        })
+        const service = new LocalEventOutboxDispatcherService.live(mock.repository, createLifecycleMock())
 
         const payload = {
             eventId: '11111111-1111-4111-8111-111111111111',
@@ -160,10 +154,7 @@ describe('LocalEventOutboxDispatcherService', () => {
 
     it('schedules retry when dispatch update fails', async () => {
         const mock = createOutboxRepositoryMock()
-        const service = makeLocalEventOutboxDispatcherService({
-            outbox: mock.repository,
-            lifecycle: createLifecycleMock(),
-        })
+        const service = new LocalEventOutboxDispatcherService.live(mock.repository, createLifecycleMock())
 
         const payload = {
             eventId: '22222222-2222-4222-8222-222222222222',
@@ -216,14 +207,8 @@ describe('LocalEventOutboxDispatcherService', () => {
      */
     it('dispatches each event exactly once when two dispatchers run concurrently', async () => {
         const mock = createOutboxRepositoryMock()
-        const first = makeLocalEventOutboxDispatcherService({
-            outbox: mock.repository,
-            lifecycle: createLifecycleMock(),
-        })
-        const second = makeLocalEventOutboxDispatcherService({
-            outbox: mock.repository,
-            lifecycle: createLifecycleMock(),
-        })
+        const first = new LocalEventOutboxDispatcherService.live(mock.repository, createLifecycleMock())
+        const second = new LocalEventOutboxDispatcherService.live(mock.repository, createLifecycleMock())
 
         const EVENTS = 20
         for (let i = 0; i < EVENTS; i += 1) {
@@ -259,10 +244,7 @@ describe('LocalEventOutboxDispatcherService', () => {
 
     it('does not re-dispatch a row that is already claimed by another dispatcher', async () => {
         const mock = createOutboxRepositoryMock()
-        const service = makeLocalEventOutboxDispatcherService({
-            outbox: mock.repository,
-            lifecycle: createLifecycleMock(),
-        })
+        const service = new LocalEventOutboxDispatcherService.live(mock.repository, createLifecycleMock())
 
         mock.rows.push({
             id: 'outbox-taken',
