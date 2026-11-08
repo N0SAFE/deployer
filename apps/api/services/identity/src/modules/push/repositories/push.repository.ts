@@ -1,7 +1,6 @@
 import { and, count, desc, eq } from 'drizzle-orm'
 import { Context, Effect } from 'effect'
 
-import { serviceOver } from '@deployer/effect-core'
 import {
     pushSubscription,
     user,
@@ -83,59 +82,68 @@ export type PushRepositoryShape = {
     ) => Effect.Effect<VapidKeys, PushRepositoryFailure, DatabasePort>
 }
 
-/** Tag and implementation together: the tag is the contract, `Live` the Drizzle implementation. */
+/**
+ * The database handle is yielded inside the method that queries with it, so this is a class the module
+ * provides with `useClass` — no `serviceOver` closure and no factory holding the queries.
+ */
 export class PushRepository extends Context.Service<
     PushRepository,
     PushRepositoryShape
 >()('identity/PushRepository') {
-    /** The database is yielded when a method runs, so this is a constant the module provides with `useValue`. */
-    static readonly live = serviceOver(DatabasePort, ({ db }) =>
-        makePushRepository(db)
-    )
-}
+    static readonly live = class PushRepositoryImpl
+        implements PushRepositoryShape
+    {
+        findByEndpoint(endpoint: string): ReturnType<PushRepositoryShape['findByEndpoint']> {
+            return Effect.gen(function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    const rows = await db
+                        .select()
+                        .from(pushSubscription)
+                        .where(eq(pushSubscription.endpoint, endpoint))
+                        .limit(1)
+                    return rows[0] ?? null
+                })
+            })
+        }
 
-/** Drizzle implementation over one database handle. */
-function makePushRepository(db: DatabaseShape['db']): PushRepositoryShape {
-    return {
-        findByEndpoint: (endpoint: string) =>
-            attempt(async () => {
-                const rows = await db
-                    .select()
-                    .from(pushSubscription)
-                    .where(eq(pushSubscription.endpoint, endpoint))
-                    .limit(1)
-                return rows[0] ?? null
-            }),
-
-        listByUser: (userId: string, onlyActive: boolean) =>
-            attempt(async () => {
-                const where = allOf(
-                    eq(pushSubscription.userId, userId),
-                    onlyActive ? eq(pushSubscription.isActive, true) : undefined
-                )
-                return db
-                    .select()
-                    .from(pushSubscription)
-                    .where(where)
-                    .orderBy(desc(pushSubscription.createdAt))
-            }),
+        listByUser(userId: string, onlyActive: boolean): ReturnType<PushRepositoryShape['listByUser']> {
+            return Effect.gen(function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    const where = allOf(
+                        eq(pushSubscription.userId, userId),
+                        onlyActive ? eq(pushSubscription.isActive, true) : undefined
+                    )
+                    return db
+                        .select()
+                        .from(pushSubscription)
+                        .where(where)
+                        .orderBy(desc(pushSubscription.createdAt))
+                })
+            })
+        }
 
         /**
          * A `count()` rather than loading rows: a user with 200 stale device rows must
          * not pull 200 rows to display "2".
          */
-        countByUser: (userId: string, onlyActive: boolean) =>
-            attempt(async () => {
-                const where = allOf(
-                    eq(pushSubscription.userId, userId),
-                    onlyActive ? eq(pushSubscription.isActive, true) : undefined
-                )
-                const rows = await db
-                    .select({ value: count() })
-                    .from(pushSubscription)
-                    .where(where)
-                return rows[0]?.value ?? 0
-            }),
+        countByUser(userId: string, onlyActive: boolean): ReturnType<PushRepositoryShape['countByUser']> {
+            return Effect.gen(function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    const where = allOf(
+                        eq(pushSubscription.userId, userId),
+                        onlyActive ? eq(pushSubscription.isActive, true) : undefined
+                    )
+                    const rows = await db
+                        .select({ value: count() })
+                        .from(pushSubscription)
+                        .where(where)
+                    return rows[0]?.value ?? 0
+                })
+            })
+        }
 
         /**
          * How many subscriptions are DELIVERABLE — active, and belonging to a user who
@@ -147,24 +155,28 @@ function makePushRepository(db: DatabaseShape['db']): PushRepositoryShape {
          * paginated list. A `user.banned = NULL` row means "never banned" (the column
          * defaults to `false`), so `eq(banned, false)` is the correct test.
          */
-        countDeliverable: () =>
-            attempt(async () => {
-                const rel = relationPredicates(db)
-                const rows = await db
-                    .select({ value: count() })
-                    .from(pushSubscription)
-                    .where(
-                        allOf(
-                            eq(pushSubscription.isActive, true),
-                            rel.existsIn(
-                                user,
-                                eq(user.id, pushSubscription.userId),
-                                eq(user.banned, false)
+        countDeliverable(): ReturnType<PushRepositoryShape['countDeliverable']> {
+            return Effect.gen(function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    const rel = relationPredicates(db)
+                    const rows = await db
+                        .select({ value: count() })
+                        .from(pushSubscription)
+                        .where(
+                            allOf(
+                                eq(pushSubscription.isActive, true),
+                                rel.existsIn(
+                                    user,
+                                    eq(user.id, pushSubscription.userId),
+                                    eq(user.banned, false)
+                                )
                             )
                         )
-                    )
-                return rows[0]?.value ?? 0
-            }),
+                    return rows[0]?.value ?? 0
+                })
+            })
+        }
 
         /**
          * Insert, or re-activate an existing endpoint for this user.
@@ -174,71 +186,83 @@ function makePushRepository(db: DatabaseShape['db']): PushRepositoryShape {
          * and every later notification would fail with 400, so the conflicting row is
          * re-bound to the caller and its keys are refreshed.
          */
-        upsert: (input: NewSubscription) =>
-            attempt(async () => {
-                const now = new Date()
-                const rows = await db
-                    .insert(pushSubscription)
-                    .values({
-                        id: crypto.randomUUID(),
-                        userId: input.userId,
-                        endpoint: input.endpoint,
-                        p256dh: input.p256dh,
-                        auth: input.auth,
-                        deviceName: input.deviceName ?? null,
-                        userAgent: input.userAgent ?? null,
-                        isActive: true,
-                        createdAt: now,
-                        updatedAt: now,
-                    })
-                    .onConflictDoUpdate({
-                        target: pushSubscription.endpoint,
-                        set: {
+        upsert(input: NewSubscription): ReturnType<PushRepositoryShape['upsert']> {
+            return Effect.gen(function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    const now = new Date()
+                    const rows = await db
+                        .insert(pushSubscription)
+                        .values({
+                            id: crypto.randomUUID(),
                             userId: input.userId,
+                            endpoint: input.endpoint,
                             p256dh: input.p256dh,
                             auth: input.auth,
                             deviceName: input.deviceName ?? null,
                             userAgent: input.userAgent ?? null,
                             isActive: true,
+                            createdAt: now,
                             updatedAt: now,
-                        },
-                    })
-                    .returning()
+                        })
+                        .onConflictDoUpdate({
+                            target: pushSubscription.endpoint,
+                            set: {
+                                userId: input.userId,
+                                p256dh: input.p256dh,
+                                auth: input.auth,
+                                deviceName: input.deviceName ?? null,
+                                userAgent: input.userAgent ?? null,
+                                isActive: true,
+                                updatedAt: now,
+                            },
+                        })
+                        .returning()
 
-                const row = rows[0]
-                if (row === undefined) {
-                    // `returning()` on a successful insert always yields a row; its absence is
-                    // a driver-contract violation, not a user error.
-                    throw new Error(
-                        'upsert into push_subscription returned no row'
-                    )
-                }
-                return row
-            }),
+                    const row = rows[0]
+                    if (row === undefined) {
+                        // `returning()` on a successful insert always yields a row; its absence is
+                        // a driver-contract violation, not a user error.
+                        throw new Error(
+                            'upsert into push_subscription returned no row'
+                        )
+                    }
+                    return row
+                })
+            })
+        }
 
         /** Delete one endpoint, scoped to its owner so a caller cannot remove another's. */
-        deleteByEndpointForUser: (userId: string, endpoint: string) =>
-            attempt(async () => {
-                const rows = await db
-                    .delete(pushSubscription)
-                    .where(
-                        and(
-                            eq(pushSubscription.userId, userId),
-                            eq(pushSubscription.endpoint, endpoint)
+        deleteByEndpointForUser(userId: string, endpoint: string): ReturnType<PushRepositoryShape['deleteByEndpointForUser']> {
+            return Effect.gen(function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    const rows = await db
+                        .delete(pushSubscription)
+                        .where(
+                            and(
+                                eq(pushSubscription.userId, userId),
+                                eq(pushSubscription.endpoint, endpoint)
+                            )
                         )
-                    )
-                    .returning({ id: pushSubscription.id })
-                return rows.length > 0
-            }),
+                        .returning({ id: pushSubscription.id })
+                    return rows.length > 0
+                })
+            })
+        }
 
         /** Record that a delivery succeeded, so "last used" reflects reality. */
-        markUsed: (id: string) =>
-            attempt(async () => {
-                await db
-                    .update(pushSubscription)
-                    .set({ lastUsedAt: new Date(), updatedAt: new Date() })
-                    .where(eq(pushSubscription.id, id))
-            }),
+        markUsed(id: string): ReturnType<PushRepositoryShape['markUsed']> {
+            return Effect.gen(function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    await db
+                        .update(pushSubscription)
+                        .set({ lastUsedAt: new Date(), updatedAt: new Date() })
+                        .where(eq(pushSubscription.id, id))
+                })
+            })
+        }
 
         /**
          * Retire a subscription the push service rejected.
@@ -248,30 +272,38 @@ function makePushRepository(db: DatabaseShape['db']): PushRepositoryShape {
          * row (so a re-subscribe on the same endpoint can re-activate it) while removing it
          * from the delivery set.
          */
-        deactivate: (id: string) =>
-            attempt(async () => {
-                await db
-                    .update(pushSubscription)
-                    .set({ isActive: false, updatedAt: new Date() })
-                    .where(eq(pushSubscription.id, id))
-            }),
+        deactivate(id: string): ReturnType<PushRepositoryShape['deactivate']> {
+            return Effect.gen(function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    await db
+                        .update(pushSubscription)
+                        .set({ isActive: false, updatedAt: new Date() })
+                        .where(eq(pushSubscription.id, id))
+                })
+            })
+        }
 
-        findVapidKeys: (userId: string) =>
-            attempt(async () => {
-                const rows = await db
-                    .select()
-                    .from(userVapidKeys)
-                    .where(eq(userVapidKeys.userId, userId))
-                    .limit(1)
-                const row = rows[0]
-                if (row === undefined) return null
-                return {
-                    userId: row.userId,
-                    publicKey: row.publicKey,
-                    privateKey: row.privateKey,
-                    subject: row.subject ?? '',
-                }
-            }),
+        findVapidKeys(userId: string): ReturnType<PushRepositoryShape['findVapidKeys']> {
+            return Effect.gen(function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    const rows = await db
+                        .select()
+                        .from(userVapidKeys)
+                        .where(eq(userVapidKeys.userId, userId))
+                        .limit(1)
+                    const row = rows[0]
+                    if (row === undefined) return null
+                    return {
+                        userId: row.userId,
+                        publicKey: row.publicKey,
+                        privateKey: row.privateKey,
+                        subject: row.subject ?? '',
+                    }
+                })
+            })
+        }
 
         /**
          * Store a keypair, or return the one that already exists.
@@ -281,42 +313,46 @@ function makePushRepository(db: DatabaseShape['db']): PushRepositoryShape {
          * Two racing callers then both receive the SAME keypair — the winner's — instead of
          * the loser failing its request.
          */
-        insertVapidKeys: (keys: VapidKeys) =>
-            attempt(async () => {
-                await db
-                    .insert(userVapidKeys)
-                    .values({
-                        // `id` is the primary key and is NOT database-defaulted, so it must be
-                        // supplied — and generated next to the insert that needs it, so a caller
-                        // cannot propose one.
-                        id: crypto.randomUUID(),
-                        userId: keys.userId,
-                        publicKey: keys.publicKey,
-                        privateKey: keys.privateKey,
-                        subject: keys.subject,
-                        createdAt: new Date(),
-                    })
-                    .onConflictDoNothing({ target: userVapidKeys.userId })
+        insertVapidKeys(keys: VapidKeys): ReturnType<PushRepositoryShape['insertVapidKeys']> {
+            return Effect.gen(function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    await db
+                        .insert(userVapidKeys)
+                        .values({
+                            // `id` is the primary key and is NOT database-defaulted, so it must be
+                            // supplied — and generated next to the insert that needs it, so a caller
+                            // cannot propose one.
+                            id: crypto.randomUUID(),
+                            userId: keys.userId,
+                            publicKey: keys.publicKey,
+                            privateKey: keys.privateKey,
+                            subject: keys.subject,
+                            createdAt: new Date(),
+                        })
+                        .onConflictDoNothing({ target: userVapidKeys.userId })
 
-                const rows = await db
-                    .select()
-                    .from(userVapidKeys)
-                    .where(eq(userVapidKeys.userId, keys.userId))
-                    .limit(1)
-                const stored = rows[0]
-                if (stored === undefined) {
-                    // No conflict reported and no row present: the constraint and the read
-                    // disagree, which is a real inconsistency rather than a race worth retrying.
-                    throw new Error(
-                        `VAPID keys for ${keys.userId} were not stored and do not exist`
-                    )
-                }
-                return {
-                    userId: stored.userId,
-                    publicKey: stored.publicKey,
-                    privateKey: stored.privateKey,
-                    subject: stored.subject ?? '',
-                }
-            }),
+                    const rows = await db
+                        .select()
+                        .from(userVapidKeys)
+                        .where(eq(userVapidKeys.userId, keys.userId))
+                        .limit(1)
+                    const stored = rows[0]
+                    if (stored === undefined) {
+                        // No conflict reported and no row present: the constraint and the read
+                        // disagree, which is a real inconsistency rather than a race worth retrying.
+                        throw new Error(
+                            `VAPID keys for ${keys.userId} were not stored and do not exist`
+                        )
+                    }
+                    return {
+                        userId: stored.userId,
+                        publicKey: stored.publicKey,
+                        privateKey: stored.privateKey,
+                        subject: stored.subject ?? '',
+                    }
+                })
+            })
+        }
     }
 }

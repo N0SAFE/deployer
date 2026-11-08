@@ -27,7 +27,9 @@ import { DatabasePort } from '@identity/core/database/database.port'
  * the calls rather than the outcome, so these run against the database the harness provides.
  */
 describe('Push repository e2e: the SQL rules', () => {
-    let repository: ReturnType<typeof provideTo<typeof PushRepository.live>>
+    let repository: ReturnType<
+        typeof provideTo<InstanceType<typeof PushRepository.live>>
+    >
     let db: GlobalDatabaseServiceShape['db']
 
     const run = <A>(effect: Effect.Effect<A, PushRepositoryFailure>) =>
@@ -69,7 +71,7 @@ describe('Push repository e2e: the SQL rules', () => {
             GlobalDatabaseService
         ) as unknown as GlobalDatabaseServiceShape
         db = globalDatabase.db
-        repository = provideTo(PushRepository.live, (effect) =>
+        repository = provideTo(new PushRepository.live(), (effect) =>
             effect.pipe(Effect.provideService(DatabasePort, { db } as never))
         )
     })

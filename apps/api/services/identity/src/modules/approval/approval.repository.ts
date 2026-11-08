@@ -1,7 +1,6 @@
 import { and, count, desc, eq, gt, inArray, lt, sql } from 'drizzle-orm'
 import { Context, Data, Effect } from 'effect'
 
-import { serviceOver } from '@deployer/effect-core'
 import {
     accessRequestVotes,
     accessRequests,
@@ -149,17 +148,12 @@ const rowSelection = {
         ),
 } as const
 
-const attempt = <T>(operation: () => Promise<T>) =>
-    Effect.tryPromise({
-        try: operation,
-        catch: (cause) => new ApprovalRepositoryFailure({ cause }),
-    })
-
-function makeApprovalRepository(
-    db: DatabaseShape['db']
-): ApprovalRepositoryShape {
-    /** One row by id, with its approvals — the shape every write returns. */
-    const readById = async (id: string): Promise<AccessRequestRow | null> => {
+/** One row by id, with its approvals — the shape every write returns. */
+const readById = (
+    db: DatabaseShape['db'],
+    id: string
+): Promise<AccessRequestRow | null> =>
+    attempt(async () => {
         const [row] = await db
             .select(rowSelection)
             .from(accessRequests)
@@ -171,163 +165,209 @@ function makeApprovalRepository(
             .where(eq(accessRequests.id, id))
             .groupBy(accessRequests.id)
         return (row as AccessRequestRow | undefined) ?? null
-    }
+    }).pipe(Effect.runPromise)
 
-    return {
-        create: (request) =>
-            attempt(async () => {
-                const [created] = await db
-                    .insert(accessRequests)
-                    .values(request)
-                    .returning({ id: accessRequests.id })
-                if (created === undefined)
-                    throw new Error('access request insert returned no row')
-                const row = await readById(created.id)
-                if (row === null)
-                    throw new Error('access request vanished after insert')
-                return row
-            }),
+const attempt = <T>(operation: () => Promise<T>) =>
+    Effect.tryPromise({
+        try: operation,
+        catch: (cause) => new ApprovalRepositoryFailure({ cause }),
+    })
 
-        expireStale: (now) =>
-            attempt(async () => {
-                await db
-                    .update(accessRequests)
-                    .set({ status: 'expired' })
-                    .where(
-                        and(
-                            eq(accessRequests.status, 'pending'),
-                            lt(accessRequests.expiresAt, now)
+/**
+ * The approval ledger: requests, votes and the one-shot consume.
+ *
+ * The database is yielded inside the method that queries with it, so this is a class the module provides
+ * with `useClass` — no `serviceOver` closure and no factory holding the handle.
+ */
+export class ApprovalRepository extends Context.Service<
+    ApprovalRepository,
+    ApprovalRepositoryShape
+>()('identity/ApprovalRepository') {
+    static readonly live = class ApprovalRepositoryImpl
+        implements ApprovalRepositoryShape
+    {
+        create(request): ReturnType<ApprovalRepositoryShape['create']> {
+            return Effect.gen({ self: this }, function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    const [created] = await db
+                        .insert(accessRequests)
+                        .values(request)
+                        .returning({ id: accessRequests.id })
+                    if (created === undefined)
+                        throw new Error('access request insert returned no row')
+                    const row = await readById(db, created.id)
+                    if (row === null)
+                        throw new Error('access request vanished after insert')
+                    return row
+                })
+            })
+        }
+
+        expireStale(now): ReturnType<ApprovalRepositoryShape['expireStale']> {
+            return Effect.gen({ self: this }, function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    await db
+                        .update(accessRequests)
+                        .set({ status: 'expired' })
+                        .where(
+                            and(
+                                eq(accessRequests.status, 'pending'),
+                                lt(accessRequests.expiresAt, now)
+                            )
                         )
-                    )
-            }),
+                })
+            })
+        }
 
-        countApprovers: (roleNames) =>
-            attempt(async () => {
-                if (roleNames.length === 0) return 0
-                const [row] = await db
-                    .select({ value: count() })
-                    .from(user)
-                    .where(inArray(user.role, [...roleNames]))
-                return row?.value ?? 0
-            }),
+        countApprovers(roleNames): ReturnType<ApprovalRepositoryShape['countApprovers']> {
+            return Effect.gen({ self: this }, function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    if (roleNames.length === 0) return 0
+                    const [row] = await db
+                        .select({ value: count() })
+                        .from(user)
+                        .where(inArray(user.role, [...roleNames]))
+                    return row?.value ?? 0
+                })
+            })
+        }
 
-        roleOf: (userId) =>
-            attempt(async () => {
-                const [row] = await db
-                    .select({ role: user.role })
-                    .from(user)
-                    .where(eq(user.id, userId))
-                    .limit(1)
-                return row?.role ?? null
-            }),
+        roleOf(userId): ReturnType<ApprovalRepositoryShape['roleOf']> {
+            return Effect.gen({ self: this }, function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    const [row] = await db
+                        .select({ role: user.role })
+                        .from(user)
+                        .where(eq(user.id, userId))
+                        .limit(1)
+                    return row?.role ?? null
+                })
+            })
+        }
 
-        findById: (id) => attempt(() => readById(id)),
+        findById(id): ReturnType<ApprovalRepositoryShape['findById']> {
+            return Effect.gen({ self: this }, function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(() => readById(db, id))
+            })
+        }
 
-        list: (filter) =>
-            attempt(async () => {
-                const rows = await db
-                    .select(rowSelection)
-                    .from(accessRequests)
-                    .leftJoin(
-                        accessRequestVotes,
-                        eq(accessRequestVotes.requestId, accessRequests.id)
-                    )
-                    .leftJoin(user, eq(user.id, accessRequests.requesterId))
-                    .where(eq(accessRequests.status, filter.status))
-                    .groupBy(accessRequests.id)
-                    .orderBy(desc(accessRequests.createdAt))
-                    .limit(filter.limit)
-                return rows as AccessRequestRow[]
-            }),
+        list(filter): ReturnType<ApprovalRepositoryShape['list']> {
+            return Effect.gen({ self: this }, function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    const rows = await db
+                        .select(rowSelection)
+                        .from(accessRequests)
+                        .leftJoin(
+                            accessRequestVotes,
+                            eq(accessRequestVotes.requestId, accessRequests.id)
+                        )
+                        .leftJoin(user, eq(user.id, accessRequests.requesterId))
+                        .where(eq(accessRequests.status, filter.status))
+                        .groupBy(accessRequests.id)
+                        .orderBy(desc(accessRequests.createdAt))
+                        .limit(filter.limit)
+                    return rows as AccessRequestRow[]
+                })
+            })
+        }
 
-        vote: (id, approverId, decision, proofHash) =>
-            attempt(() =>
-                db.transaction(async (tx) => {
-                    await tx
-                        .insert(accessRequestVotes)
-                        .values({
-                            requestId: id,
-                            approverId,
-                            decision,
-                            proofHash,
-                        })
-                        // A second click by the same person is not a second vote.
-                        .onConflictDoNothing({
-                            target: [
-                                accessRequestVotes.requestId,
-                                accessRequestVotes.approverId,
-                            ],
-                        })
-
-                    if (decision === 'deny') {
+        vote(
+            id: string,
+            approverId: string,
+            decision: AccessRequestVote,
+            proofHash: string | null
+        ): ReturnType<ApprovalRepositoryShape['vote']> {
+            return Effect.gen({ self: this }, function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(() =>
+                    db.transaction(async (tx) => {
                         await tx
-                            .update(accessRequests)
-                            .set({ status: 'denied' })
-                            .where(
-                                and(
-                                    eq(accessRequests.id, id),
-                                    eq(accessRequests.status, 'pending')
-                                )
-                            )
-                    } else {
-                        const [row] = await tx
-                            .select({
-                                required: accessRequests.requiredApprovals,
+                            .insert(accessRequestVotes)
+                            .values({
+                                requestId: id,
+                                approverId,
+                                decision,
+                                proofHash,
                             })
-                            .from(accessRequests)
-                            .where(eq(accessRequests.id, id))
-                        const [{ value: yes } = { value: 0 }] = await tx
-                            .select({ value: count() })
-                            .from(accessRequestVotes)
-                            .where(
-                                and(
-                                    eq(accessRequestVotes.requestId, id),
-                                    eq(accessRequestVotes.decision, 'approve')
-                                )
-                            )
+                            // A second click by the same person is not a second vote.
+                            .onConflictDoNothing({
+                                target: [
+                                    accessRequestVotes.requestId,
+                                    accessRequestVotes.approverId,
+                                ],
+                            })
 
-                        if (row !== undefined && yes >= row.required) {
+                        if (decision === 'deny') {
                             await tx
                                 .update(accessRequests)
-                                .set({ status: 'approved' })
+                                .set({ status: 'denied' })
                                 .where(
                                     and(
                                         eq(accessRequests.id, id),
                                         eq(accessRequests.status, 'pending')
                                     )
                                 )
+                        } else {
+                            const [row] = await tx
+                                .select({
+                                    required: accessRequests.requiredApprovals,
+                                })
+                                .from(accessRequests)
+                                .where(eq(accessRequests.id, id))
+                            const [{ value: yes } = { value: 0 }] = await tx
+                                .select({ value: count() })
+                                .from(accessRequestVotes)
+                                .where(
+                                    and(
+                                        eq(accessRequestVotes.requestId, id),
+                                        eq(accessRequestVotes.decision, 'approve')
+                                    )
+                                )
+
+                            if (row !== undefined && yes >= row.required) {
+                                await tx
+                                    .update(accessRequests)
+                                    .set({ status: 'approved' })
+                                    .where(
+                                        and(
+                                            eq(accessRequests.id, id),
+                                            eq(accessRequests.status, 'pending')
+                                        )
+                                    )
+                            }
                         }
-                    }
 
-                    return readById(id)
-                })
-            ),
+                        return readById(db, id)
+                    })
+                )
+            })
+        }
 
-        consume: (requesterId, actionHash, now) =>
-            attempt(async () => {
-                const spent = await db
-                    .update(accessRequests)
-                    .set({ status: 'consumed', consumedAt: now })
-                    .where(
-                        and(
-                            eq(accessRequests.requesterId, requesterId),
-                            eq(accessRequests.actionHash, actionHash),
-                            eq(accessRequests.status, 'approved'),
-                            gt(accessRequests.expiresAt, now)
+        consume(requesterId, actionHash, now): ReturnType<ApprovalRepositoryShape['consume']> {
+            return Effect.gen({ self: this }, function* () {
+                const { db } = yield* DatabasePort
+                return yield* attempt(async () => {
+                    const spent = await db
+                        .update(accessRequests)
+                        .set({ status: 'consumed', consumedAt: now })
+                        .where(
+                            and(
+                                eq(accessRequests.requesterId, requesterId),
+                                eq(accessRequests.actionHash, actionHash),
+                                eq(accessRequests.status, 'approved'),
+                                gt(accessRequests.expiresAt, now)
+                            )
                         )
-                    )
-                    .returning({ id: accessRequests.id })
-                return spent.length > 0
-            }),
+                        .returning({ id: accessRequests.id })
+                    return spent.length > 0
+                })
+            })
+        }
     }
-}
-
-/** The approval ledger: requests, votes and the one-shot consume. */
-export class ApprovalRepository extends Context.Service<
-    ApprovalRepository,
-    ApprovalRepositoryShape
->()('identity/ApprovalRepository') {
-    static readonly live = serviceOver(DatabasePort, ({ db }) =>
-        makeApprovalRepository(db)
-    )
 }
