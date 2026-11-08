@@ -4,7 +4,10 @@ import type {
 } from '@deployer/node-state'
 
 import { makeSwarmBootstrap } from './bootstrap/swarm-bootstrap'
-import { makeSwarmCluster } from './cluster/swarm-cluster'
+import {
+    SwarmCluster,
+    type SwarmClusterShape,
+} from './cluster/swarm-cluster'
 import {
     makeSwarmLeadership,
     type ClusterMetricsProvider,
@@ -20,8 +23,8 @@ import type {
     SwarmParticipationDefaults,
 } from './config'
 
-/** The engine the cluster services run on: whatever `makeSwarmCluster` takes. */
-type Engine = Parameters<typeof makeSwarmCluster>[0]
+/** The engine the cluster services run on. */
+type Engine = ConstructorParameters<typeof SwarmCluster.live>[0]
 
 export type SwarmServicesDeps = {
     readonly docker: Engine
@@ -46,12 +49,21 @@ export type SwarmServicesOptions = {
  * once and they share the same cluster view. The host runs `bootstrap.onBoot` at startup and
  * `leadership.run` for the life of the process.
  */
+export type SwarmServices = {
+    readonly cluster: SwarmClusterShape
+    readonly fleet: ReturnType<typeof makeSwarmFleet>
+    readonly participation: ReturnType<typeof makeSwarmParticipation>
+    readonly joinGrant: ReturnType<typeof makeSwarmJoinGrant>
+    readonly bootstrap: ReturnType<typeof makeSwarmBootstrap>
+    readonly leadership: ReturnType<typeof makeSwarmLeadership>
+}
+
 export const makeSwarmServices = (
     deps: SwarmServicesDeps,
     options: SwarmServicesOptions
-) => {
+): SwarmServices => {
     const { docker, nodeConfig, clusterNode } = deps
-    const cluster = makeSwarmCluster(docker)
+    const cluster = new SwarmCluster.live(docker)
     const fleet = makeSwarmFleet(docker)
     const participation = makeSwarmParticipation({
         defaults: options.participation,
@@ -78,5 +90,3 @@ export const makeSwarmServices = (
     })
     return { cluster, fleet, participation, joinGrant, bootstrap, leadership }
 }
-
-export type SwarmServices = ReturnType<typeof makeSwarmServices>

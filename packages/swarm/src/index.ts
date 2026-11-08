@@ -30,7 +30,7 @@ export type {
     SwarmServicesOptions,
 } from './compose'
 
-export { makeSwarmCluster, SwarmCluster } from './cluster/swarm-cluster'
+export { SwarmCluster } from './cluster/swarm-cluster'
 export type { SwarmClusterShape } from './cluster/swarm-cluster'
 export { makeSwarmFleet, SwarmFleet } from './fleet/swarm-fleet'
 export type { SwarmFleetShape } from './fleet/swarm-fleet'

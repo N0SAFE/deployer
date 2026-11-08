@@ -1,4 +1,4 @@
-import { Effect } from 'effect'
+import { Context, Effect } from 'effect'
 import z from 'zod/v4'
 
 import {
@@ -95,158 +95,248 @@ const encode = (options: SwarmDataObject) => ({
     Labels: options.labels ?? {},
 })
 
-export function makeSwarmCluster(client: Docker): SwarmClusterShape {
-    const info: SwarmClusterShape['info'] = Effect.fn(
-        'DockerSwarmCluster.info'
-    )(function* () {
-        return yield* engineCall('read Swarm info', async () => {
-            const raw: unknown = await client.info()
-            const swarm =
-                typeof raw === 'object' && raw !== null && 'Swarm' in raw
-                    ? raw.Swarm
-                    : undefined
-            return dockerodeSwarmInfoSchema.parse(
-                typeof swarm === 'object' && swarm !== null ? swarm : {}
-            )
-        })
-    })
+export class SwarmCluster extends Context.Service<
+    SwarmCluster,
+    SwarmClusterShape
+>()('docker/SwarmCluster') {
+    /** The engine client is a constructor argument: `dockerode` calls are not tag-resolved. */
+    static readonly live = class SwarmClusterImpl implements SwarmClusterShape {
+        readonly client: Docker
 
-    return {
-        info,
-        isActive: () =>
-            info().pipe(
+        constructor(client: Docker) {
+            this.client = client
+        }
+
+        info(): Effect.Effect<DockerodeSwarmInfo, DockerError> {
+            const { client } = this
+            return Effect.fn('DockerSwarmCluster.info')(function* () {
+                return yield* engineCall('read Swarm info', async () => {
+                    const raw: unknown = await client.info()
+                    const swarm =
+                        typeof raw === 'object' && raw !== null && 'Swarm' in raw
+                            ? raw.Swarm
+                            : undefined
+                    return dockerodeSwarmInfoSchema.parse(
+                        typeof swarm === 'object' && swarm !== null ? swarm : {}
+                    )
+                })
+            })()
+        }
+
+        /** True when this engine is an active member of a swarm; false when it is not or cannot say. */
+        isActive(): Effect.Effect<boolean> {
+            return this.info().pipe(
                 Effect.map((swarm) => swarm.LocalNodeState === 'active'),
                 Effect.catch(() => Effect.succeed(false))
-            ),
-        inspect: Effect.fn('DockerSwarmCluster.inspect')(function* () {
-            return yield* engineCall(
-                'inspect Swarm cluster',
-                async () =>
-                    dockerodeSwarmInspectSchema.parse(
-                        await client.swarmInspect()
-                    ),
-                'Swarm cluster'
-            )
-        }),
-        init: Effect.fn('DockerSwarmCluster.init')(function* (options) {
-            return yield* engineCall('initialize Swarm cluster', async () =>
-                dockerodeSwarmInitResponseSchema.parse(
-                    await client.swarmInit(options)
-                )
-            )
-        }),
-        join: Effect.fn('DockerSwarmCluster.join')(function* (options) {
-            yield* engineCall('join Swarm cluster', () =>
-                client.swarmJoin(options)
-            )
-            yield* Effect.logInfo(
-                `Joined Swarm cluster via ${options.RemoteAddrs.join(', ')}`
-            )
-        }),
-        leave: Effect.fn('DockerSwarmCluster.leave')(function* (force = false) {
-            yield* engineCall('leave Swarm cluster', () =>
-                client.swarmLeave({ Force: force })
-            )
-            yield* Effect.logInfo(`Left Swarm cluster (force=${String(force)})`)
-        }),
-    }
-}
-
-export function makeSwarmNodes(client: Docker): SwarmNodesShape {
-    const list: SwarmNodesShape['list'] = Effect.fn('DockerSwarmNodes.list')(
-        function* () {
-            return yield* engineCall('list Swarm nodes', async () =>
-                z
-                    .array(dockerodeNodeSummarySchema)
-                    .parse(await client.listNodes())
             )
         }
-    )
 
-    const inspect: SwarmNodesShape['inspect'] = Effect.fn(
-        'DockerSwarmNodes.inspect'
-    )(function* (nodeId) {
-        return yield* engineCall(
-            `inspect Swarm node ${nodeId}`,
-            async () =>
-                dockerodeNodeSummarySchema.parse(
-                    await client.getNode(nodeId).inspect()
-                ),
-            `swarm node '${nodeId}'`
-        )
-    })
+        inspect(): Effect.Effect<DockerodeSwarmInspect, DockerError> {
+            const { client } = this
+            return Effect.fn('DockerSwarmCluster.inspect')(function* () {
+                return yield* engineCall(
+                    'inspect Swarm cluster',
+                    async () =>
+                        dockerodeSwarmInspectSchema.parse(
+                            await client.swarmInspect()
+                        ),
+                    'Swarm cluster'
+                )
+            })()
+        }
 
-    /** Applies `change` over the node's CURRENT spec, so what the caller did not name is kept. */
-    const apply = (
-        nodeId: string,
-        version: number,
-        change: SwarmNodeSpecChange,
-        operation: SwarmNodeSpecOperation
-    ) =>
-        Effect.gen(function* () {
-            const node = yield* inspect(nodeId)
-            yield* engineCall(
-                `update ${operation} on Swarm node ${nodeId}`,
-                () =>
-                    client.getNode(nodeId).update({
-                        _query: { version },
-                        _body: buildSwarmNodeSpecPayload(node, change),
-                    }),
-                `swarm node '${nodeId}'`
-            )
-            yield* Effect.logInfo(
-                `Updated ${operation} on Swarm node ${nodeId}`
-            )
-        })
+        init(
+            options: SwarmInitOptions
+        ): Effect.Effect<DockerodeSwarmInitResponse, DockerError> {
+            const { client } = this
+            return Effect.fn('DockerSwarmCluster.init')(function* () {
+                return yield* engineCall('initialize Swarm cluster', async () =>
+                    dockerodeSwarmInitResponseSchema.parse(
+                        await client.swarmInit(options)
+                    )
+                )
+            })()
+        }
 
-    return {
-        list,
-        inspect,
-        updateLabels: (nodeId, version, labels) =>
-            apply(nodeId, version, { labels }, 'labels'),
-        updateRoleAvailability: (nodeId, version, change) =>
-            apply(nodeId, version, change, 'role/availability'),
+        join(options: SwarmJoinOptions): Effect.Effect<void, DockerError> {
+            const { client } = this
+            return Effect.fn('DockerSwarmCluster.join')(function* () {
+                yield* engineCall('join Swarm cluster', () =>
+                    client.swarmJoin(options)
+                )
+                yield* Effect.logInfo(
+                    `Joined Swarm cluster via ${options.RemoteAddrs.join(', ')}`
+                )
+            })()
+        }
+
+        leave(force = false): Effect.Effect<void, DockerError> {
+            const { client } = this
+            return Effect.fn('DockerSwarmCluster.leave')(function* () {
+                yield* engineCall('leave Swarm cluster', () =>
+                    client.swarmLeave({ Force: force })
+                )
+                yield* Effect.logInfo(
+                    `Left Swarm cluster (force=${String(force)})`
+                )
+            })()
+        }
     }
 }
 
-export function makeSwarmSecrets(client: Docker): SwarmSecretsShape {
-    return {
-        create: Effect.fn('DockerSwarmSecrets.create')(function* (options) {
-            return yield* engineCall(
-                `create Swarm secret ${options.name}`,
-                async () =>
-                    dockerodeSecretSummarySchema.parse(
-                        await client.createSecret(encode(options))
-                    )
-            )
-        }),
-        list: Effect.fn('DockerSwarmSecrets.list')(function* () {
-            return yield* engineCall('list Swarm secrets', async () =>
-                z
-                    .array(dockerodeSecretSummarySchema)
-                    .parse(await client.listSecrets())
-            )
-        }),
+export class SwarmNodes extends Context.Service<
+    SwarmNodes,
+    SwarmNodesShape
+>()('docker/SwarmNodes') {
+    static readonly live = class SwarmNodesImpl implements SwarmNodesShape {
+        readonly client: Docker
+
+        constructor(client: Docker) {
+            this.client = client
+        }
+
+        list(): Effect.Effect<DockerodeNodeSummary[], DockerError> {
+            const { client } = this
+            return Effect.fn('DockerSwarmNodes.list')(function* () {
+                return yield* engineCall('list Swarm nodes', async () =>
+                    z
+                        .array(dockerodeNodeSummarySchema)
+                        .parse(await client.listNodes())
+                )
+            })()
+        }
+
+        inspect(nodeId: string): Effect.Effect<DockerodeNodeSummary, DockerError> {
+            const { client } = this
+            return Effect.fn('DockerSwarmNodes.inspect')(function* () {
+                return yield* engineCall(
+                    `inspect Swarm node ${nodeId}`,
+                    async () =>
+                        dockerodeNodeSummarySchema.parse(
+                            await client.getNode(nodeId).inspect()
+                        ),
+                    `swarm node '${nodeId}'`
+                )
+            })()
+        }
+
+        /** Applies `change` over the node's CURRENT spec, so what the caller did not name is kept. */
+        apply(
+            nodeId: string,
+            version: number,
+            change: SwarmNodeSpecChange,
+            operation: SwarmNodeSpecOperation
+        ): Effect.Effect<void, DockerError> {
+            const { client } = this
+            return Effect.gen({ self: this }, function* () {
+                const node = yield* this.inspect(nodeId)
+                yield* engineCall(
+                    `update ${operation} on Swarm node ${nodeId}`,
+                    () =>
+                        client.getNode(nodeId).update({
+                            _query: { version },
+                            _body: buildSwarmNodeSpecPayload(node, change),
+                        }),
+                    `swarm node '${nodeId}'`
+                )
+                yield* Effect.logInfo(
+                    `Updated ${operation} on Swarm node ${nodeId}`
+                )
+            })
+        }
+
+        updateLabels(
+            nodeId: string,
+            version: number,
+            labels: Record<string, string>
+        ): Effect.Effect<void, DockerError> {
+            return this.apply(nodeId, version, { labels }, 'labels')
+        }
+
+        updateRoleAvailability(
+            nodeId: string,
+            version: number,
+            change: SwarmNodeSpecChange
+        ): Effect.Effect<void, DockerError> {
+            return this.apply(nodeId, version, change, 'role/availability')
+        }
     }
 }
 
-export function makeSwarmConfigs(client: Docker): SwarmConfigsShape {
-    return {
-        create: Effect.fn('DockerSwarmConfigs.create')(function* (options) {
-            return yield* engineCall(
-                `create Swarm config ${options.name}`,
-                async () =>
-                    dockerodeConfigSummarySchema.parse(
-                        await client.createConfig(encode(options))
-                    )
-            )
-        }),
-        list: Effect.fn('DockerSwarmConfigs.list')(function* () {
-            return yield* engineCall('list Swarm configs', async () =>
-                z
-                    .array(dockerodeConfigSummarySchema)
-                    .parse(await client.listConfigs())
-            )
-        }),
+export class SwarmSecrets extends Context.Service<
+    SwarmSecrets,
+    SwarmSecretsShape
+>()('docker/SwarmSecrets') {
+    static readonly live = class SwarmSecretsImpl implements SwarmSecretsShape {
+        readonly client: Docker
+
+        constructor(client: Docker) {
+            this.client = client
+        }
+
+        create(
+            options: SwarmDataObject
+        ): Effect.Effect<DockerodeSecretSummary, DockerError> {
+            const { client } = this
+            return Effect.fn('DockerSwarmSecrets.create')(function* () {
+                return yield* engineCall(
+                    `create Swarm secret ${options.name}`,
+                    async () =>
+                        dockerodeSecretSummarySchema.parse(
+                            await client.createSecret(encode(options))
+                        )
+                )
+            })()
+        }
+
+        list(): Effect.Effect<DockerodeSecretSummary[], DockerError> {
+            const { client } = this
+            return Effect.fn('DockerSwarmSecrets.list')(function* () {
+                return yield* engineCall('list Swarm secrets', async () =>
+                    z
+                        .array(dockerodeSecretSummarySchema)
+                        .parse(await client.listSecrets())
+                )
+            })()
+        }
+    }
+}
+
+export class SwarmConfigs extends Context.Service<
+    SwarmConfigs,
+    SwarmConfigsShape
+>()('docker/SwarmConfigs') {
+    static readonly live = class SwarmConfigsImpl implements SwarmConfigsShape {
+        readonly client: Docker
+
+        constructor(client: Docker) {
+            this.client = client
+        }
+
+        create(
+            options: SwarmDataObject
+        ): Effect.Effect<DockerodeConfigSummary, DockerError> {
+            const { client } = this
+            return Effect.fn('DockerSwarmConfigs.create')(function* () {
+                return yield* engineCall(
+                    `create Swarm config ${options.name}`,
+                    async () =>
+                        dockerodeConfigSummarySchema.parse(
+                            await client.createConfig(encode(options))
+                        )
+                )
+            })()
+        }
+
+        list(): Effect.Effect<DockerodeConfigSummary[], DockerError> {
+            const { client } = this
+            return Effect.fn('DockerSwarmConfigs.list')(function* () {
+                return yield* engineCall('list Swarm configs', async () =>
+                    z
+                        .array(dockerodeConfigSummarySchema)
+                        .parse(await client.listConfigs())
+                )
+            })()
+        }
     }
 }

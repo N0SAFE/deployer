@@ -1,7 +1,7 @@
 import { Cause, Effect, Exit } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
 
-import { makeSwarmCluster } from './swarm-cluster'
+import { SwarmCluster } from './swarm-cluster'
 
 async function run<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
     const exit = await Effect.runPromiseExit(effect)
@@ -41,11 +41,11 @@ function docker(state: string, extra: Record<string, unknown> = {}) {
 describe('SwarmCluster', () => {
     it('passes the readiness gate only for an active engine', async () => {
         await expect(
-            run(makeSwarmCluster(docker('active').engine).assertClusterReady())
+            run(new SwarmCluster.live(docker('active').engine).assertClusterReady())
         ).resolves.toBeUndefined()
         await expect(
             run(
-                makeSwarmCluster(docker('inactive').engine).assertClusterReady()
+                new SwarmCluster.live(docker('inactive').engine).assertClusterReady()
             )
         ).rejects.toMatchObject({ _tag: 'SwarmUnavailable' })
     })
@@ -54,7 +54,7 @@ describe('SwarmCluster', () => {
         const { engine, init } = docker('inactive')
 
         await run(
-            makeSwarmCluster(engine).ensureCluster({
+            new SwarmCluster.live(engine).ensureCluster({
                 AdvertiseAddr: '1.2.3.4:2377',
             })
         )
@@ -66,7 +66,7 @@ describe('SwarmCluster', () => {
         const { engine } = docker('inactive')
 
         const snapshot = await run(
-            makeSwarmCluster(engine).getLocalClusterSnapshot()
+            new SwarmCluster.live(engine).getLocalClusterSnapshot()
         )
 
         expect(snapshot).toEqual(
@@ -119,7 +119,7 @@ describe('SwarmCluster', () => {
             swarmServices: { list: () => Effect.succeed([]) },
         } as never
 
-        const cluster = makeSwarmCluster(engine)
+        const cluster = new SwarmCluster.live(engine)
         const snapshot = await run(cluster.getLocalClusterSnapshot())
 
         expect('joinTokens' in snapshot).toBe(false)
@@ -149,7 +149,7 @@ describe('SwarmCluster', () => {
         } as never
 
         await expect(
-            run(makeSwarmCluster(engine).reanchorLoneCluster('100.88.0.1'))
+            run(new SwarmCluster.live(engine).reanchorLoneCluster('100.88.0.1'))
         ).rejects.toMatchObject({ _tag: 'SwarmUnavailable' })
     })
 })

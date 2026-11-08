@@ -12,10 +12,10 @@ import { makeImages, type ImagesShape } from './images/images'
 import { makeNetworks, type NetworksShape } from './networking/networks'
 import { makeVolumes, type VolumesShape } from './networking/volumes'
 import {
-    makeSwarmCluster,
-    makeSwarmConfigs,
-    makeSwarmNodes,
-    makeSwarmSecrets,
+    SwarmCluster,
+    SwarmConfigs,
+    SwarmNodes,
+    SwarmSecrets,
     type SwarmClusterShape,
     type SwarmConfigsShape,
     type SwarmNodesShape,
@@ -97,9 +97,9 @@ export function makeDockerEngine(client: Docker): DockerEngineShape {
                 Effect.as(true),
                 Effect.catch(() => Effect.succeed(false))
             ),
-        swarmCluster: makeSwarmCluster(client),
-        swarmNodes: makeSwarmNodes(client),
-        swarmSecrets: makeSwarmSecrets(client),
-        swarmConfigs: makeSwarmConfigs(client),
+        swarmCluster: new SwarmCluster.live(client),
+        swarmNodes: new SwarmNodes.live(client),
+        swarmSecrets: new SwarmSecrets.live(client),
+        swarmConfigs: new SwarmConfigs.live(client),
     }
 }
