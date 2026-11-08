@@ -1,17 +1,10 @@
 import { Cause, Context, Effect } from 'effect'
 
 import type { SetupPostSetupDestination } from '@deployer/contracts-entities'
-import { serviceOver, type Over } from '@deployer/effect-core'
 
-import type { HostnameService } from '@/core/modules/platform-ingress/services/hostname.service'
 import type { PlatformConfigServiceShape } from '@/core/modules/platform-ingress/services/platform-config.service'
 
 import { SetupHostnamePort, SetupPlatformConfigPort } from '../setup.ports'
-
-type Ports = {
-    readonly hostnameService: HostnameService
-    readonly platformConfig: PlatformConfigServiceShape
-}
 
 /** What the destination reads from the Effect context while it runs. */
 export type PostSetupDestinationPorts =
@@ -19,7 +12,11 @@ export type PostSetupDestinationPorts =
 
 export type PostSetupDestinationServiceShape = {
     /** Where the final click lands. Never fails: an unreadable flag means "no dashboard". */
-    readonly resolve: () => Effect.Effect<SetupPostSetupDestination>
+    readonly resolve: () => Effect.Effect<
+        SetupPostSetupDestination,
+        never,
+        PostSetupDestinationPorts
+    >
 }
 
 /** The API's own management page for the web app. */
@@ -54,52 +51,25 @@ const CONSOLE_PATH = '/manage/web-app'
  */
 export class PostSetupDestinationService extends Context.Service<
     PostSetupDestinationService,
-    Over<PostSetupDestinationServiceShape, PostSetupDestinationPorts>
+    PostSetupDestinationServiceShape
 >()('bff/PostSetupDestinationService') {
-    static readonly live = serviceOver(
-        Effect.all({
-            hostnameService: SetupHostnamePort,
-            platformConfig: SetupPlatformConfigPort,
-        }),
-        makePostSetupDestinationService
-    )
-}
+    static readonly live = class PostSetupDestinationServiceImpl
+        implements PostSetupDestinationServiceShape
+    {
+        resolve(): Effect.Effect<
+            SetupPostSetupDestination,
+            never,
+            PostSetupDestinationPorts
+        > {
+            return Effect.gen(function* () {
+                const hostnameService = yield* SetupHostnamePort
+                const platformConfig = yield* SetupPlatformConfigPort
 
-export function makePostSetupDestinationService({
-    hostnameService,
-    platformConfig,
-}: Ports): PostSetupDestinationServiceShape {
-    // The flag lives in the global DB, which is provisioned DURING setup. A read can legitimately fail if this is called
-    // before that finished — the console page is the safe answer, and it is the page that lets the operator turn a
-    // dashboard on.
-    const readManagedWebEnabled = platformConfig
-        .isManagedWebAppEnabled()
-        .pipe(
-            Effect.catchCause((cause) =>
-                Effect.logWarning(
-                    `Could not read the managed-web flag (${Cause.pretty(cause)}) — directing to the API console`
-                ).pipe(Effect.as(false))
-            )
-        )
-
-    const readManagedWebOrigin = platformConfig.getManagedWebOrigin().pipe(
-        Effect.map((origin) => {
-            if (origin === null || origin.trim().length === 0) return null
-            // `getManagedWebOrigin` stores a bare host (scheme stripped when set), so
-            // it must be given one back before it can be navigated to.
-            return /^https?:\/\//i.test(origin) ? origin : `http://${origin}`
-        }),
-        Effect.catchCause(() => Effect.succeed(null))
-    )
-
-    return {
-        resolve: () =>
-            Effect.gen(function* () {
-                if (yield* readManagedWebEnabled) {
+                if (yield* readManagedWebEnabled(platformConfig)) {
                     // An explicit operator origin (custom domain / tunnel) wins over the
                     // derived hostname — the same precedence the ingress uses to publish the
                     // web router, so the URL and the route cannot disagree.
-                    const origin = yield* readManagedWebOrigin
+                    const origin = yield* readManagedWebOrigin(platformConfig)
                     return {
                         kind: 'dashboard' as const,
                         url: origin ?? hostnameService.webOrigin(),
@@ -112,6 +82,38 @@ export function makePostSetupDestinationService({
                     url: `${hostnameService.apiOrigin()}${CONSOLE_PATH}`,
                     managedWebEnabled: false,
                 }
-            }),
+            })
+        }
     }
+}
+
+// The flag lives in the global DB, which is provisioned DURING setup. A read can legitimately fail if this is
+// called before that finished — the console page is the safe answer, and it is the page that lets the operator
+// turn a dashboard on.
+function readManagedWebEnabled(
+    platformConfig: PlatformConfigServiceShape
+): Effect.Effect<boolean> {
+    return platformConfig
+        .isManagedWebAppEnabled()
+        .pipe(
+            Effect.catchCause((cause) =>
+                Effect.logWarning(
+                    `Could not read the managed-web flag (${Cause.pretty(cause)}) — directing to the API console`
+                ).pipe(Effect.as(false))
+            )
+        )
+}
+
+function readManagedWebOrigin(
+    platformConfig: PlatformConfigServiceShape
+): Effect.Effect<string | null> {
+    return platformConfig.getManagedWebOrigin().pipe(
+        Effect.map((origin) => {
+            if (origin === null || origin.trim().length === 0) return null
+            // `getManagedWebOrigin` stores a bare host (scheme stripped when set), so
+            // it must be given one back before it can be navigated to.
+            return /^https?:\/\//i.test(origin) ? origin : `http://${origin}`
+        }),
+        Effect.catchCause(() => Effect.succeed(null))
+    )
 }

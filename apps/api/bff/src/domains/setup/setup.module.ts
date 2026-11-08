@@ -63,11 +63,11 @@ export class SetupDomainModule extends createModuleContext({
         { provide: SetupTransportPort, useValue: nodeTransport },
         {
             provide: PostSetupDestinationService,
-            useValue: PostSetupDestinationService.live,
+            useClass: PostSetupDestinationService.live,
         },
         {
             provide: PostSetupVerificationService,
-            useValue: PostSetupVerificationService.live,
+            useClass: PostSetupVerificationService.live,
         },
     ],
     exports: [

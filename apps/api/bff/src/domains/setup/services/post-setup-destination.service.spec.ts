@@ -1,10 +1,15 @@
 import { Effect } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
 
+import { provideTo } from '@deployer/effect-core'
+
 import type { HostnameService } from '@/core/modules/platform-ingress/services/hostname.service'
 import type { PlatformConfigServiceShape } from '@/core/modules/platform-ingress/services/platform-config.service'
 
-import { makePostSetupDestinationService } from './post-setup-destination.service'
+
+import { SetupHostnamePort, SetupPlatformConfigPort } from '../setup.ports'
+
+import { PostSetupDestinationService } from './post-setup-destination.service'
 
 /**
  * The destination the wizard's final click uses.
@@ -28,18 +33,20 @@ function makeService(options: {
     )
 
     // The ports are plain objects: each carries only the members this unit exercises, and the cast states the narrowing.
-    const shape = makePostSetupDestinationService({
-        hostnameService: {
-            webOrigin: () => 'http://web.deployer.localhost',
-            apiOrigin: () => 'http://api.deployer.localhost',
-        } as unknown as HostnameService,
-        platformConfig: {
-            isManagedWebAppEnabled,
-            getManagedWebOrigin,
-        } as unknown as PlatformConfigServiceShape,
-    })
-    // `resolve` never fails (its error type is `never`), so the result is the value itself.
-    const service = { resolve: () => Effect.runPromise(shape.resolve()) }
+    const service = provideTo(
+        new PostSetupDestinationService.live(),
+        (effect) =>
+            effect.pipe(
+                Effect.provideService(SetupHostnamePort, {
+                    webOrigin: () => 'http://web.deployer.localhost',
+                    apiOrigin: () => 'http://api.deployer.localhost',
+                } as unknown as HostnameService),
+                Effect.provideService(SetupPlatformConfigPort, {
+                    isManagedWebAppEnabled,
+                    getManagedWebOrigin,
+                } as unknown as PlatformConfigServiceShape)
+            )
+    )
     return { service, isManagedWebAppEnabled, getManagedWebOrigin }
 }
 
@@ -47,7 +54,7 @@ describe('PostSetupDestinationService', () => {
     it('sends the operator to the dashboard when it is enabled', async () => {
         const { service } = makeService({ enabled: true })
 
-        const result = await service.resolve()
+        const result = await Effect.runPromise(service.resolve())
 
         expect(result.kind).toBe('dashboard')
         expect(result.url).toBe('http://web.deployer.localhost')
@@ -62,13 +69,13 @@ describe('PostSetupDestinationService', () => {
             origin: 'app.example.com',
         })
 
-        expect((await service.resolve()).url).toBe('http://app.example.com')
+        expect((await Effect.runPromise(service.resolve())).url).toBe('http://app.example.com')
     })
 
     it('sends the operator to the API console when no dashboard is enabled', async () => {
         const { service } = makeService({ enabled: false })
 
-        const result = await service.resolve()
+        const result = await Effect.runPromise(service.resolve())
 
         // The API's own page — it cannot 404 the way an unrouted web host would,
         // and it is where a dashboard can be turned on.
@@ -83,7 +90,7 @@ describe('PostSetupDestinationService', () => {
         // the answer that also lets them enable a dashboard.
         const { service } = makeService({ enabledThrows: true })
 
-        const result = await service.resolve()
+        const result = await Effect.runPromise(service.resolve())
 
         expect(result.kind).toBe('api-console')
         expect(result.managedWebEnabled).toBe(false)
@@ -97,6 +104,6 @@ describe('PostSetupDestinationService', () => {
             origin: 'app.example.com',
         })
 
-        expect((await service.resolve()).url).toMatch(/^http:\/\//)
+        expect((await Effect.runPromise(service.resolve())).url).toMatch(/^http:\/\//)
     })
 })

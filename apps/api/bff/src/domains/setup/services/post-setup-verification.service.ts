@@ -6,7 +6,6 @@ import type {
     SetupPostSetupVerification,
     SetupVerificationTarget,
 } from '@deployer/contracts-entities'
-import { serviceOver, type Over } from '@deployer/effect-core'
 
 import type { EnvService } from '@/config/env/env.module'
 import type { HostnameService } from '@/core/modules/platform-ingress/services/hostname.service'
@@ -119,150 +118,23 @@ export const nodeTransport: IngressTransport = ({
  */
 export class PostSetupVerificationService extends Context.Service<
     PostSetupVerificationService,
-    Over<PostSetupVerificationServiceShape, PostSetupVerificationPorts>
+    PostSetupVerificationServiceShape
 >()('bff/PostSetupVerificationService') {
-    static readonly live = serviceOver(
-        Effect.all({
-            env: SetupEnvPort,
-            hostnames: SetupHostnamePort,
-            platformConfig: SetupPlatformConfigPort,
-            transport: SetupTransportPort,
-        }),
-        makePostSetupVerificationService
-    )
-}
+    static readonly live = class PostSetupVerificationServiceImpl
+        implements PostSetupVerificationServiceShape
+    {
+        /** Fails only with `ManagedWebFlagUnreadable`: a failed probe is the answer, not an error. */
+        verify(): Effect.Effect<
+            SetupPostSetupVerification,
+            ManagedWebFlagUnreadable,
+            PostSetupVerificationPorts
+        > {
+            return Effect.gen(function* () {
+                const hostnames = yield* SetupHostnamePort
+                const platformConfig = yield* SetupPlatformConfigPort
+                const transport = yield* SetupTransportPort
+                const env = yield* SetupEnvPort
 
-/** What the verification reads from the Effect context while it runs. */
-export type PostSetupVerificationPorts =
-    | SetupEnvPort
-    | SetupHostnamePort
-    | SetupPlatformConfigPort
-    | SetupTransportPort
-
-type Ports = {
-    readonly env: EnvService
-    readonly hostnames: HostnameService
-    readonly platformConfig: PlatformConfigServiceShape
-    readonly transport: IngressTransport
-}
-
-export type PostSetupVerificationServiceShape = {
-    /** Fails only with `ManagedWebFlagUnreadable`: a failed probe is the answer, not an error. */
-    readonly verify: () => Effect.Effect<
-        SetupPostSetupVerification,
-        ManagedWebFlagUnreadable
-    >
-}
-
-export function makePostSetupVerificationService({
-    env,
-    hostnames,
-    platformConfig,
-    transport,
-}: Ports): PostSetupVerificationServiceShape {
-    /** The dashboard's browser-facing origin: an operator-set origin wins over the generated hostname. */
-    const webOrigin = platformConfig.getManagedWebOrigin().pipe(
-        Effect.catchCause(() => Effect.succeed(null)),
-        Effect.map((origin) => {
-            const configured = origin?.trim() ?? ''
-            if (configured.length === 0) return hostnames.webOrigin()
-            return /^https?:\/\//i.test(configured)
-                ? configured
-                : `http://${configured}`
-        })
-    )
-
-    /** Ingress addresses to try: the platform's swarm service, then a compose-managed one. */
-    const ingressAddresses = (): { address: string; port: number }[] => {
-        const port = env.get('MANAGED_TRAEFIK_HTTP_PORT')
-        const candidates = [
-            {
-                address: platformTraefikContainerName(
-                    env.get('DEPLOYER_PREFIX')
-                ),
-                port: 80,
-            },
-            { address: env.get('MANAGED_TRAEFIK_HOST'), port },
-        ]
-        const seen = new Set<string>()
-        return candidates.filter(({ address, port: candidatePort }) => {
-            const key = `${address}:${String(candidatePort)}`
-            if (seen.has(key)) return false
-            seen.add(key)
-            return true
-        })
-    }
-
-    const askIngress = (
-        host: string,
-        path: string
-    ): Effect.Effect<RoutedVerdict> =>
-        Effect.promise(async () => {
-            let last: RoutedVerdict = {
-                ok: false,
-                status: null,
-                detail: 'the cluster ingress did not answer',
-            }
-            // The FIRST candidate is the platform's own ingress; a later fallback must
-            // not overwrite its failure with its own (an unset compose `traefik` host
-            // reported "ENOTFOUND traefik" for an ingress that was merely still starting).
-            let reported = false
-            for (const { address, port } of ingressAddresses()) {
-                try {
-                    const verdict = classifyIngressAnswer(
-                        await transport({ address, port, host, path })
-                    )
-                    if (verdict.ok) return verdict
-                    last = verdict
-                } catch (error: unknown) {
-                    const reason =
-                        error instanceof Error ? error.message : String(error)
-                    // Keep a routed verdict from an earlier candidate: "no route yet" is
-                    // more informative than "connection refused" from a second address.
-                    if (last.status === null && !reported) {
-                        last = {
-                            ok: false,
-                            status: null,
-                            detail: `the cluster ingress is not reachable (${reason})`,
-                        }
-                        reported = true
-                    }
-                }
-            }
-            return last
-        })
-
-    const verifyTarget = (input: {
-        id: SetupVerificationTarget['id']
-        expected: boolean
-        host: string
-        path: string
-        probeUrl: string | null
-    }): Effect.Effect<SetupVerificationTarget> => {
-        const base = {
-            id: input.id,
-            expected: input.expected,
-            host: input.host,
-            probeUrl: input.probeUrl,
-        }
-        if (!input.expected) {
-            return Effect.succeed({
-                ...base,
-                routed: {
-                    ok: true,
-                    status: null,
-                    detail: 'not part of this installation',
-                },
-            })
-        }
-        return askIngress(input.host, input.path).pipe(
-            Effect.map((routed) => ({ ...base, routed }))
-        )
-    }
-
-    return {
-        verify: () =>
-            Effect.gen(function* () {
                 const webExpected = yield* platformConfig
                     .isManagedWebAppEnabled()
                     .pipe(
@@ -275,18 +147,20 @@ export function makePostSetupVerificationService({
                             )
                         )
                     )
-                const web = webExpected ? yield* webOrigin : null
+                const web = webExpected
+                    ? yield* webOrigin(hostnames, platformConfig)
+                    : null
 
                 const [apiTarget, webTarget] = yield* Effect.all(
                     [
-                        verifyTarget({
+                        verifyTarget(env, transport, {
                             id: 'api',
                             expected: true,
                             host: hostnames.apiHostname(),
                             path: '/health/ready',
                             probeUrl: `${hostnames.apiOrigin()}/health`,
                         }),
-                        verifyTarget({
+                        verifyTarget(env, transport, {
                             id: 'web',
                             expected: webExpected,
                             host: hostnames.webHostname(),
@@ -300,6 +174,133 @@ export function makePostSetupVerificationService({
                     checkedAt: new Date().toISOString(),
                     targets: [apiTarget, webTarget],
                 }
-            }),
+            })
+        }
     }
+}
+
+/** What the verification reads from the Effect context while it runs. */
+export type PostSetupVerificationPorts =
+    | SetupEnvPort
+    | SetupHostnamePort
+    | SetupPlatformConfigPort
+    | SetupTransportPort
+
+export type PostSetupVerificationServiceShape = {
+    /** Fails only with `ManagedWebFlagUnreadable`: a failed probe is the answer, not an error. */
+    readonly verify: () => Effect.Effect<
+        SetupPostSetupVerification,
+        ManagedWebFlagUnreadable,
+        PostSetupVerificationPorts
+    >
+}
+
+/** The dashboard's browser-facing origin: an operator-set origin wins over the generated hostname. */
+function webOrigin(
+    hostnames: HostnameService,
+    platformConfig: PlatformConfigServiceShape
+): Effect.Effect<string> {
+    return platformConfig.getManagedWebOrigin().pipe(
+        Effect.catchCause(() => Effect.succeed(null)),
+        Effect.map((origin) => {
+            const configured = origin?.trim() ?? ''
+            if (configured.length === 0) return hostnames.webOrigin()
+            return /^https?:\/\//i.test(configured)
+                ? configured
+                : `http://${configured}`
+        })
+    )
+}
+
+/** Ingress addresses to try: the platform's swarm service, then a compose-managed one. */
+function ingressAddresses(env: EnvService): { address: string; port: number }[] {
+    const port = env.get('MANAGED_TRAEFIK_HTTP_PORT')
+    const candidates = [
+        {
+            address: platformTraefikContainerName(env.get('DEPLOYER_PREFIX')),
+            port: 80,
+        },
+        { address: env.get('MANAGED_TRAEFIK_HOST'), port },
+    ]
+    const seen = new Set<string>()
+    return candidates.filter(({ address, port: candidatePort }) => {
+        const key = `${address}:${String(candidatePort)}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+    })
+}
+
+function askIngress(
+    env: EnvService,
+    transport: IngressTransport,
+    host: string,
+    path: string
+): Effect.Effect<RoutedVerdict> {
+    return Effect.promise(async () => {
+        let last: RoutedVerdict = {
+            ok: false,
+            status: null,
+            detail: 'the cluster ingress did not answer',
+        }
+        // The FIRST candidate is the platform's own ingress; a later fallback must
+        // not overwrite its failure with its own (an unset compose `traefik` host
+        // reported "ENOTFOUND traefik" for an ingress that was merely still starting).
+        let reported = false
+        for (const { address, port } of ingressAddresses(env)) {
+            try {
+                const verdict = classifyIngressAnswer(
+                    await transport({ address, port, host, path })
+                )
+                if (verdict.ok) return verdict
+                last = verdict
+            } catch (error: unknown) {
+                const reason =
+                    error instanceof Error ? error.message : String(error)
+                // Keep a routed verdict from an earlier candidate: "no route yet" is
+                // more informative than "connection refused" from a second address.
+                if (last.status === null && !reported) {
+                    last = {
+                        ok: false,
+                        status: null,
+                        detail: `the cluster ingress is not reachable (${reason})`,
+                    }
+                    reported = true
+                }
+            }
+        }
+        return last
+    })
+}
+
+function verifyTarget(
+    env: EnvService,
+    transport: IngressTransport,
+    input: {
+        id: SetupVerificationTarget['id']
+        expected: boolean
+        host: string
+        path: string
+        probeUrl: string | null
+    }
+): Effect.Effect<SetupVerificationTarget> {
+    const base = {
+        id: input.id,
+        expected: input.expected,
+        host: input.host,
+        probeUrl: input.probeUrl,
+    }
+    if (!input.expected) {
+        return Effect.succeed({
+            ...base,
+            routed: {
+                ok: true,
+                status: null,
+                detail: 'not part of this installation',
+            },
+        })
+    }
+    return askIngress(env, transport, input.host, input.path).pipe(
+        Effect.map((routed) => ({ ...base, routed }))
+    )
 }

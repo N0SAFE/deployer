@@ -1,15 +1,23 @@
 import { Cause, Effect, Exit } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
 
+import { provideTo } from '@deployer/effect-core'
+
 import type { EnvService } from '@/config/env/env.module'
 import type { HostnameService } from '@/core/modules/platform-ingress/services/hostname.service'
 import type { PlatformConfigServiceShape } from '@/core/modules/platform-ingress/services/platform-config.service'
 
 import { ManagedWebFlagUnreadable } from '../setup.errors'
+import {
+    SetupEnvPort,
+    SetupHostnamePort,
+    SetupPlatformConfigPort,
+    SetupTransportPort,
+} from '../setup.ports'
 
 import {
     classifyIngressAnswer,
-    makePostSetupVerificationService,
+    PostSetupVerificationService,
     type IngressTransport,
 } from './post-setup-verification.service'
 
@@ -82,12 +90,19 @@ function make(options: {
             Effect.succeed(options.webOrigin ?? null)
         ),
     } as unknown as PlatformConfigServiceShape
-    const shape = makePostSetupVerificationService({
-        env,
-        hostnames,
-        platformConfig: config,
-        transport: options.transport,
-    })
+    const shape = provideTo(
+        new PostSetupVerificationService.live(),
+        (effect) =>
+            effect.pipe(
+                Effect.provideService(SetupEnvPort, env),
+                Effect.provideService(SetupHostnamePort, hostnames),
+                Effect.provideService(SetupPlatformConfigPort, config),
+                Effect.provideService(
+                    SetupTransportPort,
+                    options.transport
+                )
+            )
+    )
     return {
         verify: () => Effect.runPromise(shape.verify()),
         verifyExit: () => Effect.runPromiseExit(shape.verify()),
