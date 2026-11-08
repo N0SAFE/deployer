@@ -2,7 +2,7 @@ import { Effect, Ref } from 'effect'
 
 import { DatabaseNotInitialized, DatabaseUnhealthy } from './errors'
 
-import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite'
+import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite'
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
 
 /**
@@ -10,11 +10,7 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
  * `db` to its own tables while the handle itself knows nothing about them: it only stores the
  * connection and runs `SELECT 1`.
  */
-export type AnyDrizzleDatabase =
-    | NodePgDatabase
-    | BunSQLiteDatabase
-    | NodePgDatabase<Record<string, unknown>>
-    | BunSQLiteDatabase<Record<string, unknown>>
+export type AnyDrizzleDatabase = NodePgDatabase | SQLiteBunDatabase
 
 export type DatabaseHandleShape<DB extends AnyDrizzleDatabase> = {
     /** Sets (or replaces) the connection. */

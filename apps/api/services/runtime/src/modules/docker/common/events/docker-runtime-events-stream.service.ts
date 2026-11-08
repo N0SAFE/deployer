@@ -8,8 +8,8 @@ import type { DockerRuntimeMeshRelayService } from '../mesh/docker-runtime-mesh-
 
 /** The mesh's runtime events as one replaying stream. It follows the relay for as long as the service is started. */
 export type DockerRuntimeEventsStreamShape = {
-    readonly onStart: () => Effect.Effect<void>
-    readonly onStop: () => Effect.Effect<void>
+    readonly onModuleInit: () => Effect.Effect<void>
+    readonly onModuleDestroy: () => Effect.Effect<void>
     readonly observeEvents: () => Observable<DockerRuntimeEvent>
 }
 
@@ -40,7 +40,7 @@ function makeDockerRuntimeEventsStream(
 
     return {
         observeEvents: () => runtimeEvents$.asObservable(),
-        onStart: () =>
+        onModuleInit: () =>
             Effect.sync(() => {
                 if (subscription) {
                     return
@@ -52,7 +52,7 @@ function makeDockerRuntimeEventsStream(
                         runtimeEvents$.next(event)
 
                         if (shouldTrace(relayedEventCount)) {
-                            debugLogger.debug('onStart', {
+                            debugLogger.debug('onModuleInit', {
                                 phase: 'runtime_event_relayed',
                                 count: relayedEventCount,
                                 source: event.source,
@@ -63,7 +63,7 @@ function makeDockerRuntimeEventsStream(
                         }
                     },
                     error: (error: unknown) => {
-                        debugLogger.debug('onStart', {
+                        debugLogger.debug('onModuleInit', {
                             phase: 'runtime_event_relay_error',
                             message:
                                 error instanceof Error
@@ -73,17 +73,17 @@ function makeDockerRuntimeEventsStream(
                     },
                 })
 
-                debugLogger.debug('onStart', {
+                debugLogger.debug('onModuleInit', {
                     phase: 'runtime_event_relay_started',
                 })
             }),
-        onStop: () =>
+        onModuleDestroy: () =>
             Effect.sync(() => {
                 subscription?.unsubscribe()
                 subscription = null
                 runtimeEvents$.complete()
 
-                debugLogger.debug('onStop', {
+                debugLogger.debug('onModuleDestroy', {
                     phase: 'runtime_event_relay_stopped',
                     relayedEventCount,
                 })

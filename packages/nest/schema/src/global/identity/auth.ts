@@ -1,4 +1,3 @@
-import { relations } from 'drizzle-orm'
 import {
     pgTable,
     text,
@@ -249,52 +248,4 @@ export const deviceCode = pgTable(
         uniqueIndex('deviceCode_deviceCode_uidx').on(table.deviceCode),
         uniqueIndex('deviceCode_userCode_uidx').on(table.userCode),
     ]
-)
-
-export const userRelations = relations(user, ({ one, many }) => ({
-    sessions: many(session),
-    accounts: many(account),
-    platformInvites: many(platformInvite),
-    userVapidKeys: one(userVapidKeys),
-    pushSubscriptions: many(pushSubscription),
-    passkeys: many(passkey),
-    twoFactors: many(twoFactor),
-}))
-
-export const sessionRelations = relations(session, ({ one }) => ({
-    user: one(user, {
-        fields: [session.userId],
-        references: [user.id],
-    }),
-}))
-
-export const accountRelations = relations(account, ({ one }) => ({
-    user: one(user, {
-        fields: [account.userId],
-        references: [user.id],
-    }),
-}))
-
-export const platformInviteRelations = relations(platformInvite, ({ one }) => ({
-    user: one(user, {
-        fields: [platformInvite.invitedUserId],
-        references: [user.id],
-    }),
-}))
-
-export const userVapidKeysRelations = relations(userVapidKeys, ({ one }) => ({
-    user: one(user, {
-        fields: [userVapidKeys.userId],
-        references: [user.id],
-    }),
-}))
-
-export const pushSubscriptionRelations = relations(
-    pushSubscription,
-    ({ one }) => ({
-        user: one(user, {
-            fields: [pushSubscription.userId],
-            references: [user.id],
-        }),
-    })
 )

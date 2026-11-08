@@ -88,8 +88,8 @@ export function withDeploymentQueueWorkerDisabled(
                 context.moduleBuilder
                     .overrideProvider(DeploymentQueueWorker)
                     .useValue({
-                        onStart: () => Effect.void,
-                        onStop: () => Effect.void,
+                        onModuleInit: () => Effect.void,
+                        onModuleDestroy: () => Effect.void,
                         processQueueJob: () => Effect.void,
                         cancelRunningJob: () => Effect.succeed(false),
                     })

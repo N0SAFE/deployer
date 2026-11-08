@@ -126,7 +126,7 @@ export interface ScheduledApp {
  */
 export class ServicesTierProvisionerImpl {
     /** Runs once, before the app serves (the lifecycle runner calls it). Failures fail the boot unless `bootstrap` absorbs them. */
-    readonly onStart = (): Effect.Effect<void, unknown> =>
+    readonly onModuleInit = (): Effect.Effect<void, unknown> =>
         Effect.tryPromise({
             try: () => this.bootstrap(),
             catch: (error) => error,

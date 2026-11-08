@@ -47,7 +47,7 @@ export type BuilderRegistryShape = ServiceLifecycleShape & {
     ) => Effect.Effect<BuilderStrategy, RuntimeInvalid>
     /** True when a builder is both registered AND runnable. */
     readonly isSupported: (builderType: string) => Effect.Effect<boolean>
-    readonly onStart: () => Effect.Effect<void>
+    readonly onModuleInit: () => Effect.Effect<void>
 }
 
 export class BuilderRegistry extends Context.Service<
@@ -55,7 +55,7 @@ export class BuilderRegistry extends Context.Service<
     BuilderRegistryShape
 >()('runtime/BuilderRegistry') {}
 
-/** The registry over its strategies; a later strategy of the same type wins, and `onStart` says so. */
+/** The registry over its strategies; a later strategy of the same type wins, and `onModuleInit` says so. */
 export function makeBuilderRegistry(
     strategies: readonly BuilderStrategy[]
 ): BuilderRegistryShape {
@@ -101,7 +101,7 @@ export function makeBuilderRegistry(
                     byType.get(builderType.toLowerCase())?.isAvailable() ===
                     true
             ),
-        onStart: () =>
+        onModuleInit: () =>
             Effect.gen(function* () {
                 for (const key of duplicates) {
                     yield* Effect.logWarning(

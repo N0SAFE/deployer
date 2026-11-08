@@ -12,6 +12,7 @@ import { drizzleStepUpSink, makeHasStepUp } from './step-up-sink'
 
 import type { EnvService } from '../env/env.module'
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
+import type { AnyRelations } from 'drizzle-orm'
 
 /** A string env value, or nothing: the schema's optional keys widen to a union through `EnvService`. */
 const optionalString = (value: unknown): string | undefined =>
@@ -26,7 +27,7 @@ const logger = new Logger('AuthAudit')
  * the audit insert failed would turn an observability problem into an outage. The failure is logged instead, with the
  * action so an operator can see what is missing.
  */
-function drizzleAuditSink<TSchema extends Record<string, unknown>>(
+function drizzleAuditSink<TSchema extends AnyRelations>(
     database: NodePgDatabase<TSchema>
 ): AuthAuditSink {
     const insert = (event: AuthAuditEvent): void => {
@@ -97,7 +98,7 @@ function secretsFor(ring: AuthSecretRing) {
  * @param platformSecret - the node's platform secret ring (generated on first boot, rotated by an operator). It is never read
  *   from the environment: the same value must sign sessions on every node, so it comes from the node's own stored config.
  */
-export const createBetterAuth = <TSchema extends Record<string, unknown>>(
+export const createBetterAuth = <TSchema extends AnyRelations>(
     database: NodePgDatabase<TSchema>,
     envService: EnvService | AuthEnvValues,
     platformSecret: AuthSecretRing

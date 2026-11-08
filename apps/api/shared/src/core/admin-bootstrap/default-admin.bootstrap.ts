@@ -24,7 +24,7 @@
  * an admin grants it explicitly.
  */
 
-import { eq } from 'drizzle-orm'
+import { eq, defineRelations } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { Pool } from 'pg'
 
@@ -79,7 +79,7 @@ export async function ensureDefaultAdmin(
 
     const pool = new Pool({ connectionString: databaseUrl, max: 1 })
     try {
-        const db = drizzle(pool, { schema: globalSchema })
+        const db = drizzle({ client: pool, relations: defineRelations(globalSchema) })
 
         // Existing user → report it and stop. Never promote by email: a row whose
         // address happens to match a configured variable is not evidence that the

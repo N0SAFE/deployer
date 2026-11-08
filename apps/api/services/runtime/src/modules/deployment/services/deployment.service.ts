@@ -3221,7 +3221,7 @@ export function makeDeploymentService(ports: DeploymentServicePorts) {
             'streamNodeLifecycleEvents',
         ] as const
     )
-    return { ...methods, onStart: () => Effect.sync(registerEventNamespace) }
+    return { ...methods, onModuleInit: () => Effect.sync(registerEventNamespace) }
 }
 
 /**
@@ -3230,7 +3230,7 @@ export function makeDeploymentService(ports: DeploymentServicePorts) {
  *
  * Every method is an Effect that fails with what the body threw (the `Runtime*` refusals reach the `.effect()` boundary as they are);
  * the four `stream*` methods return RxJS Observables. It holds in-memory state (provenance, snapshots, checkpoints),
- * so a module builds it once with `useFactory`, and it registers the deployment event namespace in `onStart`.
+ * so a module builds it once with `useFactory`, and it registers the deployment event namespace in `onModuleInit`.
  */
 export type DeploymentServiceShape = ReturnType<typeof makeDeploymentService>
 

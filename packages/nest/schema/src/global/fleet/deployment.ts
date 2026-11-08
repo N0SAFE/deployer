@@ -1,4 +1,3 @@
-import { relations } from 'drizzle-orm'
 import {
     pgTable,
     text,
@@ -119,34 +118,3 @@ export const githubRepositories = pgTable('github_repositories', {
         .$defaultFn(() => new Date())
         .notNull(),
 })
-
-export const previewEnvironmentsRelations = relations(
-    previewEnvironments,
-    ({ one }) => ({
-        deployment: one(deployments, {
-            fields: [previewEnvironments.deploymentId],
-            references: [deployments.id],
-        }),
-    })
-)
-
-export const githubInstallationsRelations = relations(
-    githubInstallations,
-    ({ one, many }) => ({
-        user: one(user, {
-            fields: [githubInstallations.userId],
-            references: [user.id],
-        }),
-        repositories: many(githubRepositories),
-    })
-)
-
-export const githubRepositoriesRelations = relations(
-    githubRepositories,
-    ({ one }) => ({
-        installation: one(githubInstallations, {
-            fields: [githubRepositories.installationId],
-            references: [githubInstallations.id],
-        }),
-    })
-)

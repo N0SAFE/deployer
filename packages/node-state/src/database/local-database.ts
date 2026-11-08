@@ -1,8 +1,9 @@
+import { defineRelations } from 'drizzle-orm'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 import { Database } from 'bun:sqlite'
-import { drizzle, type BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite'
+import { drizzle, type SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite'
 import { Context, Effect, Layer, type Scope } from 'effect'
 
 import * as localSchema from '@deployer/nest-schema/local'
@@ -12,8 +13,15 @@ import { runMigrations } from './migrations/run-migrations'
 
 import type { LocalDatabaseOptions } from './options'
 
-/** The typed Drizzle handle on the local SQLite database. */
-export type LocalDb = BunSQLiteDatabase<typeof localSchema>
+/**
+ * The typed Drizzle handle on the local SQLite database.
+ *
+ * Derived from the relations config rather than from the schema module: since drizzle-orm 1.0 the
+ * database generic is its relations (`ExtractTablesWithRelations<…>`), not the raw schema object.
+ */
+export type LocalDb = SQLiteBunDatabase<typeof localRelations>
+
+const localRelations = defineRelations(localSchema)
 
 export type LocalDatabaseShape = {
     /** The Drizzle handle, for hosts that must hand a raw connection to code outside Effect. */
@@ -31,14 +39,29 @@ export type LocalDatabaseShape = {
     ) => Effect.Effect<A, LocalDatabaseError>
 }
 
-const failed = (operation: string) => (cause: unknown) =>
-    new LocalDatabaseError({
-        operation,
-        reason: cause instanceof Error ? cause.message : String(cause),
-    })
+/**
+ * Maps a thrown query failure to the domain error.
+ *
+ * The reason is the ENGINE's message, not the wrapper's: since drizzle-orm 1.0 a failed query
+ * arrives as a `DrizzleQueryError` whose own `message` is just the SQL it tried to run, with the
+ * driver's words ("no such table: …", a constraint name) in `cause`. Reporting the wrapper would
+ * leave every caller — and every log — without the thing that actually went wrong.
+ */
+const failed =
+    (operation: string) =>
+    (cause: unknown): LocalDatabaseError => {
+        const root =
+            cause instanceof Error
+                ? ((cause as Error & { cause?: unknown }).cause ?? cause)
+                : cause
+        return new LocalDatabaseError({
+            operation,
+            reason: root instanceof Error ? root.message : String(root),
+        })
+    }
 
 export const makeLocalDatabaseFrom = (client: Database): LocalDatabaseShape => {
-    const db = drizzle(client, { schema: localSchema })
+    const db: LocalDb = drizzle({ client, relations: localRelations })
     return {
         db,
         client,

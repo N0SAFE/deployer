@@ -489,7 +489,7 @@ describe('DeploymentService', () => {
     })
 
     it('registers the deployment event namespace when it starts', async () => {
-        await service.onStart()
+        await service.onModuleInit()
 
         expect(
             mockCoreEventSyncService.registerNamespaceAdapter

@@ -167,8 +167,8 @@ function makeNode(options: {
 
     /** What the app does at boot: the gate reads the persisted row, the handover subscribes to the gate edge. */
     const boot = () => {
-        Effect.runSync(gate.onStart())
-        Effect.runSync(handover.onStart())
+        Effect.runSync(gate.onModuleInit())
+        Effect.runSync(handover.onModuleInit())
     }
 
     return {

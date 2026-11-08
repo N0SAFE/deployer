@@ -110,7 +110,7 @@ describe('DockerImageAutoScanListenerService', () => {
         const { service, runtimeEvents$, dockerImagesApplicationService } =
             createServiceHarness()
 
-        await Effect.runPromise(service.onStart())
+        await Effect.runPromise(service.onModuleInit())
         await flushAsyncWork()
 
         runtimeEvents$.next(
@@ -157,7 +157,7 @@ describe('DockerImageAutoScanListenerService', () => {
             }
         )
 
-        await Effect.runPromise(service.onStop())
+        await Effect.runPromise(service.onModuleDestroy())
     })
 
     it('ignores non-container and non-create runtime events', async () => {
@@ -183,7 +183,7 @@ describe('DockerImageAutoScanListenerService', () => {
             envService as never
         )
 
-        await Effect.runPromise(serviceWithCustomStream.onStart())
+        await Effect.runPromise(serviceWithCustomStream.onModuleInit())
         await flushAsyncWork()
 
         runtimeEvents$.next(
@@ -243,15 +243,15 @@ describe('DockerImageAutoScanListenerService', () => {
             dockerImagesApplicationService.ensureImageSecurityScan
         ).not.toHaveBeenCalled()
 
-        await Effect.runPromise(serviceWithCustomStream.onStop())
-        await Effect.runPromise(service.onStop())
+        await Effect.runPromise(serviceWithCustomStream.onModuleDestroy())
+        await Effect.runPromise(service.onModuleDestroy())
     })
 
     it('ignores container start events emitted by a different mesh node', async () => {
         const { service, runtimeEvents$, dockerImagesApplicationService } =
             createServiceHarness()
 
-        await Effect.runPromise(service.onStart())
+        await Effect.runPromise(service.onModuleInit())
         await flushAsyncWork()
 
         runtimeEvents$.next(
@@ -286,7 +286,7 @@ describe('DockerImageAutoScanListenerService', () => {
             dockerImagesApplicationService.ensureImageSecurityScan
         ).not.toHaveBeenCalled()
 
-        await Effect.runPromise(service.onStop())
+        await Effect.runPromise(service.onModuleDestroy())
     })
 
     it('queues startup scans for unique local container images', async () => {
@@ -307,7 +307,7 @@ describe('DockerImageAutoScanListenerService', () => {
                 }),
             })
 
-        await Effect.runPromise(service.onStart())
+        await Effect.runPromise(service.onModuleInit())
         await flushAsyncWork()
 
         expect(dockerImagesApplicationService.listImages).toHaveBeenCalledTimes(
@@ -351,7 +351,7 @@ describe('DockerImageAutoScanListenerService', () => {
             }
         )
 
-        await Effect.runPromise(service.onStop())
+        await Effect.runPromise(service.onModuleDestroy())
     })
 
     it('drains startup queue sequentially by waiting for each scan completion', async () => {
@@ -405,7 +405,7 @@ describe('DockerImageAutoScanListenerService', () => {
                 imageId: 'sha256:second',
             })) as ReturnType<typeof vi.fn>
 
-        await Effect.runPromise(service.onStart())
+        await Effect.runPromise(service.onModuleInit())
         await flushAsyncWork()
 
         expect(
@@ -445,6 +445,6 @@ describe('DockerImageAutoScanListenerService', () => {
             }
         )
 
-        await Effect.runPromise(service.onStop())
+        await Effect.runPromise(service.onModuleDestroy())
     })
 })

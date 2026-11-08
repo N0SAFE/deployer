@@ -24,7 +24,7 @@ function makeInMemoryDb(): LocalDb {
         'CREATE TABLE local_migrations (id integer primary key, name text not null)'
     )
     sqlite.run("INSERT INTO local_migrations (name) VALUES ('0001'), ('0002')")
-    return drizzle(sqlite)
+    return drizzle({ client: sqlite })
 }
 
 function makeSupervisor(

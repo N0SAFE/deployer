@@ -50,7 +50,7 @@ export function makeCodeProviderRegistry(
                     ? provider.resolveSourceCheckout(input)
                     : Effect.succeed(null)
             ),
-        onStart: () =>
+        onModuleInit: () =>
             Effect.gen(function* () {
                 for (const key of overwritten) {
                     yield* Effect.logWarning(

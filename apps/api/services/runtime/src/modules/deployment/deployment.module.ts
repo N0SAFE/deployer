@@ -176,7 +176,7 @@ export class DeploymentDomainModule extends createModuleContext({
             inject: [{ token: CoreEventStreamPoolService, optional: true }],
         },
         // The execution workflow and the deployment core are Effect services built over these ports. The core keeps
-        // in-memory state, so it is built once (`useFactory`) and registers its event namespace in `onStart`.
+        // in-memory state, so it is built once (`useFactory`) and registers its event namespace in `onModuleInit`.
         {
             provide: DeploymentRepositoryPort,
             useExisting: DeploymentRepository,

@@ -276,7 +276,7 @@ describe('SetupGateService', () => {
                 databaseProvisioning: 'local',
             })
 
-            Effect.runSync(gate.onStart())
+            Effect.runSync(gate.onModuleInit())
 
             // Same flow as a fresh install minus the collecting step. The gate is NOT
             // open yet: the cluster pipeline opens it once the engine is active, which
@@ -299,7 +299,7 @@ describe('SetupGateService', () => {
                 } as unknown as NodeConfigRow['swarmConfig'],
             })
 
-            Effect.runSync(gate.onStart())
+            Effect.runSync(gate.onModuleInit())
 
             // Overwriting from an EMPTY payload (a restart passes none) would erase
             // the database URL and the swarm participation the API is about to read.
@@ -319,7 +319,7 @@ describe('SetupGateService', () => {
                 databaseProvisioning: 'external',
             })
 
-            Effect.runSync(gate.onStart())
+            Effect.runSync(gate.onModuleInit())
 
             // A `databaseUrl` alone is an UNPROVISIONED candidate. Skipping the wizard
             // on that basis would leave an empty schema with no surface to fix it — and
@@ -343,7 +343,7 @@ describe('SetupGateService', () => {
                 makeOrchestrationStreamService(envService)
             )
 
-            Effect.runSync(gate.onStart())
+            Effect.runSync(gate.onModuleInit())
 
             expect(cluster.start).not.toHaveBeenCalled()
             expect(phases.isReady()).toBe(false)

@@ -82,7 +82,7 @@ describe('BuilderRegistry', () => {
                 makeBuilderRegistry([
                     strategy('dockerfile'),
                     strategy('dockerfile'),
-                ]).onStart()
+                ]).onModuleInit()
             )
         ).resolves.toBeUndefined()
     })

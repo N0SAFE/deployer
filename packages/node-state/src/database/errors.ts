@@ -13,9 +13,26 @@ export class LocalDatabaseError extends domainError(
     }
 }
 
-/** The local database has no table by that name yet, which a fresh install reports until it is migrated. */
-export const isMissingTable = (error: unknown, table: string): boolean =>
-    error instanceof Error && error.message.includes(`no such table: ${table}`)
+/**
+ * The local database has no table by that name yet, which a fresh install reports until it is migrated.
+ *
+ * The chain is walked because drizzle wraps a driver failure in `DrizzleQueryError` whose `message`
+ * is the SQL it tried to run — the engine's own words ("no such table: …") live in `cause`.
+ */
+export const isMissingTable = (error: unknown, table: string): boolean => {
+    const needle = `no such table: ${table}`
+    let current: unknown = error
+    for (let depth = 0; current !== undefined && depth < 5; depth += 1) {
+        const message =
+            current instanceof Error ? current.message : String(current)
+        if (message.includes(needle)) return true
+        current =
+            current instanceof Error
+                ? (current as Error & { cause?: unknown }).cause
+                : undefined
+    }
+    return false
+}
 
 /** A write the database accepted could not be read back, which means another writer changed the row. */
 export class NodeStateConflict extends domainError(

@@ -51,11 +51,11 @@ const SWARM_SERVICES = Symbol('SWARM_SERVICES')
 
 /**
  * The swarm services' process-lifetime work, declared as a lifecycle in the shape: the boot convergence (a no-op
- * here: setup founds the cluster from its own flow) runs in `onStart`, and the election loop is `run`, which the
- * runner forks after `onStart` and interrupts on shutdown.
+ * here: setup founds the cluster from its own flow) runs in `onModuleInit`, and the election loop is `run`, which the
+ * runner forks after `onModuleInit` and interrupts on shutdown.
  */
 export interface SwarmLifecycleShape {
-    readonly onStart: () => Effect.Effect<void, unknown>
+    readonly onModuleInit: () => Effect.Effect<void, unknown>
     readonly run: () => Effect.Effect<void, unknown>
 }
 
@@ -121,7 +121,7 @@ const swarmProviders = (config: {
     {
         provide: SwarmLifecycle,
         useFactory: (services: SwarmServices): SwarmLifecycleShape => ({
-            onStart: () => services.bootstrap.onBoot,
+            onModuleInit: () => services.bootstrap.onBoot,
             run: () => services.leadership.run,
         }),
         inject: [SWARM_SERVICES],

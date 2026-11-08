@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { makeDatabaseHandle } from './database-handle'
 import { DatabaseNotInitialized, DatabaseUnhealthy } from './errors'
 
-import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite'
+import type { SQLiteBunDatabase } from 'drizzle-orm/bun-sqlite'
 
 const failureOf = async (effect: Effect.Effect<unknown, unknown>) => {
     const exit = await Effect.runPromiseExit(effect)
@@ -24,7 +24,7 @@ describe('DatabaseHandle', () => {
 
     it('hands back the connection once set', async () => {
         const handle = makeDatabaseHandle('X')
-        const connection = { run: vi.fn() } as unknown as BunSQLiteDatabase
+        const connection = { run: vi.fn() } as unknown as SQLiteBunDatabase
         await Effect.runPromise(handle.init(connection))
         expect(await Effect.runPromise(handle.db)).toBe(connection)
         expect(handle.dbNow()).toBe(connection)

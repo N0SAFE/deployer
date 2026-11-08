@@ -10,8 +10,8 @@ import type { DockerRuntimeEventsStreamShape } from './docker-runtime-events-str
 
 /** Persists every runtime event while it is started; it has no methods, only a lifetime. */
 export type DockerRuntimeActivityPersistenceShape = {
-    readonly onStart: () => Effect.Effect<void>
-    readonly onStop: () => Effect.Effect<void>
+    readonly onModuleInit: () => Effect.Effect<void>
+    readonly onModuleDestroy: () => Effect.Effect<void>
 }
 
 /**
@@ -41,7 +41,7 @@ function makeDockerRuntimeActivityPersistence(
     let subscription: Subscription | null = null
 
     return {
-        onStart: () =>
+        onModuleInit: () =>
             Effect.sync(() => {
                 if (subscription) {
                     return
@@ -94,7 +94,7 @@ function makeDockerRuntimeActivityPersistence(
                     )
                     .subscribe()
             }),
-        onStop: () =>
+        onModuleDestroy: () =>
             Effect.sync(() => {
                 subscription?.unsubscribe()
                 subscription = null

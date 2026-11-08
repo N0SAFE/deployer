@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 
 import { Logger } from '@nestjs/common'
-import { eq } from 'drizzle-orm'
+import { eq, defineRelations } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import { Context, Effect } from 'effect'
@@ -963,8 +963,9 @@ export function makeLocalInitializationService(
                 }
             },
         }
-        const db = drizzle(pool, {
-            schema: globalSchema,
+        const db = drizzle({
+            client: pool,
+            relations: defineRelations(globalSchema),
             logger: migrationLogger,
         })
         try {
@@ -985,7 +986,7 @@ export function makeLocalInitializationService(
         log: (message: string) => void
     ): Promise<{ userId: string }> {
         const pool = new Pool({ connectionString: databaseUrl, max: 1 })
-        const db = drizzle(pool, { schema: globalSchema })
+        const db = drizzle({ client: pool, relations: defineRelations(globalSchema) })
 
         try {
             // Idempotent seed: if the admin already exists (e.g. two nodes

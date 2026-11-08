@@ -1,3 +1,4 @@
+import { defineRelations } from 'drizzle-orm'
 import { randomUUID } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -335,7 +336,7 @@ async function migrateDatabaseSchema(databaseUrl: string): Promise<void> {
     const pool = new Pool({ connectionString: databaseUrl })
 
     try {
-        const db = drizzle(pool, { schema })
+        const db = drizzle({ client: pool, relations: defineRelations(schema) })
         await migrate(db, { migrationsFolder })
     } finally {
         await pool.end()
@@ -1049,8 +1050,9 @@ export class SharedApiRuntimeManager {
                     runtimePool = new Pool({
                         connectionString: databaseUrl,
                     })
-                    const runtimeConnection = drizzle(runtimePool, {
-                        schema,
+                    const runtimeConnection = drizzle({
+                        client: runtimePool,
+                        relations: defineRelations(schema),
                     })
 
                     moduleBuilder = Test.createTestingModule({

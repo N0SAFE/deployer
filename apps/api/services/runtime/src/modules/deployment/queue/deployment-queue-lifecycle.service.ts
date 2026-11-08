@@ -279,7 +279,7 @@ export function makeDeploymentQueueLifecycle({
                 Effect.repeat(Schedule.spaced(SWEEP_INTERVAL)),
                 Effect.asVoid
             ),
-        onStop: () =>
+        onModuleDestroy: () =>
             Effect.suspend(() => {
                 const pending = [...retryFibers.values()]
                 retryFibers.clear()

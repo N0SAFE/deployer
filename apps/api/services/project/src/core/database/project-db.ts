@@ -1,3 +1,4 @@
+import { defineRelations } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { Context } from 'effect'
 
@@ -29,11 +30,12 @@ export class ProjectDb extends Context.Service<
             name: 'project',
             pool: ({ db }) =>
                 (db as unknown as { readonly $client: PgPoolLike }).$client,
-            // Same schema (and so the same relational `query` API) as the shared database.
+            // The handle IS the shared database's: it carries the same tables and relations, so this
+            // module inherits the schema by reusing it rather than by re-deriving it.
             makeDb:
                 ({ db }) =>
                 (client: PgClientLike) =>
-                    drizzle(client as never, { schema: db._.fullSchema }),
+                    drizzle({ client: client as never, relations: db._.relations }),
         }
     )
 }

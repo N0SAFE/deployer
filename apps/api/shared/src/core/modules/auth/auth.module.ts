@@ -45,7 +45,7 @@ export class AuthModule extends createGlobalModule(
                 // The session secret is the node's platform secret, generated on its first boot and stored in `node_config`: the
                 // instance is built once it is known, and a node that has none cannot start serving sessions.
                 useFactory: async (
-                    database: NodePgDatabase<Record<string, unknown>>,
+                    database: NodePgDatabase,
                     env: EnvService,
                     nodeConfig: NodeConfigRepositoryShape
                 ): Promise<AuthModuleOptions> => {

@@ -191,7 +191,7 @@ export class ClusterEvents extends Context.Service<ClusterEvents, ClusterEventsS
         }
 
         /** Once, before the app serves: the first state, so a subscriber never waits for the first event. */
-        onStart(): Effect.Effect<void> {
+        onModuleInit(): Effect.Effect<void> {
             return this.refreshAll()
         }
 

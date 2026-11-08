@@ -32,8 +32,8 @@ const AUTO_SCAN_CAPACITY_RETRY_MS = 30_000
 
 /** Scans the images of started containers in the background while the service is started. It has no methods, only a lifetime. */
 export type DockerImageAutoScanListenerShape = {
-    readonly onStart: () => Effect.Effect<void>
-    readonly onStop: () => Effect.Effect<void>
+    readonly onModuleInit: () => Effect.Effect<void>
+    readonly onModuleDestroy: () => Effect.Effect<void>
 }
 
 export class DockerImageAutoScanListenerService extends Context.Service<
@@ -48,11 +48,11 @@ function makeDockerImageAutoScanListener(
 ): DockerImageAutoScanListenerShape {
     const queue = new AutoScanQueue(...deps)
     return {
-        onStart: () =>
+        onModuleInit: () =>
             Effect.sync(() => {
                 queue.start()
             }),
-        onStop: () =>
+        onModuleDestroy: () =>
             Effect.sync(() => {
                 queue.stop()
             }),

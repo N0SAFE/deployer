@@ -44,9 +44,9 @@ describe('boot order on a restart (setup_done)', () => {
             .useValue({ ensureApi })
             // Without this the real service starts a Traefik container on the host engine.
             .overrideProvider(BootstrapIngressService)
-            .useValue({ onStart: () => Effect.void, onStop: () => Effect.void })
+            .useValue({ onModuleInit: () => Effect.void, onModuleDestroy: () => Effect.void })
             .overrideProvider(IngressHandoverService)
-            .useValue({ onStart: () => Effect.void, onStop: () => Effect.void })
+            .useValue({ onModuleInit: () => Effect.void, onModuleDestroy: () => Effect.void })
             .compile()
 
         await moduleRef.init()

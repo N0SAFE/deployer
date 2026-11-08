@@ -1,4 +1,3 @@
-import { relations } from 'drizzle-orm'
 import {
     pgTable,
     text,
@@ -54,14 +53,4 @@ export const deploymentCache = pgTable(
         index('deployment_cache_branch_idx').on(table.branch),
         index('deployment_cache_commit_sha_idx').on(table.commitSha),
     ]
-)
-
-export const deploymentCacheRelations = relations(
-    deploymentCache,
-    ({ one }) => ({
-        project: one(projects, {
-            fields: [deploymentCache.projectId],
-            references: [projects.id],
-        }),
-    })
 )

@@ -1,4 +1,3 @@
-import { relations } from 'drizzle-orm'
 import {
     pgTable,
     text,
@@ -33,17 +32,6 @@ export const coreEventStreams = pgTable('core_event_streams', {
         .$defaultFn(() => new Date())
         .notNull(),
 })
-
-export const coreEventStreamsRelations = relations(
-    coreEventStreams,
-    ({ one }) => ({
-        createdByUser: one(user, {
-            fields: [coreEventStreams.createdBy],
-            references: [user.id],
-        }),
-    })
-)
-
 export const coreEventLogs = pgTable(
     'core_event_logs',
     {

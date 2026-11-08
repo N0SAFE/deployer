@@ -1,4 +1,3 @@
-import { relations } from 'drizzle-orm'
 import {
     pgTable,
     uuid,
@@ -105,25 +104,3 @@ export const healthCheckJobs = pgTable('health_check_jobs', {
         .defaultNow(),
 })
 
-// Relations
-export const healthChecksRelations = relations(healthChecks, ({ one }) => ({
-    service: one(services, {
-        fields: [healthChecks.serviceId],
-        references: [services.id],
-    }),
-    serviceHealthConfig: one(serviceHealthConfigs, {
-        fields: [healthChecks.serviceId],
-        references: [serviceHealthConfigs.serviceId],
-    }),
-}))
-
-export const serviceHealthConfigsRelations = relations(
-    serviceHealthConfigs,
-    ({ one, many }) => ({
-        service: one(services, {
-            fields: [serviceHealthConfigs.serviceId],
-            references: [services.id],
-        }),
-        healthChecks: many(healthChecks),
-    })
-)

@@ -61,11 +61,11 @@ export class SetupExitServiceImpl {
     /**
      * Subscribe before the handover can reach `ready`.
      *
-     * `onStart` rather than the constructor: subscriptions created in a constructor run during dependency
+     * `onModuleInit` rather than the constructor: subscriptions created in a constructor run during dependency
      * resolution — and a phase event published during that window would be missed. The lifecycle runner calls it
      * before the app serves.
      */
-    readonly onStart = (): Effect.Effect<void> =>
+    readonly onModuleInit = (): Effect.Effect<void> =>
         Effect.sync(() => {
             this.readySubscription = this.phases
                 .onEnter('ready')
@@ -79,7 +79,7 @@ export class SetupExitServiceImpl {
                 })
         })
 
-    readonly onStop = (): Effect.Effect<void> =>
+    readonly onModuleDestroy = (): Effect.Effect<void> =>
         Effect.sync(() => {
             this.destroyed$.next()
             this.destroyed$.complete()

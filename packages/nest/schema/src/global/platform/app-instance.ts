@@ -1,4 +1,3 @@
-import { relations } from 'drizzle-orm'
 import { pgTable, text, uuid, timestamp, index } from 'drizzle-orm/pg-core'
 import z from 'zod/v4'
 
@@ -34,9 +33,6 @@ export const appInstances = pgTable(
     },
     (table) => [index('app_instances_status_idx').on(table.status)]
 )
-
-export const appInstancesRelations = relations(appInstances, () => ({}))
-
 // ─── Zod schemas (SSOT for the entity shape) ────────────────────────────────
 
 export const appInstanceKindSchema = z.enum(['managed', 'external'])

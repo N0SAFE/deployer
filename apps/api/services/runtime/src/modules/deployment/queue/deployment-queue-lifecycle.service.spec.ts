@@ -52,7 +52,7 @@ describe('DeploymentQueueLifecycleService', () => {
     })
 
     afterEach(async () => {
-        await run(service.onStop?.() ?? Effect.void)
+        await run(service.onModuleDestroy?.() ?? Effect.void)
         vi.useRealTimers()
     })
 

@@ -1,4 +1,3 @@
-import { relations } from 'drizzle-orm'
 import { pgEnum } from 'drizzle-orm/pg-core'
 
 import { PROJECT_ROLES } from '@deployer/auth'

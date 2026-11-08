@@ -1,4 +1,3 @@
-import { relations } from 'drizzle-orm'
 import {
     pgTable,
     text,
@@ -290,73 +289,3 @@ export const deploymentRules = pgTable('deployment_rules', {
         .$defaultFn(() => new Date())
         .notNull(),
 })
-
-export const deploymentsRelations = relations(deployments, ({ one, many }) => ({
-    service: one(services, {
-        fields: [deployments.serviceId],
-        references: [services.id],
-    }),
-    triggeredByUser: one(user, {
-        fields: [deployments.triggeredBy],
-        references: [user.id],
-    }),
-    previewEnvironments: many(previewEnvironments),
-    logs: many(deploymentLogs),
-}))
-
-export const deploymentLogsRelations = relations(deploymentLogs, ({ one }) => ({
-    deployment: one(deployments, {
-        fields: [deploymentLogs.deploymentId],
-        references: [deployments.id],
-    }),
-}))
-
-export const deploymentStreamsRelations = relations(
-    deploymentStreams,
-    ({ one }) => ({
-        deployment: one(deployments, {
-            fields: [deploymentStreams.deploymentId],
-            references: [deployments.id],
-        }),
-        service: one(services, {
-            fields: [deploymentStreams.serviceId],
-            references: [services.id],
-        }),
-        project: one(projects, {
-            fields: [deploymentStreams.projectId],
-            references: [projects.id],
-        }),
-        createdByUser: one(user, {
-            fields: [deploymentStreams.createdBy],
-            references: [user.id],
-        }),
-    })
-)
-
-export const deploymentRollbacksRelations = relations(
-    deploymentRollbacks,
-    ({ one }) => ({
-        fromDeployment: one(deployments, {
-            fields: [deploymentRollbacks.fromDeploymentId],
-            references: [deployments.id],
-        }),
-        toDeployment: one(deployments, {
-            fields: [deploymentRollbacks.toDeploymentId],
-            references: [deployments.id],
-        }),
-        triggeredByUser: one(user, {
-            fields: [deploymentRollbacks.triggeredBy],
-            references: [user.id],
-        }),
-    })
-)
-
-export const deploymentRulesRelations = relations(
-    deploymentRules,
-    ({ one }) => ({
-        service: one(services, {
-            fields: [deploymentRules.serviceId],
-            references: [services.id],
-        }),
-    })
-)

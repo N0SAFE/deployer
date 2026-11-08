@@ -1,4 +1,5 @@
 import { Database as BunSqliteDatabase } from 'bun:sqlite'
+import { defineRelations } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/bun-sqlite'
 import { describe, it, expect } from 'vitest'
 
@@ -23,7 +24,10 @@ import { resetLocal } from './local'
 describe('resetLocal', () => {
     function createDatabase() {
         const sqlite = new BunSqliteDatabase(':memory:')
-        return { sqlite, db: drizzle(sqlite, { schema: localSchema }) }
+        return {
+            sqlite,
+            db: drizzle({ client: sqlite, relations: defineRelations(localSchema) }),
+        }
     }
 
     function tables(sqlite: BunSqliteDatabase): string[] {

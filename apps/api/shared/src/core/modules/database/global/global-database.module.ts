@@ -1,3 +1,4 @@
+import { defineRelations } from 'drizzle-orm'
 /**
  * GlobalDatabaseModule — Provides GLOBAL_DATABASE_POOL, GLOBAL_DATABASE_CONNECTION, and GlobalDatabaseService.
  *
@@ -257,14 +258,14 @@ export const GlobalDatabaseModule = createGlobalModule({
         },
         {
             provide: GLOBAL_DATABASE_CONNECTION,
-            useFactory: (pool: Pool) => drizzle(pool, { schema: globalSchema }),
+            useFactory: (pool: Pool) => drizzle({ client: pool, relations: defineRelations(globalSchema) }),
             inject: [GLOBAL_DATABASE_POOL],
         },
         {
             provide: GlobalDatabaseService,
             useFactory: (pool: Pool) =>
                 new GlobalDatabaseService.live(
-                    drizzle(pool, { schema: globalSchema })
+                    drizzle({ client: pool, relations: defineRelations(globalSchema) })
                 ),
             inject: [GLOBAL_DATABASE_POOL],
         },

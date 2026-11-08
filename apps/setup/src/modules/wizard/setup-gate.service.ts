@@ -120,7 +120,7 @@ export class SetupGateServiceImpl {
      * `databaseUrl` does not qualify — that is an unprovisioned candidate, and
      * skipping the wizard there would leave an empty schema with no one to fix it.
      */
-    readonly onStart = (): Effect.Effect<void> =>
+    readonly onModuleInit = (): Effect.Effect<void> =>
         Effect.sync(() => {
             this.bootstrap()
         })

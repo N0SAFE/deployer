@@ -80,7 +80,7 @@ describe('ClusterEvents', () => {
     it('loads the whole state once at start, so a subscriber never waits for the first event', async () => {
         const { hub, calls } = hubWith()
 
-        await Effect.runPromise(hub.onStart())
+        await Effect.runPromise(hub.onModuleInit())
 
         expect(calls).toMatchObject({ snapshot: 1, services: 1, tasks: 1 })
         expect(latest(hub.observeSnapshot())).toMatchObject({ clusterId: 'c' })
@@ -91,7 +91,7 @@ describe('ClusterEvents', () => {
     it('on a node that is not in a swarm, refreshes the inventory and nothing else', async () => {
         const { hub, calls } = hubWith({ active: false })
 
-        await Effect.runPromise(hub.onStart())
+        await Effect.runPromise(hub.onModuleInit())
 
         expect(calls).toMatchObject({ snapshot: 0, services: 0, tasks: 0, inventory: 1 })
         expect(latest(hub.observeNodes(true))?.map((row) => row.nodeId)).toEqual(['n1', 'n2'])
@@ -99,7 +99,7 @@ describe('ClusterEvents', () => {
 
     it('offers every node, or only the active ones', async () => {
         const { hub } = hubWith()
-        await Effect.runPromise(hub.onStart())
+        await Effect.runPromise(hub.onModuleInit())
 
         expect(latest(hub.observeNodes(true))?.map((row) => row.nodeId)).toEqual(['n1', 'n2'])
         expect(latest(hub.observeNodes(false))?.map((row) => row.nodeId)).toEqual(['n1'])
@@ -107,7 +107,7 @@ describe('ClusterEvents', () => {
 
     it('narrows tasks to a service and/or a node', async () => {
         const { hub } = hubWith()
-        await Effect.runPromise(hub.onStart())
+        await Effect.runPromise(hub.onModuleInit())
 
         expect(latest(hub.observeTasks())?.map((task) => task.id)).toEqual(['t1', 't2', 't3'])
         expect(latest(hub.observeTasks('s1'))?.map((task) => task.id)).toEqual(['t1', 't3'])
@@ -120,10 +120,10 @@ describe('ClusterEvents', () => {
             snapshot: () =>
                 failing ? Effect.fail(new Error('engine busy')) : Effect.succeed(snapshot({ nodeId: 'n1' })),
         })
-        await Effect.runPromise(hub.onStart())
+        await Effect.runPromise(hub.onModuleInit())
 
         failing = true
-        await Effect.runPromise(hub.onStart())
+        await Effect.runPromise(hub.onModuleInit())
 
         // The snapshot read failed, so the old snapshot stays; services and tasks were still read.
         expect(latest(hub.observeSnapshot())).toMatchObject({ clusterId: 'c' })

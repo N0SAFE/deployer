@@ -1,4 +1,3 @@
-import { relations } from 'drizzle-orm'
 import {
     pgTable,
     text,
@@ -243,57 +242,3 @@ export const githubWebhookEvents = pgTable(
     ]
 )
 
-// Relations
-export const githubAppsRelations = relations(githubApps, ({ many }) => ({
-    repositoryConfigs: many(githubRepositoryConfigs),
-    webhookEvents: many(githubWebhookEvents),
-}))
-
-export const githubRepositoryConfigsRelations = relations(
-    githubRepositoryConfigs,
-    ({ one }) => ({
-        project: one(projects, {
-            fields: [githubRepositoryConfigs.projectId],
-            references: [projects.id],
-        }),
-        githubApp: one(githubApps, {
-            fields: [githubRepositoryConfigs.githubAppId],
-            references: [githubApps.id],
-        }),
-        // Note: deploymentRules, deploymentCache, and previewDeployments are associated
-        // with projects (via projectId), not directly with repository configs.
-        // They can be filtered by repositoryId (text field) but there's no FK relationship.
-        // Access deployment rules via: config.project (projects have deploymentRules relation)
-        // Filter cache/previews by repositoryId in queries when needed
-    })
-)
-
-export const githubDeploymentRulesRelations = relations(
-    githubDeploymentRules,
-    ({ one }) => ({
-        project: one(projects, {
-            fields: [githubDeploymentRules.projectId],
-            references: [projects.id],
-        }),
-    })
-)
-
-export const githubPreviewDeploymentsRelations = relations(
-    githubPreviewDeployments,
-    ({ one }) => ({
-        project: one(projects, {
-            fields: [githubPreviewDeployments.projectId],
-            references: [projects.id],
-        }),
-    })
-)
-
-export const githubWebhookEventsRelations = relations(
-    githubWebhookEvents,
-    ({ one }) => ({
-        githubApp: one(githubApps, {
-            fields: [githubWebhookEvents.githubAppId],
-            references: [githubApps.id],
-        }),
-    })
-)

@@ -8,26 +8,30 @@ import * as globalSchema from '@deployer/nest-schema/global'
 
 import { DatabaseNotInitialized } from '../database.errors'
 
-import type { ExtractTablesWithRelations } from 'drizzle-orm'
-import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
-import type { NodePgQueryResultHKT } from 'drizzle-orm/node-postgres'
-import type { PgTransaction } from 'drizzle-orm/pg-core'
+import { defineRelations } from 'drizzle-orm'
 
-export type GlobalDatabase = NodePgDatabase<typeof globalSchema>
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
 
 /**
- * The transaction handle `GlobalDatabaseService.transaction()` passes to its callback.
+ * The relations config the driver builds from the global schema.
  *
- * Derived from the SAME `globalSchema` as `GlobalDatabase` above. A caller that
- * re-derived this against a narrower schema (an owner barrel, say) would get a
- * transaction type the pool does not produce, and the mismatch only appears when the
- * two are passed to each other — so it belongs next to the database type, defined once.
+ * It is passed to `drizzle()` so the handle carries every table and its relation names. Since
+ * drizzle-orm 1.0 the DATABASE type is that relations config, and the config it produces does not
+ * satisfy the driver's own `TablesRelationalConfig` constraint — so the handle is typed with the
+ * driver's default (no relational-query generics). This codebase issues none: every read and write
+ * goes through the query builder (`db.select`, `db.insert`, …), which is fully typed either way.
  */
-export type GlobalTransaction = PgTransaction<
-    NodePgQueryResultHKT,
-    typeof globalSchema,
-    ExtractTablesWithRelations<typeof globalSchema>
->
+export const globalRelations = defineRelations(globalSchema)
+
+export type GlobalDatabase = NodePgDatabase
+
+/**
+ * The transaction handle `GlobalDatabaseService.transaction()` passes to its callback: the driver's
+ * own transaction type for this handle.
+ */
+export type GlobalTransaction = Parameters<
+    Parameters<GlobalDatabase['transaction']>[0]
+>[0]
 
 /**
  * Typed handle on the GLOBAL Postgres database.

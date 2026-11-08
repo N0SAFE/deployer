@@ -62,6 +62,8 @@ export function makeClusterNodeInventoryRepository(
             )
             .pipe(
                 Effect.catch((error: LocalDatabaseError) =>
+                    // The `reason` is whatever the engine said; drizzle 1.0 wraps it, so the
+                    // check is on the text rather than on the error class.
                     isMissingTable(new Error(error.reason), 'cluster_nodes')
                         ? Effect.succeed([])
                         : Effect.fail(error)

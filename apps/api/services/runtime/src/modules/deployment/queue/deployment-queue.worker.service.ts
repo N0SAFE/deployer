@@ -7,7 +7,7 @@
  *                     → jobQueued$ typed channel
  *                     → THIS worker (claims → executes → completes)
  *
- * The worker subscribes to the typed channel when it starts (`onStart`) and runs the full execution body:
+ * The worker subscribes to the typed channel when it starts (`onModuleInit`) and runs the full execution body:
  * claim by idempotency key, heartbeats, storage/execution-plan/runtime-runner hydration, container-image
  * build-with-retry-policy, then `completeQueueJob`/`failQueueJob` — all over the typed `DeploymentQueueJob`
  * Zod shape. No external queue IO.
@@ -537,7 +537,7 @@ export function makeDeploymentQueueWorker(
         processQueueJob,
         cancelRunningJob,
 
-        onStart: () =>
+        onModuleInit: () =>
             Effect.gen(function* () {
                 const context = (yield* Effect.promise(() =>
                     host.context()
@@ -575,7 +575,7 @@ export function makeDeploymentQueueWorker(
             }),
 
         // Jobs still running are interrupted: the runner writes nothing and the lease expiry returns them to the pool.
-        onStop: () =>
+        onModuleDestroy: () =>
             Effect.suspend(() => {
                 for (const subscription of subscriptions)
                     subscription.unsubscribe()

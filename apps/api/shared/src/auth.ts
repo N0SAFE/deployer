@@ -1,3 +1,4 @@
+import { defineRelations } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 
 import * as authSchema from '@deployer/nest-schema/global/identity/auth'
@@ -7,7 +8,7 @@ import { createBetterAuth, provisioningSecret } from './config/auth/auth'
 export type Auth = ReturnType<typeof createBetterAuth>['auth']
 
 // Export an auth instance using the factory with config object directly
-export const auth = createBetterAuth(drizzle.mock({ schema: authSchema }), {
+export const auth = createBetterAuth(drizzle.mock({ relations: defineRelations(authSchema) }), {
     DEV_AUTH_KEY: process.env.DEV_AUTH_KEY,
     DEFAULT_ADMIN_EMAIL: process.env.DEFAULT_ADMIN_EMAIL,
     NODE_ENV: process.env.NODE_ENV ?? 'development',

@@ -40,12 +40,12 @@ interface LocalDatabaseHandle {
 }
 
 /**
- * The database's lifetime, declared as a lifecycle: the schema is migrated in `onStart` (after the graph resolves
- * and before any consumer's own start), and the handle is closed in `onStop`, after the work that uses it.
+ * The database's lifetime, declared as a lifecycle: the schema is migrated in `onModuleInit` (after the graph resolves
+ * and before any consumer's own start), and the handle is closed in `onModuleDestroy`, after the work that uses it.
  */
 export interface LocalDatabaseLifecycleShape {
-    readonly onStart: () => Effect.Effect<void, unknown>
-    readonly onStop: () => Effect.Effect<void, unknown>
+    readonly onModuleInit: () => Effect.Effect<void, unknown>
+    readonly onModuleDestroy: () => Effect.Effect<void, unknown>
 }
 
 export class LocalDatabaseLifecycle extends Context.Service<
@@ -91,12 +91,12 @@ export const LocalDatabaseModule = createGlobalModule({
             useFactory: (
                 handle: LocalDatabaseHandle
             ): LocalDatabaseLifecycleShape => ({
-                onStart: () =>
+                onModuleInit: () =>
                     migrateLocalDatabase(
                         handle.database,
                         handle.options.migrationsDir
                     ).pipe(Effect.asVoid),
-                onStop: () => Scope.close(handle.scope, Exit.void),
+                onModuleDestroy: () => Scope.close(handle.scope, Exit.void),
             }),
             inject: [LOCAL_DATABASE_HANDLE],
         },

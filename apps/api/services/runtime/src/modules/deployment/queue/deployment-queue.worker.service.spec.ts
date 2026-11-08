@@ -795,11 +795,11 @@ describe('DeploymentQueueWorker (typed, Bull-free)', () => {
                     return null
                 }
             )
-            await Effect.runPromise(instance.onStart?.() ?? Effect.void)
+            await Effect.runPromise(instance.onModuleInit?.() ?? Effect.void)
             for (const id of ['a', 'b', 'c'])
                 subscribers[0]?.(createQueueJob(`job-${id}`, `key-${id}`))
             await new Promise((resolve) => setTimeout(resolve, 400))
-            await Effect.runPromise(instance.onStop?.() ?? Effect.void)
+            await Effect.runPromise(instance.onModuleDestroy?.() ?? Effect.void)
             return peak
         }
 

@@ -149,9 +149,10 @@
                 "zustand": "^5.0.6"
             },
             "database": {
-                "drizzle-orm": "^0.45.1",
+                "drizzle-orm": "1.0.0-rc.5-ab785fc",
                 "drizzle-kit": "^0.31.6",
                 "drizzle-zod": "^0.8.3",
+                "@effect/sql-pg": "4.0.6",
                 "postgres": "^3.4.4",
                 "nanoid": "^5.1.15",
                 "bcrypt": "^6.0.0",

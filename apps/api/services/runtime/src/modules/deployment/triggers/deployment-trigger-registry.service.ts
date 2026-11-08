@@ -114,7 +114,7 @@ export function makeDeploymentTriggerRegistry(
         })
 
     return {
-        onStart: () =>
+        onModuleInit: () =>
             Effect.gen(function* () {
                 for (const message of duplicates)
                     yield* Effect.logWarning(message)

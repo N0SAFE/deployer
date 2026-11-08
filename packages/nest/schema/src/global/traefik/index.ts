@@ -1,4 +1,3 @@
-import { relations } from 'drizzle-orm'
 import {
     pgTable,
     text,
@@ -533,106 +532,6 @@ export type CreateTraefikStaticFile = z.infer<
 export type TraefikBackup = z.infer<typeof traefikBackupSchema>
 export type CreateTraefikBackup = z.infer<typeof createTraefikBackupSchema>
 
-// Relations
-export const domainConfigsRelations = relations(
-    domainConfigs,
-    ({ one, many }) => ({
-        project: one(projects, {
-            fields: [domainConfigs.projectId],
-            references: [projects.id],
-        }),
-        routes: many(routeConfigs),
-    })
-)
-
-export const routeConfigsRelations = relations(routeConfigs, ({ one }) => ({
-    domainConfig: one(domainConfigs, {
-        fields: [routeConfigs.domainConfigId],
-        references: [domainConfigs.id],
-    }),
-    deployment: one(deployments, {
-        fields: [routeConfigs.deploymentId],
-        references: [deployments.id],
-    }),
-}))
-
-export const traefikStaticConfigsRelations = relations(
-    traefikStaticConfigs,
-    ({ one }) => ({
-        project: one(projects, {
-            fields: [traefikStaticConfigs.projectId],
-            references: [projects.id],
-        }),
-    })
-)
-
-export const traefikConfigsRelations = relations(
-    traefikConfigs,
-    ({ one, many }) => ({
-        project: one(projects, {
-            fields: [traefikConfigs.projectId],
-            references: [projects.id],
-        }),
-        serviceReferences: many(serviceConfigReferences),
-        configFiles: many(configFiles),
-    })
-)
-
-export const serviceConfigReferencesRelations = relations(
-    serviceConfigReferences,
-    ({ one }) => ({
-        service: one(services, {
-            fields: [serviceConfigReferences.serviceId],
-            references: [services.id],
-        }),
-        traefikConfig: one(traefikConfigs, {
-            fields: [serviceConfigReferences.traefikConfigId],
-            references: [traefikConfigs.id],
-        }),
-    })
-)
-
-export const configFilesRelations = relations(configFiles, ({ one }) => ({
-    traefikConfig: one(traefikConfigs, {
-        fields: [configFiles.traefikConfigId],
-        references: [traefikConfigs.id],
-    }),
-}))
-
-export const traefikMiddlewareRelations = relations(
-    traefikMiddleware,
-    ({ one }) => ({
-        project: one(projects, {
-            fields: [traefikMiddleware.projectId],
-            references: [projects.id],
-        }),
-    })
-)
-
-export const traefikPluginsRelations = relations(traefikPlugins, ({ one }) => ({
-    project: one(projects, {
-        fields: [traefikPlugins.projectId],
-        references: [projects.id],
-    }),
-}))
-
-export const traefikStaticFilesRelations = relations(
-    traefikStaticFiles,
-    ({ one }) => ({
-        project: one(projects, {
-            fields: [traefikStaticFiles.projectId],
-            references: [projects.id],
-        }),
-    })
-)
-
-export const traefikBackupsRelations = relations(traefikBackups, ({ one }) => ({
-    project: one(projects, {
-        fields: [traefikBackups.projectId],
-        references: [projects.id],
-    }),
-}))
-
 // Provider Traefik Template table (default templates for each provider type)
 export const providerTraefikTemplates = pgTable('provider_traefik_templates', {
     id: text('id').primaryKey(),
@@ -709,24 +608,6 @@ export type ServiceTraefikTemplate = z.infer<
 export type CreateServiceTraefikTemplate = z.infer<
     typeof createServiceTraefikTemplateSchema
 >
-
-// Relations
-export const providerTraefikTemplatesRelations = relations(
-    providerTraefikTemplates,
-    () => ({
-        // Can add relations if needed
-    })
-)
-
-export const serviceTraefikTemplatesRelations = relations(
-    serviceTraefikTemplates,
-    ({ one }) => ({
-        service: one(services, {
-            fields: [serviceTraefikTemplates.serviceId],
-            references: [services.id],
-        }),
-    })
-)
 
 // Service-based Traefik Configuration - main table
 export const traefikServiceConfigs = pgTable(
@@ -1044,67 +925,3 @@ export const traefikMiddlewares = pgTable(
     ]
 )
 
-// Relations
-export const traefikServiceConfigsRelations = relations(
-    traefikServiceConfigs,
-    ({ one, many }) => ({
-        service: one(services, {
-            fields: [traefikServiceConfigs.serviceId],
-            references: [services.id],
-        }),
-        domainRoutes: many(traefikDomainRoutes),
-        serviceTargets: many(traefikServiceTargets),
-        sslCertificates: many(traefikSSLCertificates),
-        configFiles: many(traefikConfigFiles),
-    })
-)
-
-export const traefikDomainRoutesRelations = relations(
-    traefikDomainRoutes,
-    ({ one }) => ({
-        config: one(traefikServiceConfigs, {
-            fields: [traefikDomainRoutes.configId],
-            references: [traefikServiceConfigs.id],
-        }),
-    })
-)
-
-export const traefikServiceTargetsRelations = relations(
-    traefikServiceTargets,
-    ({ one }) => ({
-        config: one(traefikServiceConfigs, {
-            fields: [traefikServiceTargets.configId],
-            references: [traefikServiceConfigs.id],
-        }),
-    })
-)
-
-export const traefikSSLCertificatesRelations = relations(
-    traefikSSLCertificates,
-    ({ one }) => ({
-        config: one(traefikServiceConfigs, {
-            fields: [traefikSSLCertificates.configId],
-            references: [traefikServiceConfigs.id],
-        }),
-    })
-)
-
-export const traefikConfigFilesRelations = relations(
-    traefikConfigFiles,
-    ({ one }) => ({
-        config: one(traefikServiceConfigs, {
-            fields: [traefikConfigFiles.configId],
-            references: [traefikServiceConfigs.id],
-        }),
-    })
-)
-
-export const traefikMiddlewaresRelations = relations(
-    traefikMiddlewares,
-    ({ one }) => ({
-        service: one(services, {
-            fields: [traefikMiddlewares.serviceId],
-            references: [services.id],
-        }),
-    })
-)

@@ -180,7 +180,7 @@ export class HandoverOrchestratorServiceImpl {
      * filters on the target phase and de-duplicates by timestamp, and the gate is
      * published at most once per `launching` transition.
      */
-    readonly onStart = (): Effect.Effect<void> =>
+    readonly onModuleInit = (): Effect.Effect<void> =>
         Effect.sync(() => {
             this.gateSubscription = this.phase
                 .onEnter('launching')
@@ -194,7 +194,7 @@ export class HandoverOrchestratorServiceImpl {
         })
 
     /** Release the gate subscription. */
-    readonly onStop = (): Effect.Effect<void> =>
+    readonly onModuleDestroy = (): Effect.Effect<void> =>
         Effect.sync(() => {
             this.destroyed$.next()
             this.destroyed$.complete()

@@ -31,8 +31,8 @@ describe('DockerRuntimeEventsStreamService', () => {
             )
         })
 
-        await Effect.runPromise(service.onStart())
-        await Effect.runPromise(service.onStart())
+        await Effect.runPromise(service.onModuleInit())
+        await Effect.runPromise(service.onModuleInit())
 
         relayEvents$.next(
             dockerContainerRuntimeEventSchema.parse({
@@ -68,7 +68,7 @@ describe('DockerRuntimeEventsStreamService', () => {
         expect(received).toHaveLength(1)
         expect(received[0]?.action).toBe('create')
 
-        await Effect.runPromise(service.onStop())
+        await Effect.runPromise(service.onModuleDestroy())
         subscription.unsubscribe()
         relayEvents$.complete()
     })

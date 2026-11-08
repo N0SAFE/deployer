@@ -1,4 +1,3 @@
-import { relations } from 'drizzle-orm'
 import {
     pgTable,
     uuid,
@@ -167,28 +166,3 @@ export const serviceDomainMappings = pgTable(
 // ==========================================
 // RELATIONS
 // ==========================================
-
-export const projectDomainsRelations = relations(
-    projectDomains,
-    ({ one, many }) => ({
-        project: one(projects, {
-            fields: [projectDomains.projectId],
-            references: [projects.id],
-        }),
-        serviceMappings: many(serviceDomainMappings),
-    })
-)
-
-export const serviceDomainMappingsRelations = relations(
-    serviceDomainMappings,
-    ({ one }) => ({
-        service: one(services, {
-            fields: [serviceDomainMappings.serviceId],
-            references: [services.id],
-        }),
-        projectDomain: one(projectDomains, {
-            fields: [serviceDomainMappings.projectDomainId],
-            references: [projectDomains.id],
-        }),
-    })
-)

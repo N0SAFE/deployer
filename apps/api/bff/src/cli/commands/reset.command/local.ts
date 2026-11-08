@@ -1,8 +1,5 @@
+import type { LocalDb } from '@deployer/node-state'
 import { Logger } from '@nestjs/common'
-
-import type * as localSchema from '@deployer/nest-schema/local'
-
-import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite'
 
 /**
  * Drop every table in the local SQLite file.
@@ -36,7 +33,7 @@ import type { BunSQLiteDatabase } from 'drizzle-orm/bun-sqlite'
  * bare statement.
  */
 export function resetLocal(
-    localDb: BunSQLiteDatabase<typeof localSchema>
+    localDb: LocalDb
 ): void {
     const logger = new Logger('resetLocal')
 

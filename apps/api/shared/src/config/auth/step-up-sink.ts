@@ -7,6 +7,7 @@ import { getErrorMessage } from '@deployer/errors'
 import { stepUpEvents } from '@deployer/nest-schema/global/identity/step-up'
 
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
+import type { AnyRelations } from 'drizzle-orm'
 
 const logger = new Logger('AuthStepUp')
 
@@ -17,7 +18,7 @@ const logger = new Logger('AuthStepUp')
  * insert must not surface as a failed verification. It is logged, and the caller's next critical action is refused —
  * the safe direction.
  */
-export function drizzleStepUpSink<TSchema extends Record<string, unknown>>(
+export function drizzleStepUpSink<TSchema extends AnyRelations>(
     database: NodePgDatabase<TSchema>
 ): StepUpSink {
     return {
@@ -44,7 +45,7 @@ export function drizzleStepUpSink<TSchema extends Record<string, unknown>>(
  *
  * Passkey only: a TOTP code can be phished in real time, which is why the design demands AAL3 to become someone else.
  */
-export function makeHasStepUp<TSchema extends Record<string, unknown>>(
+export function makeHasStepUp<TSchema extends AnyRelations>(
     database: NodePgDatabase<TSchema>
 ): (sessionId: string) => Promise<boolean> {
     return async (sessionId) => {
