@@ -19,6 +19,37 @@ the last `serviceOver` in that package) — `@deployer/shared` is clean (405 fil
 (`@deployer/svc-fleet`: 393 files clean, 315 tests). `provideTo` now calls methods with the instance as receiver, which is what
 lets a `live` class keep `private` helpers under a spec.
 
+**Progress (2026-11-08):** 10 files still use `serviceOver(…)` (was 52), 175 exported `make<…>` functions remain, and 26 files
+still carry a `Ports` record / `portsOf` / `implOverX` / a single-use `<X>Ports` union (was 42). Per package:
+
+| package | remaining |
+|---|---|
+| `svc-runtime` | **0** (was 11+) |
+| `svc-project`, `svc-health`, `svc-node-agent`, `apps/setup` | **0** |
+| `svc-identity` | 6 (the services; the 6 repositories are done) |
+| `svc-fleet` | 2 (`fleet.service`, `platform-managed-web.service`) |
+| `api/shared` | 16 |
+| `api/bff` | 2 |
+
+Done on 2026-11-07/08: fleet `IngressEdgeService` / `NodeReachabilityService` / `CustomSourceProviderService` and the
+`CodeProvider<R>` generic; runtime's docker catalog, containers, entity, images, runtime-activity, the deployment artifact
+builder and the stream orchestrator; shared's reachability, platform-ingress, traefik, domain repositories and the
+verification service; identity's six repositories (`user`, `audit`, `step-up`, `role`, `push`, `approval`).
+`ServiceDomainMappingService` was thirteen pure pass-throughs and was deleted rather than converted.
+
+**Runtime is fixed.** `docker-runtime-runner.service.ts` read a `syncedAt` that `SyncResult` never declared, its declared
+requirement channel was `never`, and it was in the banned forwarding shape; it is now a `live` class with `private` helpers.
+Two test helpers (`provideTo` in `packages/effect/core` and the runtime runners' local copy) only walked own enumerable
+properties, so a `live` class — whose operations are on the prototype — came back empty and every call failed with
+"is not a function"; both now walk the prototype chain. The e2e spec runs its Traefik calls through the app's `EffectRuntime`
+instead of a bare `Effect.runPromise`.
+
+**What is left and why it is harder:** the remaining identity files are *services*, not repositories, and their shapes
+declare narrow requirement channels (`CurrentActor | DatabasePort`) that a repository tag now widens. Converting them one at
+a time is fine; converting `StepUpService` ripples into `RoleService`, `ApprovalService` and `UserService` at once, because
+each calls `stepUp.assertCritical()`. That group must be converted together, in one change set, with the shape channels
+widened to name `StepUpRepository`.
+
 **Not committed: `apps/api/services/runtime`.** A sub-agent's conversion of the runtime `deployment`/`docker` trees was in the
 working tree only; while repairing a broken spec I ran `git checkout HEAD --` on `deployment-queue.worker.service.ts`, which
 discarded that uncommitted conversion, and the same happened to the rest of the runtime tree when I restored it to HEAD to keep
