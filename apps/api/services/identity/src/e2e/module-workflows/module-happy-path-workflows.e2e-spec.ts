@@ -103,7 +103,10 @@ function runUsers<T>(
             Effect.provideService(ApprovalService, {
                 require: () => Effect.void,
             } as unknown as ApprovalService['Service']),
-            Effect.provideService(RoleRepository, RoleRepository.live)
+            Effect.provideService(
+                RoleRepository,
+                new RoleRepository.live()
+            )
         )
     )
 }

@@ -2,7 +2,6 @@ import { and, asc, count, desc, eq, sql } from 'drizzle-orm'
 import { Context, Effect } from 'effect'
 
 import type { ScopeKind } from '@deployer/auth/authz'
-import { serviceOver } from '@deployer/effect-core'
 import {
     authzEpoch,
     roles,
@@ -118,137 +117,191 @@ function toRoleRow(row: typeof roles.$inferSelect): RoleRow {
     }
 }
 
-const makeRoleRepository = (database: DatabaseShape): RoleRepositoryShape => ({
-    isKnownPlatformRole: (name) =>
-        Effect.promise(async () => {
-            const rows = await database.db
-                .select({ id: roles.id })
-                .from(roles)
-                .where(and(eq(roles.scope, 'platform'), eq(roles.name, name)))
-                .limit(1)
-            return rows.length > 0
-        }),
-
-    list: (scope) =>
-        Effect.promise(async () => {
-            const rows = await database.db
-                .select()
-                .from(roles)
-                .where(scope === undefined ? undefined : eq(roles.scope, scope))
-                // Highest rank first: the picker reads the strongest role at the top, and `platform` sorts before the rest.
-                .orderBy(asc(roles.scope), desc(roles.rank), asc(roles.name))
-
-            return rows.map((row) => ({
-                id: row.id,
-                name: row.name,
-                scope: row.scope as ScopeKind,
-                rank: row.rank,
-                label: row.label,
-                description: row.description,
-                color: row.color,
-                isSystem: row.isSystem,
-                // Copied into a mutable array: the contract's output type is `string[]`, and a `readonly` mismatch here
-                // poisons the handler's inferred requirements (`any`), which the boot gate then refuses.
-                permissions: [...row.permissions],
-            }))
-        }),
-
-    seed: (rows) => Effect.promise(() => upsertRoles(database.db, rows)),
-
-    findById: (id) =>
-        Effect.promise(async () => {
-            const [row] = await database.db
-                .select()
-                .from(roles)
-                .where(eq(roles.id, id))
-                .limit(1)
-            return row === undefined ? null : toRoleRow(row)
-        }),
-
-    create: (row) =>
-        Effect.promise(async () => {
-            const [created] = await database.db
-                .insert(roles)
-                .values({ ...row, permissions: [...row.permissions] })
-                .returning()
-            if (created === undefined)
-                throw new Error('role insert returned no row')
-            return toRoleRow(created)
-        }),
-
-    update: (id, patch) =>
-        Effect.promise(async () => {
-            const [updated] = await database.db
-                .update(roles)
-                .set({
-                    ...(patch.rank === undefined ? {} : { rank: patch.rank }),
-                    ...(patch.label === undefined
-                        ? {}
-                        : { label: patch.label }),
-                    ...(patch.description === undefined
-                        ? {}
-                        : { description: patch.description }),
-                    ...(patch.color === undefined
-                        ? {}
-                        : { color: patch.color }),
-                    ...(patch.permissions === undefined
-                        ? {}
-                        : { permissions: [...patch.permissions] }),
-                    updatedAt: new Date(),
+/**
+ * The role catalogue: reads for the picker, and the idempotent seed that keeps the built-ins in sync.
+ *
+ * The database is yielded inside the method that queries with it, so this is a class the module provides
+ * with `useClass` — no `serviceOver` closure and no factory holding the queries.
+ */
+export class RoleRepository extends Context.Service<
+    RoleRepository,
+    RoleRepositoryShape
+>()('identity/RoleRepository') {
+    static readonly live = class RoleRepositoryImpl
+        implements RoleRepositoryShape
+    {
+        isKnownPlatformRole(name): ReturnType<RoleRepositoryShape['isKnownPlatformRole']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* Effect.promise(async () => {
+                    const rows = await database.db
+                        .select({ id: roles.id })
+                        .from(roles)
+                        .where(and(eq(roles.scope, 'platform'), eq(roles.name, name)))
+                        .limit(1)
+                    return rows.length > 0
                 })
-                .where(eq(roles.id, id))
-                .returning()
-            return updated === undefined ? null : toRoleRow(updated)
-        }),
+            })
+        }
 
-    delete: (id) =>
-        Effect.promise(async () => {
-            await database.db.delete(roles).where(eq(roles.id, id))
-        }),
+        list(scope): ReturnType<RoleRepositoryShape['list']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* Effect.promise(async () => {
+                    const rows = await database.db
+                        .select()
+                        .from(roles)
+                        .where(scope === undefined ? undefined : eq(roles.scope, scope))
+                        // Highest rank first: the picker reads the strongest role at the top, and `platform` sorts before the rest.
+                        .orderBy(asc(roles.scope), desc(roles.rank), asc(roles.name))
 
-    loadCatalogue: () =>
-        Effect.promise(async () => {
-            const [epochRow] = await database.db
-                .select()
-                .from(authzEpoch)
-                .where(eq(authzEpoch.id, 'global'))
-                .limit(1)
-            const rows = await database.db
-                .select({ name: roles.name, permissions: roles.permissions })
-                .from(roles)
-                .where(eq(roles.scope, 'platform'))
-            return {
-                epoch: epochRow?.value ?? 1,
-                roles: rows.map((row) => ({
-                    name: row.name,
-                    permissions: [...row.permissions],
-                })),
-            }
-        }),
-
-    bumpEpoch: () =>
-        Effect.promise(async () => {
-            await database.db
-                .insert(authzEpoch)
-                .values({ id: 'global', value: 1 })
-                .onConflictDoUpdate({
-                    target: authzEpoch.id,
-                    set: {
-                        value: sql`${authzEpoch.value} + 1`,
-                        updatedAt: new Date(),
-                    },
+                    return rows.map((row) => ({
+                        id: row.id,
+                        name: row.name,
+                        scope: row.scope as ScopeKind,
+                        rank: row.rank,
+                        label: row.label,
+                        description: row.description,
+                        color: row.color,
+                        isSystem: row.isSystem,
+                        // Copied into a mutable array: the contract's output type is `string[]`, and a `readonly` mismatch here
+                        // poisons the handler's inferred requirements (`any`), which the boot gate then refuses.
+                        permissions: [...row.permissions],
+                    }))
                 })
-        }),
+            })
+        }
 
-    countUsersWithRole: (name) =>
-        Effect.promise(async () => {
-            const [row] = await database.db
-                .select({ value: count() })
-                .from(user)
-                .where(eq(user.role, name))
-            return row?.value ?? 0
-        }),
-})
+        seed(rows): ReturnType<RoleRepositoryShape['seed']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* Effect.promise(() => upsertRoles(database.db, rows))
+            })
+        }
+
+        findById(id): ReturnType<RoleRepositoryShape['findById']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* Effect.promise(async () => {
+                    const [row] = await database.db
+                        .select()
+                        .from(roles)
+                        .where(eq(roles.id, id))
+                        .limit(1)
+                    return row === undefined ? null : toRoleRow(row)
+                })
+            })
+        }
+
+        create(row): ReturnType<RoleRepositoryShape['create']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* Effect.promise(async () => {
+                    const [created] = await database.db
+                        .insert(roles)
+                        .values({ ...row, permissions: [...row.permissions] })
+                        .returning()
+                    if (created === undefined)
+                        throw new Error('role insert returned no row')
+                    return toRoleRow(created)
+                })
+            })
+        }
+
+        update(id, patch): ReturnType<RoleRepositoryShape['update']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* Effect.promise(async () => {
+                    const [updated] = await database.db
+                        .update(roles)
+                        .set({
+                            ...(patch.rank === undefined ? {} : { rank: patch.rank }),
+                            ...(patch.label === undefined
+                                ? {}
+                                : { label: patch.label }),
+                            ...(patch.description === undefined
+                                ? {}
+                                : { description: patch.description }),
+                            ...(patch.color === undefined
+                                ? {}
+                                : { color: patch.color }),
+                            ...(patch.permissions === undefined
+                                ? {}
+                                : { permissions: [...patch.permissions] }),
+                            updatedAt: new Date(),
+                        })
+                        .where(eq(roles.id, id))
+                        .returning()
+                    return updated === undefined ? null : toRoleRow(updated)
+                })
+            })
+        }
+
+        delete(id): ReturnType<RoleRepositoryShape['delete']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* Effect.promise(async () => {
+                    await database.db.delete(roles).where(eq(roles.id, id))
+                })
+            })
+        }
+
+        loadCatalogue(): ReturnType<RoleRepositoryShape['loadCatalogue']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* Effect.promise(async () => {
+                    const [epochRow] = await database.db
+                        .select()
+                        .from(authzEpoch)
+                        .where(eq(authzEpoch.id, 'global'))
+                        .limit(1)
+                    const rows = await database.db
+                        .select({ name: roles.name, permissions: roles.permissions })
+                        .from(roles)
+                        .where(eq(roles.scope, 'platform'))
+                    return {
+                        epoch: epochRow?.value ?? 1,
+                        roles: rows.map((row) => ({
+                            name: row.name,
+                            permissions: [...row.permissions],
+                        })),
+                    }
+                })
+            })
+        }
+
+        bumpEpoch(): ReturnType<RoleRepositoryShape['bumpEpoch']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* Effect.promise(async () => {
+                    await database.db
+                        .insert(authzEpoch)
+                        .values({ id: 'global', value: 1 })
+                        .onConflictDoUpdate({
+                            target: authzEpoch.id,
+                            set: {
+                                value: sql`${authzEpoch.value} + 1`,
+                                updatedAt: new Date(),
+                            },
+                        })
+                })
+            })
+        }
+
+        countUsersWithRole(name): ReturnType<RoleRepositoryShape['countUsersWithRole']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* Effect.promise(async () => {
+                    const [row] = await database.db
+                        .select({ value: count() })
+                        .from(user)
+                        .where(eq(user.role, name))
+                    return row?.value ?? 0
+                })
+            })
+        }
+    }
+}
 
 /** The fields an update may change. */
 export type RolePatch = {
@@ -257,12 +310,4 @@ export type RolePatch = {
     readonly description?: string | null
     readonly color?: string | null
     readonly permissions?: readonly string[]
-}
-
-/** The role catalogue: reads for the picker, and the idempotent seed that keeps the built-ins in sync. */
-export class RoleRepository extends Context.Service<
-    RoleRepository,
-    RoleRepositoryShape
->()('identity/RoleRepository') {
-    static readonly live = serviceOver(DatabasePort, makeRoleRepository)
 }
