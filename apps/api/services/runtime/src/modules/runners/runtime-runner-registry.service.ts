@@ -8,7 +8,10 @@ import { RuntimeInvalid } from '../../core/runtime.errors'
 
 import { makeDelegatedRunner } from './base/delegated-runner'
 import { prepareBuildpackExecutionInput } from './buildpack/buildpack-runtime-runner.service'
-import { DockerRuntimeRunner } from './docker/docker-runtime-runner.service'
+import {
+    DockerRuntimeRunner,
+    type DockerRuntimeRunnerRequirements,
+} from './docker/docker-runtime-runner.service'
 import { prepareDockerComposeExecutionInput } from './docker-compose/docker-compose-runtime-runner.service'
 import { prepareDockerfileExecutionInput } from './dockerfile/dockerfile-runtime-runner.service'
 import { prepareNixpacksExecutionInput } from './nixpacks/nixpacks-runtime-runner.service'
@@ -37,6 +40,7 @@ export type RuntimeRunnerRegistryShape = {
 /** The runners the registry picks between, and what they read while running. */
 export type RunnerRegistryServices =
     | DockerRuntimeRunner
+    | DockerRuntimeRunnerRequirements
     | SwarmRuntimeRunner
     | DockerEngine
     | TraefikService

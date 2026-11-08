@@ -59,7 +59,12 @@ export function serviceOver<S extends object, P, R>(
 
 /**
  * `service` with its Effect methods run through `provide`, so a spec calls a constant service as if it
- * were built over fakes: `provideTo(UserService.live, (e) => e.pipe(Effect.provideService(UserRepository, fake)))`.
+ * were built over fakes:
+ * `provideTo(UserService.live, (e) => e.pipe(Effect.provideService(UserRepository, fake)))`.
+ *
+ * The result's methods have their requirement channel discharged to `Out`, which is what lets a spec
+ * call them without providing anything. `keyof S` covers a class's prototype members, so a `live` class
+ * keeps its operations.
  */
 export function provideTo<S extends object, Out = never>(
     service: S,

@@ -7,6 +7,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 // `nest.rootModuleLoader` and lives in `shared`, where `@/app.module` resolves to
 // nothing, so importing it directly throws
 // `SharedApiRuntimeOptions.nest.rootModuleLoader is required` at boot.
+import { EffectRuntime } from '@deployer/nest-effect'
 import { TraefikService } from '@deployer/shared/core/modules/traefik/services/traefik.service'
 
 import {
@@ -58,6 +59,8 @@ describe('Deployment strategy e2e: service, traefik projection and the upload de
         ) => Promise<Effect.Success<ReturnType<DeploymentServiceShape[K]>>>
     }
     let traefik: Context.Service.Shape<typeof TraefikService>
+    /** The app's Effect runtime: a Traefik call yields the repository and the pool it needs. */
+    let effectRuntime: EffectRuntime
 
     beforeAll(async () => {
         context = await createDeploymentCompleteStrategyContext(
@@ -85,6 +88,9 @@ describe('Deployment strategy e2e: service, traefik projection and the upload de
             .serviceMapper.get(
                 TraefikService
             ) as unknown as Context.Service.Shape<typeof TraefikService>
+        effectRuntime = runtimeScope
+            .getContext()
+            .serviceMapper.get(EffectRuntime) as EffectRuntime
     })
 
     it('projects a seeded service into a valid Traefik routing configuration', async () => {
@@ -96,7 +102,7 @@ describe('Deployment strategy e2e: service, traefik projection and the upload de
             port: 3000,
         })
 
-        const serviceConfig = await Effect.runPromise(
+        const serviceConfig = await effectRuntime.runPromise(
             traefik.createServiceConfiguration(service.id, {
                 domain: 'services.e2e.example.test',
                 subdomain: `svc-${service.id.slice(0, 8)}`,
@@ -114,7 +120,7 @@ describe('Deployment strategy e2e: service, traefik projection and the upload de
             )
         }
 
-        const validation = await Effect.runPromise(
+        const validation = await effectRuntime.runPromise(
             traefik.validateConfiguration(serviceConfig.id)
         )
 
