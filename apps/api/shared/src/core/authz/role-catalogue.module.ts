@@ -23,7 +23,7 @@ export type RoleCatalogueRefresherShape = ServiceLifecycleShape & {
 /**
  * Keeps this process's authorization snapshot in step with the `roles` table.
  *
- * Loaded once at boot — after the seed, in module order (`onReady`) — then every 30 s. A write that changes the catalogue
+ * Loaded once at boot — after the seed, in module order (`onApplicationBootstrap`) — then every 30 s. A write that changes the catalogue
  * also refreshes directly in the service that owns it (see identity's `RoleService`), so a single replica sees an edit
  * immediately; the interval is what makes a SECOND replica catch up, and what bounds staleness if a `NOTIFY`-style push
  * is added later.
@@ -50,7 +50,7 @@ export function makeRoleCatalogueRefresher(
 
     return {
         refresh,
-        onReady: () => refresh(),
+        onApplicationBootstrap: () => refresh(),
         // The runner owns the fiber and interrupts it at shutdown: a refresh never keeps the process alive.
         run: () =>
             Effect.forever(

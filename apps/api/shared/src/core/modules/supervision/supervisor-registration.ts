@@ -51,12 +51,12 @@ export const buildSupervisor = <
 /**
  * Registers a module's supervisors with the orchestrator, runs their background loops, stops them on shutdown.
  *
- * Stateful (it owns the loops' fibers), so it is built once over its registrations. `onStart` activates the blocking ones
+ * Stateful (it owns the loops' fibers), so it is built once over its registrations. `onModuleInit` activates the blocking ones
  * before the app serves; a supervisor whose activation fails is logged and skipped, never a failed boot.
  */
 export type SupervisorRegistrarShape = ServiceLifecycleShape & {
-    readonly onStart: () => Effect.Effect<void>
-    readonly onStop: () => Effect.Effect<void>
+    readonly onModuleInit: () => Effect.Effect<void>
+    readonly onModuleDestroy: () => Effect.Effect<void>
 }
 
 export function makeSupervisorRegistrar(
@@ -82,7 +82,7 @@ export function makeSupervisorRegistrar(
 
     return {
         // A non-blocking registration (a connector whose provider is slow) starts in the background and does not hold the boot.
-        onStart: () =>
+        onModuleInit: () =>
             Effect.gen(function* () {
                 for (const entry of registrations.filter(
                     (e) => e.blocking === false
@@ -95,7 +95,7 @@ export function makeSupervisorRegistrar(
                     { concurrency: 'unbounded' }
                 )
             }),
-        onStop: () =>
+        onModuleDestroy: () =>
             Effect.forEach(
                 fibers.splice(0),
                 (fiber) => Fiber.interrupt(fiber),

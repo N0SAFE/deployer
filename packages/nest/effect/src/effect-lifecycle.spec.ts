@@ -41,14 +41,14 @@ const shape = (
 ): ServiceLifecycleShape => ({ ...overrides })
 
 describe('ServiceLifecycleRunner', () => {
-    it('runs onReady at application bootstrap, after onStart and the fork', async () => {
+    it('runs onApplicationBootstrap at application bootstrap, after onModuleInit and the fork', async () => {
         const { host, calls } = recordingHost()
         const runner = new ServiceLifecycleRunner(
             'test/Service',
             shape({
-                onStart: () => Effect.void,
+                onModuleInit: () => Effect.void,
                 run: () => Effect.never,
-                onReady: () => Effect.void,
+                onApplicationBootstrap: () => Effect.void,
             }),
             host
         )
@@ -59,11 +59,11 @@ describe('ServiceLifecycleRunner', () => {
         expect(calls).toEqual(['runUnwrapped', 'fork', 'runUnwrapped'])
     })
 
-    it('runs onStart, then forks run', async () => {
+    it('runs onModuleInit, then forks run', async () => {
         const { host, calls } = recordingHost()
         const runner = new ServiceLifecycleRunner(
             'test/Service',
-            shape({ onStart: () => Effect.void, run: () => Effect.never }),
+            shape({ onModuleInit: () => Effect.void, run: () => Effect.never }),
             host
         )
 
@@ -72,11 +72,11 @@ describe('ServiceLifecycleRunner', () => {
         expect(calls).toEqual(['runUnwrapped', 'fork'])
     })
 
-    it('interrupts run before onStop, so nothing stops under a live loop', async () => {
+    it('interrupts run before onModuleDestroy, so nothing stops under a live loop', async () => {
         const { host, calls } = recordingHost()
         const runner = new ServiceLifecycleRunner(
             'test/Service',
-            shape({ run: () => Effect.never, onStop: () => Effect.void }),
+            shape({ run: () => Effect.never, onModuleDestroy: () => Effect.void }),
             host
         )
 
@@ -90,7 +90,7 @@ describe('ServiceLifecycleRunner', () => {
         const { host, calls } = recordingHost()
         const runner = new ServiceLifecycleRunner(
             'test/Service',
-            shape({ onStart: () => Effect.void, onStop: () => Effect.void }),
+            shape({ onModuleInit: () => Effect.void, onModuleDestroy: () => Effect.void }),
             host
         )
 
@@ -100,7 +100,7 @@ describe('ServiceLifecycleRunner', () => {
         expect(calls).toEqual(['runUnwrapped', 'run'])
     })
 
-    it('logs a failing onStop instead of failing the shutdown', async () => {
+    it('logs a failing onModuleDestroy instead of failing the shutdown', async () => {
         const { host } = recordingHost()
         const failing = {
             ...host,
@@ -110,7 +110,7 @@ describe('ServiceLifecycleRunner', () => {
         }
         const runner = new ServiceLifecycleRunner(
             'test/Service',
-            shape({ onStop: () => Effect.fail(new Error('close refused')) }),
+            shape({ onModuleDestroy: () => Effect.fail(new Error('close refused')) }),
             failing as unknown as EffectHostShape
         )
 
@@ -174,7 +174,7 @@ describe("serviceLifecycle's shape constraint", () => {
 
         // The gate is the compiler: `@ts-expect-error` fails this build the day the constraint stops holding. At
         // runtime the provider is ordinary, which is what makes the check free.
-        // @ts-expect-error — `serviceLifecycle` requires onStart / run / onStop in the shape
+        // @ts-expect-error — `serviceLifecycle` requires onModuleInit / run / onModuleDestroy in the shape
         const provider = serviceLifecycle(Plain)
 
         expect(provider).toBeDefined()

@@ -1233,7 +1233,7 @@ export class SharedApiRuntimeManager {
                 baseUrl,
             }
 
-            await this.runPluginHook(plugins, 'onReady', {
+            await this.runPluginHook(plugins, 'onApplicationBootstrap', {
                 runtime,
             })
 

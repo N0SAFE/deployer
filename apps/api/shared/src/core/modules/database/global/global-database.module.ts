@@ -28,15 +28,14 @@
 
 import { Logger } from '@nestjs/common'
 import { drizzle } from 'drizzle-orm/node-postgres'
+import { Context } from 'effect'
 import { Client, Pool } from 'pg'
 
 import { resolveManagedGlobalDbUrl, splitManagedEnv } from '@deployer/env'
 import {
     createGlobalModule,
-    EffectHost,
     effectHostProvider,
-    ServiceLifecycleRunner,
-    type EffectHostShape,
+    serviceLifecycle,
 } from '@deployer/nest-effect'
 import * as globalSchema from '@deployer/nest-schema/global'
 
@@ -53,11 +52,8 @@ import {
 } from '../database-connection'
 import { LocalDatabaseModule } from '../local/local-database.module'
 
-import { makeGlobalDatabasePoolLifecycle } from './global-database-lifecycle.service'
-import {
-    GlobalDatabaseService,
-    makeGlobalDatabaseService,
-} from './global-database.service'
+import { GlobalDatabasePoolLifecycle } from './global-database-lifecycle.service'
+import { GlobalDatabaseService } from './global-database.service'
 
 const logger = new Logger('GlobalDatabaseModule')
 
@@ -154,18 +150,40 @@ function readPoolSizing(env: EnvService): PoolSizing {
 }
 
 /**
- * Build the shared pool once. Precedence:
+ * The shared pool, as an Effect service.
  *
- * 1. COMPOSE-MANAGED DB (`MANAGED_GLOBAL_DB_ENABLED=true`): the URL is
- *    deterministic from `MANAGED_GLOBAL_DB_*` env.
- * 2. Otherwise read the URL from the node config SNAPSHOT (`NodeConfigSnapshot`), which mirrors
- *    `node_config` (managed/local or operator-configured URL persisted by an earlier boot). The
- *    snapshot is read synchronously because `pg` resolves the connection string inside its own
- *    synchronous `Client` constructor; the cache is refreshed on a timer elsewhere.
+ * Precedence, read through the SAME resolver on every connect so the pool follows the platform through
+ * onboarding instead of freezing whatever was true at boot:
  *
- * Both are read through the SAME resolver, on every connect, so the pool follows
- * the platform through onboarding instead of freezing whatever was true at boot.
+ * 1. COMPOSE-MANAGED DB (`MANAGED_GLOBAL_DB_ENABLED=true`): the URL is deterministic from
+ *    `MANAGED_GLOBAL_DB_*` env.
+ * 2. Otherwise the URL from the node config SNAPSHOT (`NodeConfigSnapshot`), which mirrors `node_config`
+ *    (managed/local or an operator-configured URL persisted by an earlier boot). The snapshot is read
+ *    synchronously because `pg` resolves the connection string inside its own synchronous `Client`
+ *    constructor; the cache is refreshed on a timer elsewhere.
  */
+export class GlobalDatabasePool extends Context.Service<
+    GlobalDatabasePool,
+    GlobalDatabasePoolShape
+>()('shared/GlobalDatabasePool') {
+    /**
+     * Both collaborators are constructor arguments: `pg` builds a client synchronously, so the pool has
+     * to exist as a value, not as something a method yields.
+     */
+    static readonly live = class GlobalDatabasePoolImpl
+        implements GlobalDatabasePoolShape
+    {
+        readonly pool: Pool
+
+        constructor(snapshot: NodeConfigSnapshotShape, env: EnvService) {
+            this.pool = buildSharedPool(snapshot, env)
+        }
+    }
+}
+
+/** What the pool exposes: the raw `pg.Pool` the rest of the module derives its tokens from. */
+export type GlobalDatabasePoolShape = { readonly pool: Pool }
+
 function buildSharedPool(
     snapshot: Pick<NodeConfigSnapshotShape, 'current'>,
     env: EnvService
@@ -218,19 +236,24 @@ export const GlobalDatabaseModule = createGlobalModule({
         // mesh-initializer contexts, which each build their own pool.
         effectHostProvider(),
         {
-            provide: Symbol.for('shared/GlobalDatabasePoolLifecycle'),
-            useFactory: (pool: Pool | undefined, host: EffectHostShape) =>
-                new ServiceLifecycleRunner(
-                    'GlobalDatabasePool',
-                    makeGlobalDatabasePoolLifecycle(pool),
-                    host
-                ),
-            inject: [GLOBAL_DATABASE_POOL, EffectHost],
+            provide: GlobalDatabasePoolLifecycle,
+            useFactory: (pool: Pool | undefined) =>
+                new GlobalDatabasePoolLifecycle.live(pool),
+            inject: [{ token: GLOBAL_DATABASE_POOL, optional: true }],
+        },
+        serviceLifecycle(GlobalDatabasePoolLifecycle),
+        {
+            provide: GlobalDatabasePool,
+            useFactory: (
+                snapshot: NodeConfigSnapshotShape,
+                env: EnvService
+            ) => new GlobalDatabasePool.live(snapshot, env),
+            inject: [NodeConfigSnapshot, EnvService],
         },
         {
             provide: GLOBAL_DATABASE_POOL,
-            useFactory: buildSharedPool,
-            inject: [NodeConfigSnapshot, EnvService],
+            useFactory: (pool: GlobalDatabasePoolShape) => pool.pool,
+            inject: [GlobalDatabasePool],
         },
         {
             provide: GLOBAL_DATABASE_CONNECTION,
@@ -240,7 +263,7 @@ export const GlobalDatabaseModule = createGlobalModule({
         {
             provide: GlobalDatabaseService,
             useFactory: (pool: Pool) =>
-                makeGlobalDatabaseService(
+                new GlobalDatabaseService.live(
                     drizzle(pool, { schema: globalSchema })
                 ),
             inject: [GLOBAL_DATABASE_POOL],

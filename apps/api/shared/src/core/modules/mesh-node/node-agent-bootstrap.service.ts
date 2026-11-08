@@ -167,7 +167,7 @@ export class NodeAgentBootstrap extends Context.Service<
         }
 
         // Fire-and-forget: the API never fails to start over the agent, so boot does not wait for it either.
-        onReady(): Effect.Effect<void> {
+        onApplicationBootstrap(): Effect.Effect<void> {
             return Effect.forkDetach(this.ensure()).pipe(Effect.asVoid)
         }
     }

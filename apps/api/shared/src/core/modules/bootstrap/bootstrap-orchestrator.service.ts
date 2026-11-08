@@ -139,7 +139,7 @@ export class BootstrapOrchestratorService extends Context.Service<
         // Runs once every module has finished initialising (the supervisors registered their work), and a failure fails
         // the boot: refusing to report READY is correct, breaking the PROCESS is wrong only when the database is merely
         // absent.
-        onReady(): Effect.Effect<void, BootstrapFailed> {
+        onApplicationBootstrap(): Effect.Effect<void, BootstrapFailed> {
             return this.runPipeline().pipe(
                 Effect.catchCause((cause) =>
                     Effect.suspend(() => {
@@ -157,7 +157,7 @@ export class BootstrapOrchestratorService extends Context.Service<
 
         /**
          * The sequence itself. Every failure and defect leaves through the single
-         * `catchCause` in `onReady`, which is where the original's one `try` block
+         * `catchCause` in `onApplicationBootstrap`, which is where the original's one `try` block
          * was — so no step translates errors of its own.
          */
         private runPipeline(): Effect.Effect<void, unknown> {

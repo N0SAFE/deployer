@@ -38,7 +38,7 @@ describe('makeSupervisorRegistrar', () => {
             ],
             o
         )
-        await Effect.runPromise(registrar.onStart())
+        await Effect.runPromise(registrar.onModuleInit())
         expect(o.register).toHaveBeenCalledTimes(1)
         expect((o.register.mock.calls[0]?.[0] as { id: string }).id).toBe('ok')
     })
@@ -60,10 +60,10 @@ describe('makeSupervisorRegistrar', () => {
             ],
             o
         )
-        await Effect.runPromise(registrar.onStart())
+        await Effect.runPromise(registrar.onModuleInit())
         expect(o.register).toHaveBeenCalledTimes(1)
         await new Promise((resolve) => setTimeout(resolve, 5)) // let the loop start, so interrupting it is observable
-        await Effect.runPromise(registrar.onStop())
+        await Effect.runPromise(registrar.onModuleDestroy())
         expect(interrupted).toBe(true)
     })
 })
@@ -84,14 +84,14 @@ describe('makeSupervisorDriftControl', () => {
         process.env.NODE_ENV = 'production'
         try {
             const control = makeSupervisorDriftControl(withSupervisors)
-            await Effect.runPromise(control.onReady!())
-            await Effect.runPromise(control.onStop!())
+            await Effect.runPromise(control.onApplicationBootstrap!())
+            await Effect.runPromise(control.onModuleDestroy!())
             expect(stop).toHaveBeenCalledOnce()
 
             stop.mockClear()
             const idle = makeSupervisorDriftControl(empty)
-            await Effect.runPromise(idle.onReady!())
-            await Effect.runPromise(idle.onStop!())
+            await Effect.runPromise(idle.onApplicationBootstrap!())
+            await Effect.runPromise(idle.onModuleDestroy!())
             expect(stop).not.toHaveBeenCalled()
         } finally {
             process.env.NODE_ENV = previous

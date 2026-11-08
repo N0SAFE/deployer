@@ -161,7 +161,7 @@ export class HealthModule {
                             DiskHealthIndicator,
                         ],
                     },
-                    // The registry declares its own cadence in its shape (`run`/`onStop`); one generic runner binds it.
+                    // The registry declares its own cadence in its shape (`run`/`onModuleDestroy`); one generic runner binds it.
                     serviceLifecycle(HealthRegistry),
                 ],
                 controllers: [HealthStreamController],

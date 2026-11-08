@@ -139,7 +139,7 @@ export const EventsModule = createGlobalModule({
                 return new ServiceLifecycleRunner(
                     'EventServices',
                     {
-                        onStop: () =>
+                        onModuleDestroy: () =>
                             Effect.sync(() => {
                                 BaseEventService.disposeAll()
                             }),

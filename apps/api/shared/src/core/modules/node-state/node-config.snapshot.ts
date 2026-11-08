@@ -54,7 +54,7 @@ export function makeNodeConfigSnapshot(
     return {
         current: () => row,
         refresh,
-        onStart: () => Effect.asVoid(refresh()),
+        onModuleInit: () => Effect.asVoid(refresh()),
         // The runner owns the fiber and interrupts it at shutdown, so the cache never holds the process open.
         run: () =>
             Effect.forever(

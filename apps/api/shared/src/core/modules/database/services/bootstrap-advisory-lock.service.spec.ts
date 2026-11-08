@@ -79,7 +79,7 @@ describe('BootstrapAdvisoryLockService', () => {
         const { client, service } = fakePool(true)
 
         await Effect.runPromise(service.acquire())
-        await Effect.runPromise(service.onStop?.() ?? Effect.void)
+        await Effect.runPromise(service.onModuleDestroy?.() ?? Effect.void)
 
         expect(client.query).toHaveBeenCalledWith(
             expect.stringContaining('pg_advisory_unlock'),

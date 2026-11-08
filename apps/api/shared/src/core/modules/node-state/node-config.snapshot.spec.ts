@@ -105,7 +105,7 @@ describe('NodeConfigSnapshot', () => {
             refreshIntervalMs: 5,
         })
 
-        await Effect.runPromise(snapshot.onStart?.() ?? Effect.void)
+        await Effect.runPromise(snapshot.onModuleInit?.() ?? Effect.void)
         expect(snapshot.current()?.databaseUrl).toBe('postgres://first')
         expect(repo.find).toHaveBeenCalledTimes(1)
 

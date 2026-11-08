@@ -101,7 +101,7 @@ export function makeBootstrapAdvisoryLockService(
             }),
         release,
         // Teardown safety net: a lock must not outlive the scope that took it.
-        onStop: () => release(),
+        onModuleDestroy: () => release(),
     }
 }
 

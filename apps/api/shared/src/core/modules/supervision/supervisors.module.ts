@@ -24,7 +24,7 @@ import {
 /**
  * Converges every registered supervisor once the app is up, then keeps correcting drift until shutdown.
  *
- * `onReady` (not `onStart`): it must run after EVERY module's registrar has registered its supervisors, so it waits for the
+ * `onApplicationBootstrap` (not `onModuleInit`): it must run after EVERY module's registrar has registered its supervisors, so it waits for the
  * application to finish bootstrapping.
  */
 export function makeSupervisorDriftControl(
@@ -32,7 +32,7 @@ export function makeSupervisorDriftControl(
 ): ServiceLifecycleShape {
     let stop: Effect.Effect<void> | undefined
     return {
-        onReady: () =>
+        onApplicationBootstrap: () =>
             Effect.gen(function* () {
                 if (
                     process.env.NODE_ENV === 'test' ||
@@ -42,7 +42,7 @@ export function makeSupervisorDriftControl(
                 const control = yield* orchestrator.startDriftControl
                 stop = control.stop
             }),
-        onStop: () => stop ?? Effect.void,
+        onModuleDestroy: () => stop ?? Effect.void,
     }
 }
 

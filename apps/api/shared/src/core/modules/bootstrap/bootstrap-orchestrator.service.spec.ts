@@ -31,8 +31,8 @@ function makeOrchestrator(
         bootstrapLock: { acquire, release: vi.fn(() => Effect.void) },
         orchestrator: { convergeNow } as never,
     })
-    /** The boot pipeline is the service's `onReady` lifecycle step: it runs once every module has initialised. */
-    const boot = () => Effect.runPromise(service.onReady())
+    /** The boot pipeline is the service's `onApplicationBootstrap` lifecycle step: it runs once every module has initialised. */
+    const boot = () => Effect.runPromise(service.onApplicationBootstrap())
     return { boot, convergeNow, ensureDatabaseAvailable, acquire, lifecycle }
 }
 

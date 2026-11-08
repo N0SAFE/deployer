@@ -67,7 +67,7 @@ export type HealthRegistryShape = {
     /** The drift-detection cadence. Never completes; `serviceLifecycle` forks it and interrupts it on stop. */
     readonly run: () => Effect.Effect<void>
     /** Close the streams, so subscribers are released. Runs after `run` is interrupted. */
-    readonly onStop: () => Effect.Effect<void>
+    readonly onModuleDestroy: () => Effect.Effect<void>
 }
 
 /**
@@ -357,7 +357,7 @@ export class HealthRegistry extends Context.Service<
             })
         }
 
-        onStop(): Effect.Effect<void> {
+        onModuleDestroy(): Effect.Effect<void> {
             return Effect.sync(() => {
                 this.disposed = true
                 this.snapshot$.complete()

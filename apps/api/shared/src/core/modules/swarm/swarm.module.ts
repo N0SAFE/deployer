@@ -141,7 +141,7 @@ const swarmProviders = (options: {
             new ServiceLifecycleRunner(
                 'SwarmLifecycle',
                 {
-                    onStart: () => services.bootstrap.onBoot,
+                    onModuleInit: () => services.bootstrap.onBoot,
                     run: () => services.leadership.run,
                 },
                 host

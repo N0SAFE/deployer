@@ -55,30 +55,44 @@ export type GlobalDatabaseServiceShape = {
 
 const OWNER = 'GlobalDatabaseService'
 
-export function makeGlobalDatabaseService(
-    initial?: GlobalDatabase
-): GlobalDatabaseServiceShape {
-    const handle = makeDatabaseHandle<GlobalDatabase>(OWNER, initial)
-
-    return {
-        handle,
-        init: (db) => {
-            handle.initNow(db)
-        },
-        get isInitialized() {
-            return handle.dbNow() !== undefined
-        },
-        get db() {
-            const db = handle.dbNow()
-            if (db === undefined)
-                throw new DatabaseNotInitialized({ owner: OWNER })
-            return db
-        },
-        probe: () => handle.healthy,
-    }
-}
-
 export class GlobalDatabaseService extends Context.Service<
     GlobalDatabaseService,
     GlobalDatabaseServiceShape
->()('shared/GlobalDatabaseService') {}
+>()('shared/GlobalDatabaseService') {
+    /**
+     * The connection is handed in by the module — it is the pool this process created — so it is a
+     * constructor argument rather than something a method yields.
+     */
+    static readonly live = class GlobalDatabaseServiceImpl
+        implements GlobalDatabaseServiceShape
+    {
+        private readonly connection = makeDatabaseHandle<GlobalDatabase>(OWNER)
+
+        constructor(initial?: GlobalDatabase) {
+            if (initial !== undefined) this.connection.initNow(initial)
+        }
+
+        get handle(): DatabaseHandleShape<GlobalDatabase> {
+            return this.connection
+        }
+
+        init(db: GlobalDatabase): void {
+            this.connection.initNow(db)
+        }
+
+        get isInitialized(): boolean {
+            return this.connection.dbNow() !== undefined
+        }
+
+        get db(): GlobalDatabase {
+            const db = this.connection.dbNow()
+            if (db === undefined)
+                throw new DatabaseNotInitialized({ owner: OWNER })
+            return db
+        }
+
+        probe(): Effect.Effect<boolean> {
+            return this.connection.healthy
+        }
+    }
+}

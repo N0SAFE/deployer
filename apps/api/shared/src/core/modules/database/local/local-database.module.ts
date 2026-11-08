@@ -48,8 +48,8 @@ const runUnwrapped = <A, E>(effect: Effect.Effect<A, E>): A => {
 /**
  * Ties the Effect `LocalDatabase` to this Nest context: each context opens its OWN handle (the API runs several contexts in
  * one process), so each closes the one it opened. The connection is opened when the host is built so providers can inject
- * the Drizzle handle; the schema is migrated at `onStart`, after the graph resolves and before any consumer's own init hook,
- * and closed at `onStop`, so no repository can still be using it.
+ * the Drizzle handle; the schema is migrated at `onModuleInit`, after the graph resolves and before any consumer's own init hook,
+ * and closed at `onModuleDestroy`, so no repository can still be using it.
  */
 export type LocalDatabaseHost = ServiceLifecycleShape & {
     readonly database: LocalDatabaseShape
@@ -65,8 +65,8 @@ export function makeLocalDatabaseHost(
 
     return {
         database,
-        onStart: () => migrateLocalDatabase(database, options.migrationsDir),
-        onStop: () =>
+        onModuleInit: () => migrateLocalDatabase(database, options.migrationsDir),
+        onModuleDestroy: () =>
             Scope.close(scope, Exit.void).pipe(
                 Effect.catchCause((cause) =>
                     Effect.logWarning(

@@ -636,7 +636,7 @@ export function makeInitializationService(
     }
 
     return {
-        onStart: () => Effect.promise(() => checkConfigAndEmit()),
+        onModuleInit: () => Effect.promise(() => checkConfigAndEmit()),
         checkConfigAndEmit: () => Effect.promise(() => checkConfigAndEmit()),
         getSetupState,
         getNodeStatus,

@@ -74,7 +74,7 @@ export function makeDatabaseFailureTracker(
         },
         recordSuccess,
         // A pending recovery probe must not outlive the application.
-        onStop: () =>
+        onModuleDestroy: () =>
             Effect.sync(() => {
                 if (recoveryTimer) {
                     clearTimeout(recoveryTimer)

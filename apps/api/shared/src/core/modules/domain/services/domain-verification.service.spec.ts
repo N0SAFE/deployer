@@ -64,10 +64,10 @@ describe('DomainVerificationService', () => {
         ).toBe(1)
     })
 
-    it('declares its sweep in the shape, and no onStart', () => {
+    it('declares its sweep in the shape, and no onModuleInit', () => {
         const { service: s } = service(verified)
         expect(s.run).toBeTypeOf('function')
-        expect(s.onStart).toBeUndefined()
+        expect(s.onModuleInit).toBeUndefined()
     })
 
     it('builds a verification token carrying the domain', () => {

@@ -167,7 +167,7 @@ describe('Startup Flow Integration', { timeout: 30_000 }, () => {
         })
         service = promised(real)
         module = {
-            init: () => Effect.runPromise(real.onStart?.() ?? Effect.void),
+            init: () => Effect.runPromise(real.onModuleInit?.() ?? Effect.void),
             close: () => Promise.resolve(),
         }
         vi.clearAllMocks()

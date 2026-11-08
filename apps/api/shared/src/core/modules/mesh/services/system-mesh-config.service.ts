@@ -55,13 +55,13 @@ const DEFAULT_CONTROL_ENVELOPE_TRUST_REQUIRED = false
 export type MeshConfigResolutionFailure = LocalDatabaseError
 
 /**
- * The node's mesh configuration, resolved ONCE at boot (`onStart`), so a getter never awaits (or queries) on a request
+ * The node's mesh configuration, resolved ONCE at boot (`onModuleInit`), so a getter never awaits (or queries) on a request
  * path: the getters are plain reads of that resolved snapshot (defaults, unpersisted, for a getter that runs before it).
  */
 export type SystemMeshConfigServiceShape = ServiceLifecycleShape & {
     /**
      * Takes the record this node's agent serves and resolves what depends on it. Public so a test can supply a record without
-     * a socket; `onStart` is its only production caller.
+     * a socket; `onModuleInit` is its only production caller.
      */
     readonly applyAgentRecord: (
         record: NodeRecord | null
@@ -298,7 +298,7 @@ export class SystemMeshConfigService extends Context.Service<
 
     /**
      * Takes the record this node's agent serves and resolves what depends on it.
-     * Public so a test can supply a record without a socket; `onStart` is its
+     * Public so a test can supply a record without a socket; `onModuleInit` is its
      * only production caller.
      */
     applyAgentRecord(
@@ -314,7 +314,7 @@ export class SystemMeshConfigService extends Context.Service<
 
     // The agent owns the node's local database, so it is the first source of the node's identity. Absent (or too
     // old to know the record), the local row stays the source — never the environment.
-    onStart(): Effect.Effect<void> {
+    onModuleInit(): Effect.Effect<void> {
         return Effect.promise(() => this.agent.read()).pipe(
             Effect.flatMap((record) => this.applyAgentRecord(record)),
             Effect.catch((err) =>

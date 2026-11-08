@@ -119,7 +119,7 @@ export class NodeInventoryService extends Context.Service<
         // Enroll the LOCAL platform node into the shared cluster_nodes table IMMEDIATELY (not after the first sweep) so mesh
         // resource-ownership inserts (FK → cluster_nodes.node_id) never fail at registration. Not awaited: the database may
         // not be up yet.
-        onStart(): Effect.Effect<void> {
+        onModuleInit(): Effect.Effect<void> {
             return Effect.forkDetach(this.enroll()).pipe(Effect.asVoid)
         }
 

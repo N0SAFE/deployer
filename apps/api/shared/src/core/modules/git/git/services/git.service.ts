@@ -33,7 +33,7 @@ export type CommitInfo = {
  * Local git operations over a per-deployment workspace directory: clone, extract an upload, describe the head commit,
  * clean up, and probe a remote. Every input that reaches a `git` argv is validated first.
  *
- * It owns one resource (the workspace directory), so it is built once over its path and declares `onStart` to create it.
+ * It owns one resource (the workspace directory), so it is built once over its path and declares `onModuleInit` to create it.
  */
 export type GitServiceShape = ServiceLifecycleShape & {
     /** Shallow-clone a repository (optionally detached at `commit`) into the deployment's workspace; the path. */
@@ -55,7 +55,7 @@ export type GitServiceShape = ServiceLifecycleShape & {
     readonly cleanupDeployment: (deploymentId: string) => Effect.Effect<void>
     /** Whether the remote answers `ls-remote`. Never fails: a rejected URL or an unreachable remote is `false`. */
     readonly validateRepository: (url: string) => Effect.Effect<boolean>
-    readonly onStart: () => Effect.Effect<void>
+    readonly onModuleInit: () => Effect.Effect<void>
 }
 
 const extractorLayer = ArchiveExtractor.layer.pipe(
@@ -135,7 +135,7 @@ export function makeGitService(options: {
         })
 
     return {
-        onStart: () =>
+        onModuleInit: () =>
             Effect.sync(() => {
                 fs.mkdirSync(workspaceDir, { recursive: true })
             }),

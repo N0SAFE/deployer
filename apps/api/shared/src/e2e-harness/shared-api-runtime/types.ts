@@ -103,7 +103,7 @@ export type SharedRuntimePlugin = {
     onAppInit?: (
         context: SharedRuntimeNestAppInitContext
     ) => Promise<void> | void
-    onReady?: (context: SharedRuntimeReadyContext) => Promise<void> | void
+    onApplicationBootstrap?: (context: SharedRuntimeReadyContext) => Promise<void> | void
     onError?: (context: SharedRuntimeErrorContext) => Promise<void> | void
 }
 

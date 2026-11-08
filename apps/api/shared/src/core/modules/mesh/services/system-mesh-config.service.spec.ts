@@ -36,7 +36,7 @@ function serviceWith(
         },
     })
     return Object.assign(service, {
-        start: () => Effect.runPromise(service.onStart?.() ?? Effect.void),
+        start: () => Effect.runPromise(service.onModuleInit?.() ?? Effect.void),
     })
 }
 

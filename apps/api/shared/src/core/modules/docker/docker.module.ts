@@ -87,7 +87,7 @@ export const CoreDockerModule = createGlobalModule({
             useFactory: (pool: ScannerPoolShape, host: EffectHostShape) =>
                 new ServiceLifecycleRunner(
                     'ScannerPool',
-                    { onStop: () => pool.stopAll },
+                    { onModuleDestroy: () => pool.stopAll },
                     host
                 ),
             inject: [ScannerPool, EffectHost],

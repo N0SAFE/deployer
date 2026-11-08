@@ -74,7 +74,7 @@ describe('NodeInventoryService', () => {
     const sync = () => Effect.runPromise(service.syncOnce())
 
     it('enrolls the local node globally at init + on every sync (FK fix)', async () => {
-        await Effect.runPromise(service.onStart?.() ?? Effect.void)
+        await Effect.runPromise(service.onModuleInit?.() ?? Effect.void)
         await sync()
         // The detached enrollment at start runs on its own fiber: give it its turn.
         await new Promise((resolve) => setTimeout(resolve, 0))
