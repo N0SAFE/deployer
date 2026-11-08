@@ -23,7 +23,6 @@ export {
 } from './runner'
 export {
     DEPENDENCIES,
-    makePreflightService,
     PreflightService,
     type PreflightServiceShape,
 } from './preflight.service'

@@ -1,6 +1,6 @@
 import { createGlobalModule } from '@deployer/nest-effect'
 
-import { EgressService, makeEgressService } from './egress.service'
+import { EgressService } from './egress.service'
 
 /**
  * CORE: outbound requests to targets a user or operator chooses go through `EgressService`.
@@ -12,7 +12,7 @@ export const CoreEgressModule = createGlobalModule({
     providers: [
         {
             provide: EgressService,
-            useFactory: () => makeEgressService({ env: process.env }),
+            useFactory: () => new EgressService.live(process.env),
         },
     ],
     exports: [EgressService],

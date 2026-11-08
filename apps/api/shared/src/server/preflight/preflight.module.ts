@@ -7,7 +7,6 @@ import { GLOBAL_DATABASE_POOL } from '../../core/modules/database/database-conne
 import { SERVICE_READINESS, type ServiceReadinessPort } from '../service-health'
 
 import {
-    makePreflightService,
     PreflightService,
     type PreflightServiceShape,
 } from './preflight.service'
@@ -73,7 +72,7 @@ export class PreflightModule {
                         provide: PreflightService,
                         // The pool is optional: an app that declares a database dependency without binding one gets a clear report.
                         useFactory: (pool: Pool | undefined) =>
-                            makePreflightService({
+                            new PreflightService.live({
                                 dependencies: options.dependencies,
                                 policy: options.policy ?? WAIT_FOR_DEPENDENCIES,
                                 pool,

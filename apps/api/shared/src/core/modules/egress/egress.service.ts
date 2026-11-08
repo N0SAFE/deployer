@@ -88,87 +88,139 @@ export type EgressServiceShape = {
     ) => Effect.Effect<PeerProbeResult>
 }
 
-type Ports = {
-    /** The environment the policies are resolved from (production vs development allow-lists). */
-    readonly env: EgressEnv
-    /** The `SafeHttp` to send through; the real one (resolve-once-then-connect, redirect checks, size cap, timeout) by default. */
-    readonly http?: SafeHttpShape
-}
-
 /**
  * Every outbound request whose target a user or operator influences goes through here (NET-004, SEC-013). It is the face
  * of the `SafeHttp` Effect layer: scheme and host allow-lists, resolve-once-then-connect-to-that-address (rebinding-safe),
  * per-hop redirect checks, a response size cap and a hard timeout.
  */
-export function makeEgressService({ env, http }: Ports): EgressServiceShape {
-    const policies = resolveEgressPolicies(env)
-    const layer =
-        http === undefined
-            ? SafeHttp.layer
-            : Layer.succeed(SafeHttp, SafeHttp.of(http))
+export class EgressService extends Context.Service<
+    EgressService,
+    EgressServiceShape
+>()('shared/EgressService') {
+    /**
+     * A pure value: the policies come from the environment and the `SafeHttp`
+     * is fixed at construction, so no member yields anything at call time.
+     */
+    static readonly live = class EgressServiceImpl
+        implements EgressServiceShape
+    {
+        readonly policies: EgressPolicies
+        private readonly layer: Layer.Layer<SafeHttp>
 
-    const send = (
-        target: EgressRequestError['target'],
-        req: HttpReq,
-        policy: Policy
-    ): Effect.Effect<HttpRes, EgressRequestError> =>
-        Effect.gen(function* () {
-            return yield* (yield* SafeHttp).request(req, policy)
-        }).pipe(
-            Effect.provide(layer),
-            Effect.tapError((error) =>
-                // Detail for the operator, never for the caller.
-                Effect.logWarning(
-                    `${target} request refused or failed (${req.method ?? 'GET'} ${safeUrl(req.url)}): ${error instanceof Error ? `${error.name}: ${error.message}` : String(error)}`
+        constructor(
+            /** The environment the policies are resolved from (production vs development allow-lists). */
+            env: EgressEnv,
+            /** The `SafeHttp` to send through; the real one (resolve-once-then-connect, redirect checks, size cap, timeout) by default. */
+            http?: SafeHttpShape
+        ) {
+            this.policies = resolveEgressPolicies(env)
+            this.layer =
+                http === undefined
+                    ? SafeHttp.layer
+                    : Layer.succeed(SafeHttp, SafeHttp.of(http))
+        }
+
+        private send(
+            target: EgressRequestError['target'],
+            req: HttpReq,
+            policy: Policy
+        ): Effect.Effect<HttpRes, EgressRequestError> {
+            const { layer } = this
+            return Effect.gen(function* () {
+                return yield* (yield* SafeHttp).request(req, policy)
+            }).pipe(
+                Effect.provide(layer),
+                Effect.tapError((error) =>
+                    // Detail for the operator, never for the caller.
+                    Effect.logWarning(
+                        `${target} request refused or failed (${req.method ?? 'GET'} ${safeUrl(req.url)}): ${error instanceof Error ? `${error.name}: ${error.message}` : String(error)}`
+                    )
+                ),
+                Effect.mapError(
+                    (error) =>
+                        new EgressRequestError({
+                            target,
+                            reason: publicEgressMessage(error),
+                            failure: failureOf(error),
+                            cause: error,
+                        })
                 )
-            ),
-            Effect.mapError(
-                (error) =>
-                    new EgressRequestError({
-                        target,
-                        reason: publicEgressMessage(error),
-                        failure: failureOf(error),
-                        cause: error,
-                    })
             )
-        )
+        }
 
-    const probe: EgressServiceShape['probe'] = (effect) =>
-        effect.pipe(Effect.provide(layer))
+        /** A user-chosen target: a custom domain, a deployed domain, an operator-declared public address. */
+        external(
+            req: HttpReq,
+            options?: RequestOptions
+        ): Effect.Effect<HttpRes, EgressRequestError> {
+            return this.send(
+                'external',
+                req,
+                withTimeout(this.policies.external, options)
+            )
+        }
 
-    return {
-        policies,
-        external: (req, options) =>
-            send('external', req, withTimeout(policies.external, options)),
-        operator: (req, options) =>
-            send('operator', req, withTimeout(policies.operator, options)),
-        fixedExternal: (req, hosts) =>
-            send('fixedExternal', req, policies.fixedExternal(hosts)),
-        probe,
-        probeUserAddress: (address, paths, failureReason) =>
-            probe(
+        /** An operator-typed target: a mesh peer or node address. */
+        operator(
+            req: HttpReq,
+            options?: RequestOptions
+        ): Effect.Effect<HttpRes, EgressRequestError> {
+            return this.send(
+                'operator',
+                req,
+                withTimeout(this.policies.operator, options)
+            )
+        }
+
+        /** A fixed third-party host the platform itself chose (public IP echo, DNS-over-HTTPS). */
+        fixedExternal(
+            req: HttpReq,
+            hosts: readonly string[]
+        ): Effect.Effect<HttpRes, EgressRequestError> {
+            return this.send(
+                'fixedExternal',
+                req,
+                this.policies.fixedExternal(hosts)
+            )
+        }
+
+        /** Run an Effect probe (`@deployer/effect-reachability`) with this service's `SafeHttp`. */
+        probe<A>(effect: Effect.Effect<A, never, SafeHttp>): Effect.Effect<A> {
+            return effect.pipe(Effect.provide(this.layer))
+        }
+
+        /** Probe a user-chosen address until one of `paths` answers 2xx. */
+        probeUserAddress(
+            address: string,
+            paths: readonly string[],
+            failureReason?: (value: string) => string
+        ): Effect.Effect<AddressProbeResult> {
+            return this.probe(
                 probeAddress(address, {
-                    policy: policies.external,
+                    policy: this.policies.external,
                     paths,
                     tryBothSchemes: true,
                     ...(failureReason === undefined ? {} : { failureReason }),
                 })
-            ),
-        probeOperatorPeer: (url, primaryPath, fallbackPath) =>
-            probe(
+            )
+        }
+
+        /** Probe an operator-typed peer's identity endpoint, with a liveness fallback. */
+        probeOperatorPeer(
+            url: string,
+            primaryPath: string,
+            fallbackPath?: string
+        ): Effect.Effect<PeerProbeResult> {
+            return this.probe(
                 probePeer(url, {
-                    policy: policies.operator,
+                    policy: this.policies.operator,
                     primaryPath,
                     ...(fallbackPath === undefined ? {} : { fallbackPath }),
                 })
-            ),
+            )
+        }
     }
 }
-
-export class EgressService extends Context.Service<
-    EgressService,
-    EgressServiceShape
->()('shared/EgressService') {}
 
 const withTimeout = (
     policy: Policy,

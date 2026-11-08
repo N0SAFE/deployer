@@ -7,7 +7,7 @@ import type { NodeConfigRepositoryShape } from '@deployer/node-state'
 
 import {
     isDockerSocketMissing,
-    makeNodeAgentBootstrap,
+    NodeAgentBootstrap,
 } from './node-agent-bootstrap.service'
 
 function build(setupState: string) {
@@ -19,16 +19,16 @@ function build(setupState: string) {
     const nodeConfig = {
         find: () => Effect.succeed({ setupState, nodeId: 'n1' }),
     } as unknown as NodeConfigRepositoryShape
-    const shape = makeNodeAgentBootstrap({
-        docker: {} as DockerEngineShape,
+    const shape = new NodeAgentBootstrap.live(
+        {} as DockerEngineShape,
         nodeConfig,
         door,
-        settings: {
+        {
             swarmMode: () => 'true',
             image: () => undefined,
             doorSocket: () => undefined,
-        },
-    })
+        }
+    )
     return { shape, labels, status }
 }
 

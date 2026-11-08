@@ -1,7 +1,7 @@
 import { Effect } from 'effect'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import { EgressRequestError, makeEgressService } from './egress.service'
+import { EgressRequestError, EgressService } from './egress.service'
 
 let server: Bun.Server<undefined>
 let base: string
@@ -32,8 +32,8 @@ afterAll(async () => {
     await server.stop(true)
 })
 
-const prod = () => makeEgressService({ env: { NODE_ENV: 'production' } })
-const dev = () => makeEgressService({ env: { NODE_ENV: 'development' } })
+const prod = () => new EgressService.live({ NODE_ENV: 'production' })
+const dev = () => new EgressService.live({ NODE_ENV: 'development' })
 
 const rejection = async (
     effect: Effect.Effect<unknown, EgressRequestError>
