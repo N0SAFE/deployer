@@ -37,7 +37,7 @@ export type SupervisorRegistryShape = {
  * The bus is a constructor argument — it is optional, so it cannot be a tag — and the map is
  * per-instance state.
  */
-class SupervisorRegistryImpl implements SupervisorRegistryShape {
+export class SupervisorRegistryImpl implements SupervisorRegistryShape {
     private readonly supervisors = new Map<string, AnySupervisor>()
 
     constructor(private readonly bus?: SupervisorEventBusShape) {}

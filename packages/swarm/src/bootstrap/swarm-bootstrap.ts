@@ -23,6 +23,72 @@ export type SwarmBootstrapShape = {
 }
 
 /**
+ * The one implementation of `SwarmBootstrapShape`.
+ *
+ * A NAMED class: this package emits declarations, and TS4094 forbids private members on an
+ * anonymous exported class. Both collaborators are constructor arguments.
+ */
+class SwarmBootstrapImpl implements SwarmBootstrapShape {
+    private readonly participation: SwarmParticipationShape
+    private readonly convergeOnBoot: boolean
+
+    constructor(
+        participation: SwarmParticipationShape,
+        convergeOnBoot: boolean
+    ) {
+        this.participation = participation
+        this.convergeOnBoot = convergeOnBoot
+    }
+
+    converge(trigger: 'boot' | 'setup'): Effect.Effect<void> {
+        const { participation } = this
+        return Effect.fn('SwarmBootstrap.converge')(function* () {
+            yield* participation.converge().pipe(
+                Effect.matchEffect({
+                    onSuccess: (snapshot) =>
+                        Effect.gen(function* () {
+                            const node = snapshot.localNode
+                            yield* Effect.logInfo(
+                                `Swarm converged (${trigger}) — state=${snapshot.localNodeState}, role=${node.swarmRole}, availability=${node.availability}, nodes=${String(snapshot.nodeCount)}, managers=${String(snapshot.managerCount)}, master=${snapshot.master?.nodeId ?? 'none'}`
+                            )
+                            const { policy } = yield* participation
+                                .effectiveConfig()
+                                .pipe(Effect.orDie)
+                            yield* Effect.logInfo(
+                                `🐝 Swarm active (policy=${policy}) — every supervised platform service + Deployer workload is scheduled on Swarm`
+                            )
+                        }),
+                    onFailure: (error) =>
+                        Effect.logWarning(
+                            `Swarm convergence (${trigger}) skipped — engine is not in an active cluster: ${error.message}`
+                        ),
+                })
+            )
+        })()
+    }
+
+    get onBoot(): Effect.Effect<void> {
+        const { participation, convergeOnBoot } = this
+        return Effect.gen({ self: this }, function* () {
+            if (!convergeOnBoot) {
+                return yield* Effect.logInfo(
+                    'Swarm boot convergence is disabled for this app — the cluster is converged by its own flow, not at startup'
+                )
+            }
+            const done = yield* participation
+                .setupDone()
+                .pipe(Effect.orElseSucceed(() => false))
+            if (!done) {
+                return yield* Effect.logInfo(
+                    'Swarm convergence deferred until setup — the cluster entry mode (create vs join) and role policy are decided during setup'
+                )
+            }
+            yield* this.converge('boot')
+        })
+    }
+}
+
+/**
  * Converges the local engine into Swarm mode AFTER the setup wizard recorded how this node participates.
  *
  * Setup, not boot, because the cluster decision belongs to the operator: a node about to JOIN a fleet
@@ -39,60 +105,14 @@ export class SwarmBootstrap extends Context.Service<
         Layer.effect(
             SwarmBootstrap,
             Effect.gen(function* () {
-                return makeSwarmBootstrap(
+                return new SwarmBootstrap.live(
                     yield* SwarmParticipation,
                     options.convergeOnBoot
                 )
             })
         )
+
+    /** The implementation: it owns both collaborators. */
+    static readonly live = SwarmBootstrapImpl
 }
 
-export function makeSwarmBootstrap(
-    participation: SwarmParticipationShape,
-    convergeOnBoot: boolean
-): SwarmBootstrapShape {
-    const converge: SwarmBootstrapShape['converge'] = Effect.fn(
-        'SwarmBootstrap.converge'
-    )(function* (trigger) {
-        yield* participation.converge().pipe(
-            Effect.matchEffect({
-                onSuccess: (snapshot) =>
-                    Effect.gen(function* () {
-                        const node = snapshot.localNode
-                        yield* Effect.logInfo(
-                            `Swarm converged (${trigger}) — state=${snapshot.localNodeState}, role=${node.swarmRole}, availability=${node.availability}, nodes=${String(snapshot.nodeCount)}, managers=${String(snapshot.managerCount)}, master=${snapshot.master?.nodeId ?? 'none'}`
-                        )
-                        const { policy } = yield* participation
-                            .effectiveConfig()
-                            .pipe(Effect.orDie)
-                        yield* Effect.logInfo(
-                            `🐝 Swarm active (policy=${policy}) — every supervised platform service + Deployer workload is scheduled on Swarm`
-                        )
-                    }),
-                onFailure: (error) =>
-                    Effect.logWarning(
-                        `Swarm convergence (${trigger}) skipped — engine is not in an active cluster: ${error.message}`
-                    ),
-            })
-        )
-    })
-
-    const onBoot = Effect.gen(function* () {
-        if (!convergeOnBoot) {
-            return yield* Effect.logInfo(
-                'Swarm boot convergence is disabled for this app — the cluster is converged by its own flow, not at startup'
-            )
-        }
-        const done = yield* participation
-            .setupDone()
-            .pipe(Effect.orElseSucceed(() => false))
-        if (!done) {
-            return yield* Effect.logInfo(
-                'Swarm convergence deferred until setup — the cluster entry mode (create vs join) and role policy are decided during setup'
-            )
-        }
-        yield* converge('boot')
-    })
-
-    return { converge, onBoot }
-}

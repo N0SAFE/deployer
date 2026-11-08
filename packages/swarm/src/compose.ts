@@ -3,7 +3,10 @@ import type {
     NodeConfigRepositoryShape,
 } from '@deployer/node-state'
 
-import { makeSwarmBootstrap } from './bootstrap/swarm-bootstrap'
+import {
+    SwarmBootstrap,
+    type SwarmBootstrapShape,
+} from './bootstrap/swarm-bootstrap'
 import {
     SwarmCluster,
     type SwarmClusterShape,
@@ -14,7 +17,10 @@ import {
     type LeadershipEventSink,
 } from './election/swarm-leadership'
 import { makeSwarmFleet } from './fleet/swarm-fleet'
-import { makeSwarmJoinGrant } from './join/swarm-join-grant'
+import {
+    SwarmJoinGrant,
+    type SwarmJoinGrantShape,
+} from './join/swarm-join-grant'
 import { makeSwarmParticipation } from './participation/swarm-participation'
 
 import type {
@@ -53,8 +59,8 @@ export type SwarmServices = {
     readonly cluster: SwarmClusterShape
     readonly fleet: ReturnType<typeof makeSwarmFleet>
     readonly participation: ReturnType<typeof makeSwarmParticipation>
-    readonly joinGrant: ReturnType<typeof makeSwarmJoinGrant>
-    readonly bootstrap: ReturnType<typeof makeSwarmBootstrap>
+    readonly joinGrant: SwarmJoinGrantShape
+    readonly bootstrap: SwarmBootstrapShape
     readonly leadership: ReturnType<typeof makeSwarmLeadership>
 }
 
@@ -72,12 +78,12 @@ export const makeSwarmServices = (
         cluster,
         docker,
     })
-    const joinGrant = makeSwarmJoinGrant({
+    const joinGrant = new SwarmJoinGrant.live({
         cluster,
         config: options.join,
         participation: options.participation,
     })
-    const bootstrap = makeSwarmBootstrap(
+    const bootstrap = new SwarmBootstrap.live(
         participation,
         options.convergeOnBoot ?? true
     )

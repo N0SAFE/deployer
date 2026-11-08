@@ -2,7 +2,7 @@ import { Cause, Effect, Exit } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
 
 import { decideRole } from './join-decision'
-import { makeSwarmJoinGrant } from './swarm-join-grant'
+import { SwarmJoinGrant } from './swarm-join-grant'
 
 import type { SwarmClusterShape } from '../cluster/swarm-cluster'
 import type { SwarmJoinConfig, SwarmParticipationDefaults } from '../config'
@@ -67,7 +67,7 @@ function makeService(
         ),
     }
     return {
-        service: makeSwarmJoinGrant({
+        service: new SwarmJoinGrant.live({
             cluster: cluster as unknown as SwarmClusterShape,
             config,
             participation,

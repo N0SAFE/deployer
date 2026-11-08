@@ -14,7 +14,7 @@ import {
 } from './drift-control'
 import {
     DEFAULT_REGISTRATION_WAIT_MS,
-    SupervisorRegistry,
+    SupervisorRegistryImpl,
     type SupervisorRegistryShape,
 } from './registry'
 
@@ -58,24 +58,19 @@ export type SupervisorOrchestratorShape = SupervisorRegistryShape & {
  * A NAMED class: declaration emit cannot describe the private members of an anonymous exported
  * class (TS4094), and this package emits declarations.
  *
- * The registry members are the ONE delegation in this class, and they are deliberate: the shape is
- * `SupervisorRegistryShape & {…}`, and the registry is a separate service with its own map that the
- * app registers supervisors through (`orchestrator.register(…)`). Its methods are bound to the
- * registry instance at construction so a caller that reads one off the orchestrator and calls it
- * detached still reaches that map.
+ * It EXTENDS the registry implementation rather than holding one. The shape is
+ * `SupervisorRegistryShape & {…}` — the orchestrator IS the registry plus drift control, both
+ * operating on the same map — so inheritance states that directly: `register`, `list`, `has`,
+ * `get`, `find` and `awaitMatch` are inherited, not re-forwarded, and there is exactly one map.
  */
-class SupervisorOrchestratorImpl implements SupervisorOrchestratorShape {
-    private readonly registry: SupervisorRegistryShape
+class SupervisorOrchestratorImpl
+    extends SupervisorRegistryImpl
+    implements SupervisorOrchestratorShape
+{
     private readonly intervals: {
         readonly degradedRetryMs?: number
         readonly reconcileSweepMs?: number
     }
-    declare readonly register: SupervisorRegistryShape['register']
-    declare readonly list: SupervisorRegistryShape['list']
-    declare readonly has: SupervisorRegistryShape['has']
-    declare readonly get: SupervisorRegistryShape['get']
-    declare readonly find: SupervisorRegistryShape['find']
-    declare readonly awaitMatch: SupervisorRegistryShape['awaitMatch']
 
     constructor(
         bus?: SupervisorEventBusShape,
@@ -84,28 +79,15 @@ class SupervisorOrchestratorImpl implements SupervisorOrchestratorShape {
             reconcileSweepMs?: number
         } = {}
     ) {
-        this.registry = new SupervisorRegistry.live(bus)
+        super(bus)
         this.intervals = intervals
-        for (const key of [
-            'register',
-            'list',
-            'has',
-            'get',
-            'find',
-            'awaitMatch',
-        ] as const) {
-            Object.defineProperty(this, key, {
-                value: this.registry[key].bind(this.registry),
-                configurable: true,
-            })
-        }
     }
 
     getMatching(
         predicate: (supervisor: AnySupervisor) => boolean,
         options: { timeoutMs?: number } = {}
     ): Effect.Effect<AnySupervisor | null> {
-        return this.registry.awaitMatch(
+        return this.awaitMatch(
             predicate,
             options.timeoutMs ?? DEFAULT_REGISTRATION_WAIT_MS
         )
@@ -115,7 +97,7 @@ class SupervisorOrchestratorImpl implements SupervisorOrchestratorShape {
         supervisorId: string,
         options: { timeoutMs?: number } = {}
     ): Effect.Effect<AnySupervisor | null> {
-        return this.registry.awaitMatch(
+        return this.awaitMatch(
             (supervisor: AnySupervisor) => supervisor.id === supervisorId,
             options.timeoutMs ?? DEFAULT_REGISTRATION_WAIT_MS
         )
@@ -123,7 +105,7 @@ class SupervisorOrchestratorImpl implements SupervisorOrchestratorShape {
 
     get ensureAll(): Effect.Effect<Map<string, SupervisorState>> {
         return Effect.suspend(() =>
-            convergeAll(this.registry.list()).pipe(
+            convergeAll(this.list()).pipe(
                 Effect.map((states) => new Map(states))
             )
         )
@@ -132,7 +114,7 @@ class SupervisorOrchestratorImpl implements SupervisorOrchestratorShape {
     convergeNow(
         supervisorId: string
     ): Effect.Effect<SupervisorState | null> {
-        const supervisor = this.registry.get(supervisorId)
+        const supervisor = this.get(supervisorId)
         return supervisor === null
             ? Effect.succeed(null)
             : supervisor.ensureDesiredState
@@ -140,7 +122,7 @@ class SupervisorOrchestratorImpl implements SupervisorOrchestratorShape {
 
     get degraded(): Effect.Effect<AnySupervisor[]> {
         return Effect.suspend(() =>
-            Effect.forEach(this.registry.list(), (supervisor) =>
+            Effect.forEach(this.list(), (supervisor) =>
                 supervisor.getStateSnapshot.pipe(
                     Effect.map((snapshot) =>
                         snapshot.state === 'degraded' ? [supervisor] : []
@@ -153,7 +135,7 @@ class SupervisorOrchestratorImpl implements SupervisorOrchestratorShape {
     get healthOfAll(): Effect.Effect<HealthSnapshot<unknown>[]> {
         return Effect.suspend(() =>
             Effect.forEach(
-                this.registry.list(),
+                this.list(),
                 (supervisor) => supervisor.getHealthAndNotify,
                 { concurrency: 'unbounded' }
             )
@@ -169,7 +151,7 @@ class SupervisorOrchestratorImpl implements SupervisorOrchestratorShape {
                 Effect.gen({ self: this }, function* () {
                     const results = yield* this.ensureAll
                     for (const [id, state] of results) {
-                        const snapshot = yield* this.registry.get(id)
+                        const snapshot = yield* this.get(id)
                             ?.getStateSnapshot ??
                             Effect.succeed({ state, detail: null })
                         if (state === 'degraded') {
@@ -192,7 +174,7 @@ class SupervisorOrchestratorImpl implements SupervisorOrchestratorShape {
                             intervals.degradedRetryMs ??
                                 DEGRADED_RETRY_INTERVAL_MS,
                             Effect.suspend(() =>
-                                retryDegraded(this.registry.list())
+                                retryDegraded(this.list())
                             )
                         ),
                         everyInterval(

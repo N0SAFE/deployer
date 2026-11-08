@@ -34,7 +34,7 @@ export { SwarmCluster } from './cluster/swarm-cluster'
 export type { SwarmClusterShape } from './cluster/swarm-cluster'
 export { makeSwarmFleet, SwarmFleet } from './fleet/swarm-fleet'
 export type { SwarmFleetShape } from './fleet/swarm-fleet'
-export { makeSwarmBootstrap, SwarmBootstrap } from './bootstrap/swarm-bootstrap'
+export { SwarmBootstrap } from './bootstrap/swarm-bootstrap'
 export type { SwarmBootstrapShape } from './bootstrap/swarm-bootstrap'
 export {
     makeSwarmParticipation,
@@ -50,7 +50,7 @@ export {
     DEFAULT_QUORUM_TARGET,
     quorumTarget,
 } from './join/join-decision'
-export { makeSwarmJoinGrant, SwarmJoinGrant } from './join/swarm-join-grant'
+export { SwarmJoinGrant } from './join/swarm-join-grant'
 export type { SwarmJoinGrantShape } from './join/swarm-join-grant'
 
 export {
