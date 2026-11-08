@@ -67,8 +67,9 @@ vi.mock('../lifecycle', () => ({
     },
 }))
 vi.mock('./services/database-startup-guard.service', () => ({
-    DatabaseStartupGuard: class {},
-    makeDatabaseStartupGuard: () => ({}),
+    DatabaseStartupGuard: class {
+        static readonly live = class {}
+    },
 }))
 vi.mock('./services/database-probe.service', () => ({
     DatabaseProbeService: class {},

@@ -40,10 +40,7 @@ import {
     makeDatabaseProbeService,
     type DatabaseProbeServiceShape,
 } from './services/database-probe.service'
-import {
-    DatabaseStartupGuard,
-    makeDatabaseStartupGuard,
-} from './services/database-startup-guard.service'
+import { DatabaseStartupGuard } from './services/database-startup-guard.service'
 import { GlobalDatabaseService } from './services/global-database.service'
 import { DatabasePort } from './storage'
 
@@ -79,11 +76,11 @@ export const DatabaseModule = createGlobalModule({
                 lifecycle: AppLifecycleShape,
                 probeService: DatabaseProbeServiceShape
             ) =>
-                makeDatabaseStartupGuard({
+                new DatabaseStartupGuard.live(
                     nodeConfigRepository,
                     lifecycle,
-                    probeService,
-                }),
+                    probeService
+                ),
             inject: [NodeConfigRepository, AppLifecycle, DatabaseProbeService],
         },
         {
