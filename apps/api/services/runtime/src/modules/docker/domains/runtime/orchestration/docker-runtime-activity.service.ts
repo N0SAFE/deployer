@@ -1,41 +1,60 @@
 import { Context, Effect } from 'effect'
 
-import { serviceOver, type Over } from '@deployer/effect-core'
+import type {
+    DockerRuntimeActivityEntity,
+} from '@deployer/contracts-entities'
+import type {
+    DockerRuntimeActivityDetailQueryInput,
+    DockerRuntimeActivityListInput,
+} from '@deployer/runtime-contracts/modules/docker/runtime/activity'
 
 import {
     DockerCatalog,
     type DockerCatalogPorts,
-    type DockerCatalogShape,
 } from '../../../catalog/docker-catalog'
 import {
     DockerRuntimeActivities,
     type DockerRuntimeActivitiesRequirements,
-    type DockerRuntimeActivitiesShape,
 } from '../../../repositories/runtime/docker-runtime-activities'
 
-/**
- * The runtime's own reads: the mesh catalog snapshot and the persisted activity rows.
- *
- * An Effect service, not a Nest class holding `EffectRuntime`: the collaborators (`DockerCatalog`, `DockerRuntimeActivities`)
- * are yielded when a method runs, so the controller's handler declares them in its `R` and the requirement gate audits
- * them like any other. The previous shape ran the same Effects on the app-wide runtime, which made those collaborators
- * invisible to the gate — a handler could have lost one and nothing would have failed the build.
- *
- * Streams are NOT here: they stay RxJS in `DockerRuntimeActivityDomainService`, which is the documented boundary.
- */
+/** The catalog, plus the ports behind it. */
+type SnapshotRequirements = DockerCatalog | DockerCatalogPorts
+
+/** The activity store, plus the database behind it. */
+type ActivityRequirements =
+    | DockerRuntimeActivities
+    | DockerRuntimeActivitiesRequirements
+
+/** The three reads this service exposes: the mesh catalog snapshot and the persisted activity rows. */
 type DockerRuntimeActivityReads = {
-    readonly snapshot: DockerCatalogShape['resolve']
-    readonly list: DockerRuntimeActivitiesShape['list']
-    readonly getById: DockerRuntimeActivitiesShape['getById']
+    readonly snapshot: () => Effect.Effect<
+        Effect.Success<ReturnType<DockerCatalog['Service']['resolve']>>,
+        unknown,
+        SnapshotRequirements
+    >
+    readonly list: (
+        input: DockerRuntimeActivityListInput
+    ) => Effect.Effect<
+        Effect.Success<
+            ReturnType<DockerRuntimeActivities['Service']['list']>
+        >,
+        unknown,
+        ActivityRequirements
+    >
+    readonly getById: (
+        input: DockerRuntimeActivityDetailQueryInput
+    ) => Effect.Effect<
+        DockerRuntimeActivityEntity | null,
+        unknown,
+        ActivityRequirements
+    >
 }
 
 type DockerRuntimeActivityCollaborators =
-    DockerCatalog | DockerRuntimeActivities
+    | DockerCatalog
+    | DockerRuntimeActivities
 
-export type DockerRuntimeActivityShape = Over<
-    DockerRuntimeActivityReads,
-    DockerRuntimeActivityCollaborators
->
+export type DockerRuntimeActivityShape = DockerRuntimeActivityReads
 
 /** Everything a caller must be able to see for these reads to run. */
 export type DockerRuntimeActivityPorts =
@@ -43,20 +62,48 @@ export type DockerRuntimeActivityPorts =
     | DockerRuntimeActivitiesRequirements
     | DockerRuntimeActivityCollaborators
 
+/**
+ * The runtime's own reads: the mesh catalog snapshot and the persisted activity rows.
+ *
+ * An Effect service, not a Nest class holding `EffectRuntime`: each operation yields the collaborator that serves it
+ * where it uses it, so the controller's handler declares them in its `R` and the requirement gate audits them like any
+ * other.
+ *
+ * Streams are NOT here: they stay RxJS in `DockerRuntimeActivityDomainService`, which is the documented boundary.
+ */
 export class DockerRuntimeActivity extends Context.Service<
     DockerRuntimeActivity,
     DockerRuntimeActivityShape
 >()('runtime/DockerRuntimeActivity') {
-    /** Stateless: `serviceOver` reads the collaborators from the context on every call. */
-    static readonly live: DockerRuntimeActivityShape = serviceOver(
-        Effect.all({
-            catalog: DockerCatalog,
-            activities: DockerRuntimeActivities,
-        }),
-        ({ catalog, activities }): DockerRuntimeActivityReads => ({
-            snapshot: () => catalog.resolve(),
-            list: (input) => activities.list(input),
-            getById: (input) => activities.getById(input),
-        })
-    )
+    /**
+     * Collaborators are yielded per call, so this is a class the module provides with `useClass`.
+     */
+    static readonly live = class DockerRuntimeActivityImpl
+        implements DockerRuntimeActivityShape
+    {
+        snapshot(): ReturnType<DockerRuntimeActivityShape['snapshot']> {
+            return Effect.gen(function* () {
+                const catalog = yield* DockerCatalog
+                return yield* catalog.resolve()
+            })
+        }
+
+        list(
+            input: DockerRuntimeActivityListInput
+        ): ReturnType<DockerRuntimeActivityShape['list']> {
+            return Effect.gen(function* () {
+                const activities = yield* DockerRuntimeActivities
+                return yield* activities.list(input)
+            })
+        }
+
+        getById(
+            input: DockerRuntimeActivityDetailQueryInput
+        ): ReturnType<DockerRuntimeActivityShape['getById']> {
+            return Effect.gen(function* () {
+                const activities = yield* DockerRuntimeActivities
+                return yield* activities.getById(input)
+            })
+        }
+    }
 }

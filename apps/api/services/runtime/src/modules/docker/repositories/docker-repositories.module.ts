@@ -157,7 +157,7 @@ export class DockerRepositoriesModule extends createModuleContext({
         },
         {
             provide: DockerRuntimeActivities,
-            useValue: DockerRuntimeActivities.live,
+            useClass: DockerRuntimeActivities.live,
         },
         {
             provide: DockerContainersRepository,
@@ -167,7 +167,10 @@ export class DockerRepositoriesModule extends createModuleContext({
             provide: DockerContainerLinksLookup,
             useClass: DockerContainerLinksLookup.live,
         },
-        { provide: DockerContainerLinks, useValue: DockerContainerLinks.live },
+        {
+            provide: DockerContainerLinks,
+            useClass: DockerContainerLinks.live,
+        },
     ],
     exports: [
         DockerRepository,

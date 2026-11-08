@@ -4,6 +4,8 @@ import {
     ContainersLocalPort,
     ContainersMeshPort,
     DockerContainerResolution,
+    type DockerContainerResolutionPorts,
+    type DockerContainerResolutionShape,
 } from './docker-container-resolution'
 
 type PromiseResolution = {
@@ -31,60 +33,45 @@ export function runtimeOverResolution(fake: PromiseResolution) {
         listContainers: wrap('listContainers'),
         listContainersGrouped: wrap('listContainersGrouped'),
         inspectContainer: wrap('inspectContainer'),
-    }
+    } as unknown as DockerContainerResolutionShape
     return {
         runPromiseUnwrapped: <A>(effect: Effect.Effect<A, unknown>) =>
             Effect.runPromise(
                 Effect.provideService(
-                    effect as never,
+                    effect,
                     DockerContainerResolution,
-                    service as never
+                    service
                 )
-            ) as Promise<A>,
+            ),
     }
 }
 
 /** The resolution built over fake collaborators, called as a Promise API the way the old class was. */
 export function createResolution(mesh: unknown, local: unknown) {
-    const provide = <A, E>(effect: Effect.Effect<A, E>) =>
-        Effect.runPromise(effect)
-    const withPorts = <A, E>(effect: Effect.Effect<A, E, unknown>) =>
-        effect.pipe(
-            Effect.provideService(ContainersMeshPort, mesh as never),
-            Effect.provideService(ContainersLocalPort, local as never)
-        ) as Effect.Effect<A, E>
+    const resolution: DockerContainerResolutionShape =
+        new DockerContainerResolution.live()
+    const provide = <A, E>(
+        effect: Effect.Effect<A, E, DockerContainerResolutionPorts>
+    ): Promise<A> =>
+        Effect.runPromise(
+            effect.pipe(
+                Effect.provideService(ContainersMeshPort, mesh as never),
+                Effect.provideService(ContainersLocalPort, local as never)
+            )
+        )
     return {
         listContainers: (
-            ...args: Parameters<
-                typeof DockerContainerResolution.live.listContainers
-            >
-        ) =>
-            provide(
-                withPorts(
-                    DockerContainerResolution.live.listContainers(...args)
-                )
-            ),
+            ...args: Parameters<DockerContainerResolutionShape['listContainers']>
+        ) => provide(resolution.listContainers(...args)),
         listContainersGrouped: (
             ...args: Parameters<
-                typeof DockerContainerResolution.live.listContainersGrouped
+                DockerContainerResolutionShape['listContainersGrouped']
             >
-        ) =>
-            provide(
-                withPorts(
-                    DockerContainerResolution.live.listContainersGrouped(
-                        ...args
-                    )
-                )
-            ),
+        ) => provide(resolution.listContainersGrouped(...args)),
         inspectContainer: (
             ...args: Parameters<
-                typeof DockerContainerResolution.live.inspectContainer
+                DockerContainerResolutionShape['inspectContainer']
             >
-        ) =>
-            provide(
-                withPorts(
-                    DockerContainerResolution.live.inspectContainer(...args)
-                )
-            ),
+        ) => provide(resolution.inspectContainer(...args)),
     }
 }

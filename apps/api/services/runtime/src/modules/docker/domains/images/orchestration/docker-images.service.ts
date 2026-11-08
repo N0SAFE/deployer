@@ -1,6 +1,5 @@
 import { Context, Effect } from 'effect'
 
-import { serviceOver, type Over } from '@deployer/effect-core'
 import type { DockerImageInspectQueryInput } from '@deployer/runtime-contracts/modules/docker/images/inspect'
 import type { DockerImageListInput } from '@deployer/runtime-contracts/modules/docker/images/list'
 
@@ -26,13 +25,15 @@ export type DockerImagesShape = {
         input: DockerImageListInput
     ) => Effect.Effect<
         Awaited<ReturnType<DockerImagesApplicationService['listImages']>>,
-        unknown
+        unknown,
+        DockerImageCatalogPort
     >
     readonly inspect: (
         input: DockerImageInspectQueryInput
     ) => Effect.Effect<
         Awaited<ReturnType<DockerImagesApplicationService['inspectImage']>>,
-        unknown
+        unknown,
+        DockerImageCatalogPort
     >
 }
 
@@ -41,20 +42,31 @@ export type DockerImagesPorts = DockerImageCatalogPort
 
 export class DockerImages extends Context.Service<
     DockerImages,
-    Over<DockerImagesShape, DockerImageCatalogPort>
+    DockerImagesShape
 >()('runtime/DockerImages') {
-    /** Stateless: the port is resolved on every call. */
-    static readonly live: Over<DockerImagesShape, DockerImageCatalogPort> =
-        serviceOver(DockerImageCatalogPort, (catalog): DockerImagesShape => ({
-            list: (input) =>
-                Effect.tryPromise({
+    static readonly live = class DockerImagesImpl implements DockerImagesShape {
+        list(
+            input: DockerImageListInput
+        ): ReturnType<DockerImagesShape['list']> {
+            return Effect.gen(function* () {
+                const catalog = yield* DockerImageCatalogPort
+                return yield* Effect.tryPromise({
                     try: () => catalog.listImages(input),
                     catch: (error) => error,
-                }),
-            inspect: (input) =>
-                Effect.tryPromise({
+                })
+            })
+        }
+
+        inspect(
+            input: DockerImageInspectQueryInput
+        ): ReturnType<DockerImagesShape['inspect']> {
+            return Effect.gen(function* () {
+                const catalog = yield* DockerImageCatalogPort
+                return yield* Effect.tryPromise({
                     try: () => catalog.inspectImage(input),
                     catch: (error) => error,
-                }),
-        }))
+                })
+            })
+        }
+    }
 }

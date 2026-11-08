@@ -33,7 +33,7 @@ export class DockerRuntimeModule extends createModuleContext({
         },
         {
             provide: DockerRuntimeActivity,
-            useValue: DockerRuntimeActivity.live,
+            useClass: DockerRuntimeActivity.live,
         },
         {
             provide: SwarmActivityEnricherService,

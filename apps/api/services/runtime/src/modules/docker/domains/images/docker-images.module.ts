@@ -69,7 +69,7 @@ export class DockerImagesModule extends createModuleContext({
             provide: DockerImageCatalogPort,
             useExisting: DockerImagesApplicationService,
         },
-        { provide: DockerImages, useValue: DockerImages.live },
+        { provide: DockerImages, useClass: DockerImages.live },
         {
             provide: DockerImagesOrchestratorService,
             useFactory: (application: DockerImagesApplicationService) =>

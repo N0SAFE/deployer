@@ -1,17 +1,17 @@
 import { Logger } from '@nestjs/common'
-import { Context, Effect } from 'effect'
+import { Cause, Context, Effect, Exit } from 'effect'
 
 import {
     type DockerContainer,
     type DockerContainerInspectDetail,
 } from '@deployer/contracts-entities'
-import { serviceOver, type Over } from '@deployer/effect-core'
 import type {
     DockerContainerGroupedListInput,
     DockerContainerGroupedListResult,
     DockerContainerListInput,
 } from '@deployer/runtime-contracts/modules/docker/containers/shared'
 
+import { attempt } from '../../../../../core/effects'
 import { DockerRepository } from '../../../repositories/facade/docker.repository'
 
 import {
@@ -36,12 +36,10 @@ import {
 import type {
     DockerContainerResolutionOptions,
     DockerGroupedDaemonDiagnostics,
-    DockerListResult,
 } from './mesh-universe-types'
 import type { DockerNodeMesh } from '../mesh/docker-node-mesh'
 import type {
     DockerContainerInspectRequestPayload,
-    DockerContainerInspectResponsePayload,
     DockerContainerListRequestPayload,
     DockerContainerListResponsePayload,
     DockerContainerListResult,
@@ -49,340 +47,410 @@ import type {
 
 const MESH_FANOUT_LIMIT = 500
 
-/** The container resolution logic as a plain class over its two collaborators; the Effect service below builds it per call. */
-class ContainerResolutionImpl {
-    private readonly logger = new Logger('DockerContainerResolutionService')
+/** What one operation reads from the context: the mesh fan-out and this node's repository. */
+type ResolutionCollaborators = {
+    readonly mesh: ContainersMeshPort['Service']
+    readonly local: ContainersLocalPort['Service']
+}
 
-    constructor(
-        private readonly dockerContainerMeshService: Pick<
-            DockerNodeMesh,
-            'listContainersAcrossInstances' | 'inspectContainerAcrossInstances'
-        >,
-        private readonly dockerRepository: Pick<
-            DockerRepository,
-            'listContainers' | 'inspectContainer'
-        >
-    ) {}
+/** The diagnostics a list computed on this node alone carries: there is no other daemon to compare with. */
+const noSharedDaemon: DockerGroupedDaemonDiagnostics = {
+    hasSharedDaemonAcrossNodes: false,
+    sharedDaemonGroups: [],
+}
 
-    async listContainers(
-        input: DockerContainerListInput,
-        options?: DockerContainerResolutionOptions
-    ): Promise<DockerContainerListResult> {
-        if (options?.localOnly) {
-            this.logger.debug(
-                'Bypassing mesh fanout for local-only docker container list request'
-            )
-            return await this.dockerRepository.listContainers(input)
+/** A page of containers grouped by runtime fingerprint; the caller supplies the (already sorted) rows. */
+const groupedPage = (
+    containers: DockerContainer[],
+    input: DockerContainerGroupedListInput,
+    diagnostics: DockerGroupedDaemonDiagnostics
+): DockerContainerGroupedListResult => ({
+    ...paginateList(
+        groupContainersForInventory(containers),
+        input.limit,
+        input.offset
+    ),
+    diagnostics,
+})
+
+/**
+ * Container listing and inspection across the mesh.
+ *
+ * Every operation below IS the logic: it yields the mesh fan-out and this node's repository where it uses them, and
+ * `mergeMeshResponses` is the one helper more than one operation shares. The local fallback is `localPage`.
+ */
+export class DockerContainerResolution extends Context.Service<
+    DockerContainerResolution,
+    DockerContainerResolutionShape
+>()('runtime/DockerContainerResolution') {
+    static readonly live = class DockerContainerResolutionImpl
+        implements DockerContainerResolutionShape
+    {
+        private readonly logger = new Logger(
+            'DockerContainerResolutionService'
+        )
+
+        /** This node's own page: what a fallback returns when the mesh answers with nothing, or fails. */
+        private localPage(
+            { local }: ResolutionCollaborators,
+            input: DockerContainerListInput
+        ): Effect.Effect<DockerContainerListResult, unknown> {
+            return attempt(async () => await local.listContainers(input))
         }
 
-        const meshPayload: DockerContainerListRequestPayload = {
-            query: {
-                ...input,
-                limit: MESH_FANOUT_LIMIT,
-                offset: 0,
-            },
-        }
+        listContainers(
+            input: DockerContainerListInput,
+            options?: DockerContainerResolutionOptions
+        ): ReturnType<DockerContainerResolutionShape['listContainers']> {
+            return Effect.gen({ self: this }, function* () {
+                const mesh = yield* ContainersMeshPort
+                const local = yield* ContainersLocalPort
+                const collaborators: ResolutionCollaborators = { mesh, local }
 
-        try {
-            const meshResult =
-                await this.dockerContainerMeshService.listContainersAcrossInstances(
-                    meshPayload,
-                    {
-                        timeoutMs: 1_500,
-                        maxCollectedResponses: 128,
-                    }
-                )
+                if (options?.localOnly) {
+                    this.logger.debug(
+                        'Bypassing mesh fanout for local-only docker container list request'
+                    )
+                    return yield* this.localPage(collaborators, input)
+                }
 
-            const resolvedResponses = dedupeResponsesByResponder(
-                meshResult.responses
-            )
-
-            this.logger.debug(
-                [
-                    `Mesh listContainers call metrics: responses=${String(meshResult.responses.length)}`,
-                    `combinedResponses=${String(resolvedResponses.length)}`,
-                    `expected=${String(meshResult.metrics.expectedResponders)}`,
-                    `received=${String(meshResult.metrics.receivedResponses)}`,
-                    `timedOut=${String(meshResult.metrics.timedOut)}`,
-                    `stoppedEarly=${String(meshResult.stoppedEarly)}`,
-                    `reason=${meshResult.reason}`,
-                    `payloadSizes=[${resolvedResponses.map((response) => String(response.data.length)).join(',')}]`,
-                ].join(' | ')
-            )
-
-            if (resolvedResponses.length === 0) {
-                return await this.dockerRepository.listContainers(input)
-            }
-
-            const merged = this.mergeMeshResponses(resolvedResponses)
-            const filtered = applyContainerFilters(merged, input)
-            const sorted = sortContainers(
-                filtered,
-                input.sortBy,
-                input.sortDirection
-            )
-            const paginated = paginate(sorted, input.limit, input.offset)
-
-            this.logger.debug(
-                [
-                    `Mesh listContainers merge result: merged=${String(merged.length)}`,
-                    `filtered=${String(filtered.length)}`,
-                    `sorted=${String(sorted.length)}`,
-                    `pageSize=${String(paginated.data.length)}`,
-                    `dedupedById=${String(merged.length - new Set(merged.map((container) => container.id)).size)}`,
-                ].join(' | ')
-            )
-
-            return paginated
-        } catch (error) {
-            this.logger.warn(
-                `Mesh container resolution failed (${formatError(error)}). Falling back to local repository`
-            )
-            return await this.dockerRepository.listContainers(input)
-        }
-    }
-
-    async listContainersGrouped(
-        input: DockerContainerGroupedListInput,
-        options?: DockerContainerResolutionOptions
-    ): Promise<DockerContainerGroupedListResult> {
-        const universe = await this.resolveContainerUniverse(input, options)
-        const sorted = universe.containers
-        const grouped = groupContainersForInventory(sorted)
-        const diagnostics = universe.diagnostics
-
-        const paginated = paginateList(grouped, input.limit, input.offset)
-
-        return {
-            ...paginated,
-            diagnostics,
-        }
-    }
-
-    async inspectContainer(
-        containerId: string
-    ): Promise<DockerContainerInspectDetail> {
-        let localInspectError!: Error
-
-        try {
-            return await this.dockerRepository.inspectContainer(containerId)
-        } catch (error) {
-            localInspectError = toError(error)
-        }
-
-        const meshPayload: DockerContainerInspectRequestPayload = {
-            query: {
-                containerId,
-            },
-        }
-
-        try {
-            const meshResult =
-                await this.dockerContainerMeshService.inspectContainerAcrossInstances(
-                    meshPayload,
-                    {
-                        timeoutMs: 1_500,
-                        maxCollectedResponses: 16,
-                    }
-                )
-
-            if (meshResult.responses.length > 0) {
-                return pickBestInspectDetail(meshResult.responses)
-            }
-
-            throw localInspectError
-        } catch (error) {
-            if (error === localInspectError) {
-                throw localInspectError
-            }
-
-            this.logger.warn(
-                `Mesh container inspect resolution failed (${formatError(error)}). Falling back to local repository`
-            )
-
-            throw localInspectError
-        }
-    }
-
-    private async resolveContainerUniverse(
-        input: DockerContainerListInput,
-        options?: DockerContainerResolutionOptions
-    ): Promise<{
-        containers: DockerContainer[]
-        diagnostics: DockerGroupedDaemonDiagnostics
-    }> {
-        const fullScanInput: DockerContainerListInput = {
-            ...input,
-            limit: MESH_FANOUT_LIMIT,
-            offset: 0,
-        }
-
-        if (options?.localOnly) {
-            this.logger.debug(
-                'Bypassing mesh fanout for local-only docker container list request'
-            )
-            const localResult =
-                await this.dockerRepository.listContainers(fullScanInput)
-            const sortedLocal = sortContainers(
-                localResult.data,
-                input.sortBy,
-                input.sortDirection
-            )
-            return {
-                containers: sortedLocal,
-                diagnostics: {
-                    hasSharedDaemonAcrossNodes: false,
-                    sharedDaemonGroups: [],
-                },
-            }
-        }
-
-        const meshPayload: DockerContainerListRequestPayload = {
-            query: fullScanInput,
-        }
-
-        try {
-            const meshResult =
-                await this.dockerContainerMeshService.listContainersAcrossInstances(
-                    meshPayload,
-                    {
-                        timeoutMs: 1_500,
-                        maxCollectedResponses: 128,
-                    }
-                )
-
-            const resolvedResponses = dedupeResponsesByResponder(
-                meshResult.responses
-            )
-
-            this.logger.debug(
-                [
-                    `Mesh listContainers call metrics: responses=${String(meshResult.responses.length)}`,
-                    `combinedResponses=${String(resolvedResponses.length)}`,
-                    `expected=${String(meshResult.metrics.expectedResponders)}`,
-                    `received=${String(meshResult.metrics.receivedResponses)}`,
-                    `timedOut=${String(meshResult.metrics.timedOut)}`,
-                    `stoppedEarly=${String(meshResult.stoppedEarly)}`,
-                    `reason=${meshResult.reason}`,
-                    `payloadSizes=[${resolvedResponses.map((response) => String(response.data.length)).join(',')}]`,
-                ].join(' | ')
-            )
-
-            if (resolvedResponses.length === 0) {
-                const localResult =
-                    await this.dockerRepository.listContainers(fullScanInput)
-                const sortedLocal = sortContainers(
-                    localResult.data,
-                    input.sortBy,
-                    input.sortDirection
-                )
-                return {
-                    containers: sortedLocal,
-                    diagnostics: {
-                        hasSharedDaemonAcrossNodes: false,
-                        sharedDaemonGroups: [],
+                const meshPayload: DockerContainerListRequestPayload = {
+                    query: {
+                        ...input,
+                        limit: MESH_FANOUT_LIMIT,
+                        offset: 0,
                     },
                 }
-            }
 
-            const merged = this.mergeMeshResponses(resolvedResponses)
-            const filtered = applyContainerFilters(merged, fullScanInput)
-            const sorted = sortContainers(
-                filtered,
-                input.sortBy,
-                input.sortDirection
-            )
-            const diagnostics =
-                computeSharedDaemonDiagnostics(resolvedResponses)
-
-            this.logger.debug(
-                [
-                    `Mesh listContainers merge result: merged=${String(merged.length)}`,
-                    `filtered=${String(filtered.length)}`,
-                    `sorted=${String(sorted.length)}`,
-                    `dedupedById=${String(merged.length - new Set(merged.map((container) => container.id)).size)}`,
-                ].join(' | ')
-            )
-
-            return {
-                containers: sorted,
-                diagnostics,
-            }
-        } catch (error) {
-            this.logger.warn(
-                `Mesh container resolution failed (${formatError(error)}). Falling back to local repository`
-            )
-
-            const localResult =
-                await this.dockerRepository.listContainers(fullScanInput)
-            const sortedLocal = sortContainers(
-                localResult.data,
-                input.sortBy,
-                input.sortDirection
-            )
-            return {
-                containers: sortedLocal,
-                diagnostics: {
-                    hasSharedDaemonAcrossNodes: false,
-                    sharedDaemonGroups: [],
-                },
-            }
-        }
-    }
-
-    private mergeMeshResponses(
-        responses: DockerContainerListResponsePayload[]
-    ): DockerContainer[] {
-        const dedupedByDaemonFingerprint = new Map<string, DockerContainer>()
-
-        for (const response of responses) {
-            const sourceScope = response.responderDaemonId
-                ? `daemon:${response.responderDaemonId}`
-                : `node:${response.responderNodeId ?? 'unknown'}`
-
-            for (const item of response.data) {
-                const normalized = normalizeContainer(item, (m) => {
-                    this.logger.warn(m)
-                })
-                if (!normalized) {
-                    this.logger.warn(
-                        'Dropping invalid docker container from mesh response after normalization'
+                const meshResult = yield* attempt(async () =>
+                    await mesh.listContainersAcrossInstances(meshPayload, {
+                        timeoutMs: 1_500,
+                        maxCollectedResponses: 128,
+                    })
+                ).pipe(
+                    Effect.catch((error) =>
+                        Effect.sync(() => {
+                            this.logger.warn(
+                                `Mesh container resolution failed (${formatError(error)}). Falling back to local repository`
+                            )
+                        }).pipe(Effect.map((): null => null))
                     )
-                    continue
+                )
+
+                if (meshResult === null) {
+                    return yield* this.localPage(collaborators, input)
                 }
 
-                const dedupeFingerprint =
-                    buildDaemonScopedContainerFingerprint(normalized)
-                const dedupeKey = `${sourceScope}|${dedupeFingerprint}`
-                const existing = dedupedByDaemonFingerprint.get(dedupeKey)
+                const page = yield* Effect.try({
+                    try: (): DockerContainerListResult | null => {
+                        const resolvedResponses = dedupeResponsesByResponder(
+                            meshResult.responses
+                        )
 
-                if (!existing) {
-                    dedupedByDaemonFingerprint.set(dedupeKey, normalized)
-                    continue
-                }
+                        this.logger.debug(
+                            [
+                                `Mesh listContainers call metrics: responses=${String(meshResult.responses.length)}`,
+                                `combinedResponses=${String(resolvedResponses.length)}`,
+                                `expected=${String(meshResult.metrics.expectedResponders)}`,
+                                `received=${String(meshResult.metrics.receivedResponses)}`,
+                                `timedOut=${String(meshResult.metrics.timedOut)}`,
+                                `stoppedEarly=${String(meshResult.stoppedEarly)}`,
+                                `reason=${meshResult.reason}`,
+                                `payloadSizes=[${resolvedResponses.map((response) => String(response.data.length)).join(',')}]`,
+                            ].join(' | ')
+                        )
 
-                const existingUpdatedAt = Date.parse(existing.updatedAt)
-                const incomingUpdatedAt = Date.parse(normalized.updatedAt)
-                const representative =
-                    incomingUpdatedAt >= existingUpdatedAt
-                        ? normalized
-                        : existing
+                        if (resolvedResponses.length === 0) {
+                            return null
+                        }
 
-                dedupedByDaemonFingerprint.set(dedupeKey, {
-                    ...representative,
-                    status: mergeContainerStatus(
-                        existing.status,
-                        normalized.status
-                    ),
-                    health: mergeContainerHealth(
-                        existing.health,
-                        normalized.health
-                    ),
-                })
-            }
+                        const merged =
+                            this.mergeMeshResponses(resolvedResponses)
+                        const filtered = applyContainerFilters(merged, input)
+                        const sorted = sortContainers(
+                            filtered,
+                            input.sortBy,
+                            input.sortDirection
+                        )
+                        const paginated = paginate(
+                            sorted,
+                            input.limit,
+                            input.offset
+                        )
+
+                        this.logger.debug(
+                            [
+                                `Mesh listContainers merge result: merged=${String(merged.length)}`,
+                                `filtered=${String(filtered.length)}`,
+                                `sorted=${String(sorted.length)}`,
+                                `pageSize=${String(paginated.data.length)}`,
+                                `dedupedById=${String(merged.length - new Set(merged.map((container) => container.id)).size)}`,
+                            ].join(' | ')
+                        )
+
+                        return paginated
+                    },
+                    catch: (error) => error,
+                }).pipe(
+                    Effect.catch((error) =>
+                        Effect.sync(() => {
+                            this.logger.warn(
+                                `Mesh container resolution failed (${formatError(error)}). Falling back to local repository`
+                            )
+                        }).pipe(Effect.map((): null => null))
+                    )
+                )
+
+                return (
+                    page ?? (yield* this.localPage(collaborators, input))
+                )
+            })
         }
 
-        return [...dedupedByDaemonFingerprint.values()]
+        listContainersGrouped(
+            input: DockerContainerGroupedListInput,
+            options?: DockerContainerResolutionOptions
+        ): ReturnType<
+            DockerContainerResolutionShape['listContainersGrouped']
+        > {
+            return Effect.gen({ self: this }, function* () {
+                const mesh = yield* ContainersMeshPort
+                const local = yield* ContainersLocalPort
+                const collaborators: ResolutionCollaborators = { mesh, local }
+                const fullScanInput: DockerContainerListInput = {
+                    ...input,
+                    limit: MESH_FANOUT_LIMIT,
+                    offset: 0,
+                }
+
+                if (options?.localOnly) {
+                    this.logger.debug(
+                        'Bypassing mesh fanout for local-only docker container list request'
+                    )
+                    const localResult = yield* this.localPage(
+                        collaborators,
+                        fullScanInput
+                    )
+                    return groupedPage(
+                        sortContainers(
+                            localResult.data,
+                            input.sortBy,
+                            input.sortDirection
+                        ),
+                        input,
+                        noSharedDaemon
+                    )
+                }
+
+                const meshPayload: DockerContainerListRequestPayload = {
+                    query: fullScanInput,
+                }
+
+                const meshResult = yield* attempt(async () =>
+                    await mesh.listContainersAcrossInstances(meshPayload, {
+                        timeoutMs: 1_500,
+                        maxCollectedResponses: 128,
+                    })
+                ).pipe(
+                    Effect.catch((error) =>
+                        Effect.sync(() => {
+                            this.logger.warn(
+                                `Mesh container resolution failed (${formatError(error)}). Falling back to local repository`
+                            )
+                        }).pipe(Effect.map((): null => null))
+                    )
+                )
+
+                const universe = yield* Effect.try({
+                    try: (): {
+                        containers: DockerContainer[]
+                        diagnostics: DockerGroupedDaemonDiagnostics
+                    } | null => {
+                        if (meshResult === null) return null
+
+                        const resolvedResponses = dedupeResponsesByResponder(
+                            meshResult.responses
+                        )
+
+                        this.logger.debug(
+                            [
+                                `Mesh listContainers call metrics: responses=${String(meshResult.responses.length)}`,
+                                `combinedResponses=${String(resolvedResponses.length)}`,
+                                `expected=${String(meshResult.metrics.expectedResponders)}`,
+                                `received=${String(meshResult.metrics.receivedResponses)}`,
+                                `timedOut=${String(meshResult.metrics.timedOut)}`,
+                                `stoppedEarly=${String(meshResult.stoppedEarly)}`,
+                                `reason=${meshResult.reason}`,
+                                `payloadSizes=[${resolvedResponses.map((response) => String(response.data.length)).join(',')}]`,
+                            ].join(' | ')
+                        )
+
+                        if (resolvedResponses.length === 0) {
+                            return null
+                        }
+
+                        const merged =
+                            this.mergeMeshResponses(resolvedResponses)
+                        const filtered = applyContainerFilters(
+                            merged,
+                            fullScanInput
+                        )
+                        const sorted = sortContainers(
+                            filtered,
+                            input.sortBy,
+                            input.sortDirection
+                        )
+                        const diagnostics =
+                            computeSharedDaemonDiagnostics(resolvedResponses)
+
+                        this.logger.debug(
+                            [
+                                `Mesh listContainers merge result: merged=${String(merged.length)}`,
+                                `filtered=${String(filtered.length)}`,
+                                `sorted=${String(sorted.length)}`,
+                                `dedupedById=${String(merged.length - new Set(merged.map((container) => container.id)).size)}`,
+                            ].join(' | ')
+                        )
+
+                        return { containers: sorted, diagnostics }
+                    },
+                    catch: (error) => error,
+                }).pipe(
+                    Effect.catch((error) =>
+                        Effect.sync(() => {
+                            this.logger.warn(
+                                `Mesh container resolution failed (${formatError(error)}). Falling back to local repository`
+                            )
+                        }).pipe(Effect.map((): null => null))
+                    )
+                )
+
+                if (universe === null) {
+                    const localResult = yield* this.localPage(
+                        collaborators,
+                        fullScanInput
+                    )
+                    return groupedPage(
+                        sortContainers(
+                            localResult.data,
+                            input.sortBy,
+                            input.sortDirection
+                        ),
+                        input,
+                        noSharedDaemon
+                    )
+                }
+
+                return groupedPage(
+                    universe.containers,
+                    input,
+                    universe.diagnostics
+                )
+            })
+        }
+
+        inspectContainer(
+            containerId: string
+        ): ReturnType<DockerContainerResolutionShape['inspectContainer']> {
+            return Effect.gen({ self: this }, function* () {
+                const mesh = yield* ContainersMeshPort
+                const local = yield* ContainersLocalPort
+
+                const localExit = yield* Effect.exit(
+                    attempt(async () => await local.inspectContainer(containerId))
+                )
+                if (Exit.isSuccess(localExit)) {
+                    return localExit.value
+                }
+
+                const localInspectError = toError(Cause.squash(localExit.cause))
+                const meshPayload: DockerContainerInspectRequestPayload = {
+                    query: {
+                        containerId,
+                    },
+                }
+
+                const meshResult = yield* attempt(async () =>
+                    await mesh.inspectContainerAcrossInstances(meshPayload, {
+                        timeoutMs: 1_500,
+                        maxCollectedResponses: 16,
+                    })
+                ).pipe(
+                    Effect.catch((error) =>
+                        Effect.sync(() => {
+                            this.logger.warn(
+                                `Mesh container inspect resolution failed (${formatError(error)}). Falling back to local repository`
+                            )
+                        }).pipe(Effect.map((): null => null))
+                    )
+                )
+
+                if (meshResult !== null && meshResult.responses.length > 0) {
+                    return pickBestInspectDetail(meshResult.responses)
+                }
+
+                return yield* Effect.fail(localInspectError)
+            })
+        }
+
+        /** The mesh's containers, one per daemon fingerprint, newest representative winning. */
+        private mergeMeshResponses(
+            responses: DockerContainerListResponsePayload[]
+        ): DockerContainer[] {
+            const dedupedByDaemonFingerprint = new Map<
+                string,
+                DockerContainer
+            >()
+
+            for (const response of responses) {
+                const sourceScope = response.responderDaemonId
+                    ? `daemon:${response.responderDaemonId}`
+                    : `node:${response.responderNodeId ?? 'unknown'}`
+
+                for (const item of response.data) {
+                    const normalized = normalizeContainer(item, (m) => {
+                        this.logger.warn(m)
+                    })
+                    if (!normalized) {
+                        this.logger.warn(
+                            'Dropping invalid docker container from mesh response after normalization'
+                        )
+                        continue
+                    }
+
+                    const dedupeFingerprint =
+                        buildDaemonScopedContainerFingerprint(normalized)
+                    const dedupeKey = `${sourceScope}|${dedupeFingerprint}`
+                    const existing = dedupedByDaemonFingerprint.get(dedupeKey)
+
+                    if (!existing) {
+                        dedupedByDaemonFingerprint.set(dedupeKey, normalized)
+                        continue
+                    }
+
+                    const existingUpdatedAt = Date.parse(existing.updatedAt)
+                    const incomingUpdatedAt = Date.parse(normalized.updatedAt)
+                    const representative =
+                        incomingUpdatedAt >= existingUpdatedAt
+                            ? normalized
+                            : existing
+
+                    dedupedByDaemonFingerprint.set(dedupeKey, {
+                        ...representative,
+                        status: mergeContainerStatus(
+                            existing.status,
+                            normalized.status
+                        ),
+                        health: mergeContainerHealth(
+                            existing.health,
+                            normalized.health
+                        ),
+                    })
+                }
+            }
+
+            return [...dedupedByDaemonFingerprint.values()]
+        }
     }
 }
 
@@ -413,8 +481,7 @@ export type DockerContainerResolutionShape = {
         DockerContainerListResult,
         unknown,
         DockerContainerResolutionPorts
-    >
-    /** The inventory grouped by runtime fingerprint, with shared-daemon diagnostics. */
+    >    /** The inventory grouped by runtime fingerprint, with shared-daemon diagnostics. */
     readonly listContainersGrouped: (
         input: DockerContainerGroupedListInput,
         options?: DockerContainerResolutionOptions
@@ -433,40 +500,4 @@ export type DockerContainerResolutionShape = {
     >
 }
 
-const resolutionOver = (ports: {
-    mesh: ContainersMeshPort['Service']
-    local: ContainersLocalPort['Service']
-}): DockerContainerResolutionShape => {
-    const impl = new ContainerResolutionImpl(ports.mesh, ports.local)
-    return {
-        listContainers: (input, options) =>
-            Effect.tryPromise({
-                try: () => impl.listContainers(input, options),
-                catch: (error) => error,
-            }),
-        listContainersGrouped: (input, options) =>
-            Effect.tryPromise({
-                try: () => impl.listContainersGrouped(input, options),
-                catch: (error) => error,
-            }),
-        inspectContainer: (containerId) =>
-            Effect.tryPromise({
-                try: () => impl.inspectContainer(containerId),
-                catch: (error) => error,
-            }),
-    }
-}
 
-/**
- * Container listing and inspection across the mesh. A constant that reads the mesh fan-out, the local
- * repository, the topology and the header builder from the Effect context when a method runs.
- */
-export class DockerContainerResolution extends Context.Service<
-    DockerContainerResolution,
-    Over<DockerContainerResolutionShape, DockerContainerResolutionPorts>
->()('runtime/DockerContainerResolution') {
-    static readonly live = serviceOver(
-        Effect.all({ mesh: ContainersMeshPort, local: ContainersLocalPort }),
-        resolutionOver
-    )
-}

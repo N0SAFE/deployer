@@ -4,7 +4,6 @@ import type {
     DockerRuntimeActivityEntity,
     DockerRuntimeEvent,
 } from '@deployer/contracts-entities'
-import { serviceOver, type Over } from '@deployer/effect-core'
 import type { DbError } from '@deployer/effect-infra'
 import type {
     DockerRuntimeActivityDetailQueryInput,
@@ -53,35 +52,50 @@ export type DockerRuntimeActivitiesShape = {
     >
 }
 
-const makeDockerRuntimeActivities = ({
-    store,
-}: {
-    store: DockerRuntimeActivitiesStore['Service']
-}): DockerRuntimeActivitiesShape => ({
-    persist: (event) =>
-        Effect.suspend(() =>
-            store.insert(buildRuntimeActivityRecord(event, new Date()))
-        ),
-    list: (input) =>
-        Effect.map(store.listRecent(RECENT_ACTIVITY_WINDOW), (rows) =>
-            listRuntimeActivityEntities(
-                rows.map(toRuntimeActivityEntity),
-                input
-            )
-        ),
-    getById: (input) =>
-        Effect.map(store.findById(input.id), (row) =>
-            row === null ? null : toRuntimeActivityEntity(row)
-        ),
-})
-
-/** Persisted docker runtime activities; a constant that reads the store from the Effect context when it runs. */
+/**
+ * Persisted docker runtime activities.
+ *
+ * Each operation IS the logic: it yields the store where it uses it, and the store is what carries the database.
+ */
 export class DockerRuntimeActivities extends Context.Service<
     DockerRuntimeActivities,
-    Over<DockerRuntimeActivitiesShape, DockerRuntimeActivitiesStore>
+    DockerRuntimeActivitiesShape
 >()('runtime/DockerRuntimeActivities') {
-    static readonly live = serviceOver(
-        Effect.all({ store: DockerRuntimeActivitiesStore }),
-        makeDockerRuntimeActivities
-    )
+    static readonly live = class DockerRuntimeActivitiesImpl
+        implements DockerRuntimeActivitiesShape
+    {
+        persist(
+            event: DockerRuntimeEvent
+        ): ReturnType<DockerRuntimeActivitiesShape['persist']> {
+            return Effect.gen(function* () {
+                const store = yield* DockerRuntimeActivitiesStore
+                return yield* store.insert(
+                    buildRuntimeActivityRecord(event, new Date())
+                )
+            })
+        }
+
+        list(
+            input: DockerRuntimeActivityListInput
+        ): ReturnType<DockerRuntimeActivitiesShape['list']> {
+            return Effect.gen(function* () {
+                const store = yield* DockerRuntimeActivitiesStore
+                const rows = yield* store.listRecent(RECENT_ACTIVITY_WINDOW)
+                return listRuntimeActivityEntities(
+                    rows.map(toRuntimeActivityEntity),
+                    input
+                )
+            })
+        }
+
+        getById(
+            input: DockerRuntimeActivityDetailQueryInput
+        ): ReturnType<DockerRuntimeActivitiesShape['getById']> {
+            return Effect.gen(function* () {
+                const store = yield* DockerRuntimeActivitiesStore
+                const row = yield* store.findById(input.id)
+                return row === null ? null : toRuntimeActivityEntity(row)
+            })
+        }
+    }
 }

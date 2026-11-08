@@ -37,6 +37,8 @@ const run = <A>(effect: Effect.Effect<A, unknown, unknown>, store: unknown) =>
         ) as Effect.Effect<A>
     )
 
+const activities = new DockerRuntimeActivities.live()
+
 describe('DockerRuntimeActivities', () => {
     it('lists from the recent window, filtered and paged', async () => {
         const store = {
@@ -52,7 +54,7 @@ describe('DockerRuntimeActivities', () => {
             ),
         }
         const page = await run(
-            DockerRuntimeActivities.live.list({
+            activities.list({
                 limit: 10,
                 offset: 0,
                 filter: { action: { operator: 'eq', value: 'die' } },
@@ -71,10 +73,10 @@ describe('DockerRuntimeActivities', () => {
             ),
         }
         await expect(
-            run(DockerRuntimeActivities.live.getById({ id: 'missing' }), store)
+            run(activities.getById({ id: 'missing' }), store)
         ).resolves.toBeNull()
         const found = await run(
-            DockerRuntimeActivities.live.getById({
+            activities.getById({
                 id: '00000000-0000-4000-8000-000000000009',
             }),
             store
@@ -85,7 +87,7 @@ describe('DockerRuntimeActivities', () => {
     it('persists the record an event builds', async () => {
         const store = { insert: vi.fn(() => Effect.void) }
         await run(
-            DockerRuntimeActivities.live.persist({
+            activities.persist({
                 type: 'docker_event',
                 source: 'container',
                 action: 'start',

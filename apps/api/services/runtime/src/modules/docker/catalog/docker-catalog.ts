@@ -1,7 +1,6 @@
 import { Context, Effect } from 'effect'
 
 import type { DockerRuntimeCatalog } from '@deployer/contracts-entities'
-import { serviceOver, type Over } from '@deployer/effect-core'
 import type { DockerNetworkListInput } from '@deployer/runtime-contracts/modules/docker/networks/list'
 import type { DockerVolumeListInput } from '@deployer/runtime-contracts/modules/docker/volumes/list'
 
@@ -53,66 +52,76 @@ export type DockerCatalogShape = {
 const MESH_CATALOG_TIMEOUT_MS = 2_000
 const MESH_CATALOG_MAX_RESPONSES = 128
 
-const makeDockerCatalog = (ports: {
-    mesh: CatalogMeshPort['Service']
-    local: CatalogLocalPort['Service']
-}): DockerCatalogShape => {
-    const fromLocal = Effect.tryPromise({
-        try: async () => await ports.local.getRuntimeCatalogSnapshot(),
-        catch: (error) => error,
-    })
-
-    const resolve = () =>
-        Effect.tryPromise({
-            try: async () =>
-                await ports.mesh.listRuntimeCatalogAcrossInstances(
-                    {},
-                    {
-                        timeoutMs: MESH_CATALOG_TIMEOUT_MS,
-                        maxCollectedResponses: MESH_CATALOG_MAX_RESPONSES,
-                    }
-                ),
-            catch: (error) => error,
-        }).pipe(
-            Effect.flatMap((meshResult) =>
-                meshResult.responses.length === 0
-                    ? fromLocal
-                    : Effect.try({
-                          try: () =>
-                              mergeRuntimeCatalogResponses(
-                                  meshResult.responses
-                              ),
-                          catch: (error) => error,
-                      })
-            ),
-            Effect.catchIf(
-                () => true,
-                (error) =>
-                    Effect.logWarning(
-                        `Mesh runtime catalog resolution failed (${formatError(error)}). Falling back to local repository`
-                    ).pipe(Effect.andThen(fromLocal))
-            )
-        )
-
-    return {
-        resolve,
-        listNetworks: (input) =>
-            Effect.map(resolve(), (catalog) => listNetworksOf(catalog, input)),
-        listVolumes: (input) =>
-            Effect.map(resolve(), (catalog) => listVolumesOf(catalog, input)),
-    }
-}
-
 /**
- * The runtime catalog across the mesh: networks, volumes and the catalog itself. A constant that reads the mesh
- * fan-out and the local repository from the Effect context when a method runs.
+ * The runtime catalog across the mesh: networks, volumes and the catalog itself.
+ *
+ * The mesh fan-out and the local repository are yielded where a method needs them; `listNetworks` and `listVolumes`
+ * call `resolve`, so they inherit its requirements and yield nothing extra.
  */
 export class DockerCatalog extends Context.Service<
     DockerCatalog,
-    Over<DockerCatalogShape, DockerCatalogPorts>
+    DockerCatalogShape
 >()('runtime/DockerCatalog') {
-    static readonly live = serviceOver(
-        Effect.all({ mesh: CatalogMeshPort, local: CatalogLocalPort }),
-        makeDockerCatalog
-    )
+    static readonly live = class DockerCatalogImpl implements DockerCatalogShape {
+        resolve(): ReturnType<DockerCatalogShape['resolve']> {
+            return Effect.gen({ self: this }, function* () {
+                const mesh = yield* CatalogMeshPort
+                const local = yield* CatalogLocalPort
+                const fromLocal = Effect.tryPromise({
+                    try: async () => await local.getRuntimeCatalogSnapshot(),
+                    catch: (error) => error,
+                })
+
+                return yield* Effect.tryPromise({
+                    try: async () =>
+                        await mesh.listRuntimeCatalogAcrossInstances(
+                            {},
+                            {
+                                timeoutMs: MESH_CATALOG_TIMEOUT_MS,
+                                maxCollectedResponses:
+                                    MESH_CATALOG_MAX_RESPONSES,
+                            }
+                        ),
+                    catch: (error) => error,
+                }).pipe(
+                    Effect.flatMap((meshResult) =>
+                        meshResult.responses.length === 0
+                            ? fromLocal
+                            : Effect.try({
+                                  try: () =>
+                                      mergeRuntimeCatalogResponses(
+                                          meshResult.responses
+                                      ),
+                                  catch: (error) => error,
+                              })
+                    ),
+                    Effect.catchIf(
+                        () => true,
+                        (error) =>
+                            Effect.logWarning(
+                                `Mesh runtime catalog resolution failed (${formatError(error)}). Falling back to local repository`
+                            ).pipe(Effect.andThen(fromLocal))
+                    )
+                )
+            })
+        }
+
+        listNetworks(
+            input: DockerNetworkListInput
+        ): ReturnType<DockerCatalogShape['listNetworks']> {
+            return Effect.gen({ self: this }, function* () {
+                const catalog = yield* this.resolve()
+                return listNetworksOf(catalog, input)
+            })
+        }
+
+        listVolumes(
+            input: DockerVolumeListInput
+        ): ReturnType<DockerCatalogShape['listVolumes']> {
+            return Effect.gen({ self: this }, function* () {
+                const catalog = yield* this.resolve()
+                return listVolumesOf(catalog, input)
+            })
+        }
+    }
 }

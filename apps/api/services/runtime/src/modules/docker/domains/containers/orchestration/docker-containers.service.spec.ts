@@ -16,7 +16,7 @@ import {
     ContainersMeshPort,
     DockerContainerResolution,
 } from './docker-container-resolution'
-import { DockerContainersOrchestratorService } from './docker-containers-orchestrator.service'
+import { DockerContainers } from './docker-containers.service'
 
 /**
  * CLUSTER-004: the dashboard must not be able to take a platform service down.
@@ -52,14 +52,16 @@ const engineOver = (
     } as never
 }
 
+const service = new DockerContainers.live()
+
 const runAction = (action: string, engine: never, containerId = 'traefik') =>
     Effect.runPromise(
-        DockerContainersOrchestratorService.live
-            .runContainerAction({ containerId, action } as never)
+        service
+            .runAction({ containerId, action } as never)
             .pipe(Effect.provideService(DockerEngine, engine))
     )
 
-describe('DockerContainersOrchestratorService.runContainerAction', () => {
+describe('DockerContainers.runAction', () => {
     it.each(['stop', 'restart', 'pause', 'kill', 'remove'] as const)(
         'refuses %s on a platform-managed container',
         async (action) => {
@@ -102,7 +104,7 @@ describe('DockerContainersOrchestratorService.runContainerAction', () => {
     })
 })
 
-describe('DockerContainersOrchestratorService.listContainersLinked', () => {
+describe('DockerContainers.listLinked', () => {
     it('resolves containers and attaches links with no app runtime in the construction', async () => {
         const containers = [
             { id: 'ctr-1', name: 'shop' },
@@ -112,11 +114,8 @@ describe('DockerContainersOrchestratorService.listContainersLinked', () => {
             Effect.succeed(rows)
         )
 
-        const effect = DockerContainersOrchestratorService.live
-            .listContainersLinked(
-                { limit: 10, offset: 0, maxDepth: 1 },
-                'admin'
-            )
+        const effect = service
+            .listLinked({ limit: 10, offset: 0, maxDepth: 1 }, 'admin')
             .pipe(
                 Effect.provideService(DockerContainerResolution, {
                     listContainers: () =>

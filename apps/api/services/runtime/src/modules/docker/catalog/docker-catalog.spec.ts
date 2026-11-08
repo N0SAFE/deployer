@@ -37,6 +37,8 @@ const listInput = {
     filter: {},
 } as never
 
+const live = new DockerCatalog.live()
+
 const run = <A>(
     effect: Effect.Effect<A, unknown, CatalogMeshPort | CatalogLocalPort>,
     mesh: unknown,
@@ -62,11 +64,7 @@ describe('DockerCatalog', () => {
                 .fn()
                 .mockResolvedValue({ responses: [] }),
         }
-        const page = await run(
-            DockerCatalog.live.listNetworks(listInput),
-            mesh,
-            local
-        )
+        const page = await run(live.listNetworks(listInput), mesh, local)
         expect(page.data.map((item) => item.name)).toEqual(['a', 'b'])
         expect(page.meta).toMatchObject({ total: 2, hasMore: false })
     })
@@ -80,9 +78,9 @@ describe('DockerCatalog', () => {
                 .fn()
                 .mockRejectedValue(new Error('mesh down')),
         }
-        await expect(
-            run(DockerCatalog.live.resolve(), mesh, local)
-        ).resolves.toEqual(emptyCatalog)
+        await expect(run(live.resolve(), mesh, local)).resolves.toEqual(
+            emptyCatalog
+        )
         expect(local.getRuntimeCatalogSnapshot).toHaveBeenCalled()
     })
 
@@ -95,11 +93,9 @@ describe('DockerCatalog', () => {
                 ],
             }),
         }
-        const page = await run(
-            DockerCatalog.live.listNetworks(listInput),
-            mesh,
-            { getRuntimeCatalogSnapshot: vi.fn() }
-        )
+        const page = await run(live.listNetworks(listInput), mesh, {
+            getRuntimeCatalogSnapshot: vi.fn(),
+        })
         expect(page.data.map((item) => item.name).sort()).toEqual(['a', 'b'])
     })
 })
@@ -139,7 +135,7 @@ describe('DockerCatalog images from the mesh', () => {
             }),
         }
         const local = { getRuntimeCatalogSnapshot: vi.fn() }
-        const catalog = await run(DockerCatalog.live.resolve(), mesh, local)
+        const catalog = await run(live.resolve(), mesh, local)
         expect(mesh.listRuntimeCatalogAcrossInstances).toHaveBeenCalledWith(
             {},
             { timeoutMs: 2_000, maxCollectedResponses: 128 }
@@ -169,7 +165,7 @@ describe('DockerCatalog images from the mesh', () => {
                 responses: [{ catalog: withPlaceholder }],
             }),
         }
-        const catalog = await run(DockerCatalog.live.resolve(), mesh, {
+        const catalog = await run(live.resolve(), mesh, {
             getRuntimeCatalogSnapshot: vi.fn(),
         })
         const placeholder = catalog.images.find(
@@ -190,7 +186,7 @@ describe('DockerCatalog images from the mesh', () => {
                 createRuntimeCatalog('img-local')
             ),
         }
-        const catalog = await run(DockerCatalog.live.resolve(), mesh, local)
+        const catalog = await run(live.resolve(), mesh, local)
         expect(local.getRuntimeCatalogSnapshot).toHaveBeenCalledTimes(1)
         expect(catalog.images.map((image) => image.id)).toEqual(['img-local'])
     })

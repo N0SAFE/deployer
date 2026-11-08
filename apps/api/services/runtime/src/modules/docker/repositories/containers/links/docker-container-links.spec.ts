@@ -45,11 +45,13 @@ const run = (
         ) as Effect.Effect<unknown>
     )
 
+const links = new DockerContainerLinks.live()
+
 describe('DockerContainerLinks', () => {
     it('returns nothing for no containers without touching the database', async () => {
         const lookup = { lookup: vi.fn() }
         await expect(
-            run(DockerContainerLinks.live.attach([], ['project'], null), lookup)
+            run(links.attach([], ['project'], null), lookup)
         ).resolves.toEqual([])
         expect(lookup.lookup).not.toHaveBeenCalled()
     })
@@ -57,7 +59,7 @@ describe('DockerContainerLinks', () => {
     it('gives empty links, with no query, when no link is asked for', async () => {
         const lookup = { lookup: vi.fn() }
         const [linked] = (await run(
-            DockerContainerLinks.live.attach([container], [], 'admin'),
+            links.attach([container], [], 'admin'),
             lookup
         )) as { links: unknown }[]
         expect(linked?.links).toEqual({
@@ -86,7 +88,7 @@ describe('DockerContainerLinks', () => {
             ),
         }
         const [viewer] = (await run(
-            DockerContainerLinks.live.attach(
+            links.attach(
                 [container],
                 ['project'],
                 'viewer'

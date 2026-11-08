@@ -51,7 +51,7 @@ export class DockerEntityModule extends createModuleContext({
         // The entity reads and the unary facade are constant Effect services: they yield their collaborators on every call.
         {
             provide: DockerEntityDomainService,
-            useValue: DockerEntityDomainService.live,
+            useClass: DockerEntityDomainService.live,
         },
         {
             provide: DockerEntityOrchestratorService,
@@ -61,7 +61,7 @@ export class DockerEntityModule extends createModuleContext({
                 pool: CoreEventStreamPoolServiceShape,
                 cache: DockerEntityCacheService
             ) =>
-                DockerEntityOrchestratorService.withStreams(
+                new DockerEntityOrchestratorService.live(
                     entityStreamsOver({
                         host,
                         events,
@@ -77,7 +77,7 @@ export class DockerEntityModule extends createModuleContext({
                 DockerEntityCacheService,
             ],
         },
-        { provide: DockerEntity, useValue: DockerEntity.live },
+        { provide: DockerEntity, useClass: DockerEntity.live },
     ],
     exports: [
         DockerEntityCacheService,

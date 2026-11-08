@@ -13,7 +13,6 @@ import {
     type DockerVolume,
     type DockerVolumeEntity,
 } from '@deployer/contracts-entities'
-import type { DockerContainerInspectDetail } from '@deployer/contracts-entities'
 import type { DockerEntityListInput } from '@deployer/runtime-contracts/modules/docker/entity/shared'
 import type { DockerEntityInspectInput } from '@deployer/runtime-contracts/modules/docker/entity/shared'
 
@@ -136,261 +135,282 @@ export type DockerEntityDomainShape = {
 }
 
 /**
- * A cached list: the fetch runs only on a miss, then the flat rows are wrapped as entities. The cache is a port, so
- * the fetch Effect is run against the context this method already has.
- */
-const fetchList = <TFlat, TEntity>(
-    kind: DockerEntityKind,
-    fetch: Effect.Effect<TFlat[], unknown, DockerEntityDomainPorts>
-): Effect.Effect<
-    DockerEntityListResult<TFlat, TEntity>,
-    unknown,
-    DockerEntityDomainPorts
-> =>
-    Effect.gen(function* () {
-        const cache = yield* DockerEntityCachePort
-        const context = yield* Effect.context<DockerEntityDomainPorts>()
-        const { payload, etag, hit } = yield* Effect.tryPromise({
-            try: () =>
-                cache.getOrCompute(kind, async () => ({
-                    payload: await Effect.runPromise(
-                        Effect.provideContext(fetch, context)
-                    ),
-                    ttlMs: LIST_TTL_MS,
-                })),
-            catch: (error) => error,
-        })
-        const entities = payload.map((flat) =>
-            wrapAsEntity<TEntity>(flat)
-        ) as TEntity[]
-        return { flat: payload, entities, etag, hit }
-    })
-
-/** An inspect read: a miss (or a failed lookup) is `entity: null` plus a stable missing etag. */
-const inspect = <TEntity>(
-    kind: DockerEntityKind,
-    input: DockerEntityInspectInput,
-    fetch: Effect.Effect<TEntity | null, unknown, DockerEntityDomainPorts>
-): Effect.Effect<
-    DockerEntityInspectResult<TEntity>,
-    unknown,
-    DockerEntityDomainPorts
-> =>
-    Effect.map(
-        fetch.pipe(Effect.catch(() => Effect.succeed(null))),
-        (entity) => ({
-            entity,
-            etag: entity
-                ? fingerprintEtag(entity)
-                : `"missing-${kind}-${input.id}"`,
-        })
-    )
-
-const toContainerEntity = (
-    detail: DockerContainerInspectDetail
-): DockerContainerEntity => {
-    // detail has inspect shape, entity has list shape — different schemas.
-    // The downstream code uses the normalized entity; this conversion bridge is
-    // needed because both are valid representations of the same container.
-    return { ...(detail as unknown as DockerContainer), relations: undefined }
-}
-
-const toImageEntity = (detail: unknown): DockerImageEntity => ({
-    ...(detail as DockerImage),
-    relations: undefined,
-})
-
-/** The converted entity, or null when the conversion cannot be made. */
-const nullableEntity = <TEntity>(convert: () => TEntity): TEntity | null => {
-    try {
-        return convert()
-    } catch {
-        return null
-    }
-}
-
-const listContainerEntity: DockerEntityDomainShape['listContainerEntity'] = (
-    input
-) =>
-    fetchList<DockerContainer, DockerContainerEntity>(
-        'container',
-        Effect.flatMap(DockerContainerResolution, (resolution) =>
-            resolution
-                .listContainers({ limit: input.limit, offset: input.offset })
-                .pipe(Effect.map((result) => result.data))
-        )
-    )
-
-const listImageEntity: DockerEntityDomainShape['listImageEntity'] = (input) =>
-    fetchList<DockerImage, DockerImageEntity>(
-        'image',
-        Effect.flatMap(DockerImages, (images) =>
-            images
-                .list({ limit: input.limit, offset: input.offset })
-                .pipe(Effect.map((result) => result.data))
-        )
-    )
-
-const listNetworkEntity: DockerEntityDomainShape['listNetworkEntity'] = (
-    input
-) =>
-    fetchList<DockerNetwork, DockerNetworkEntity>(
-        'network',
-        Effect.flatMap(DockerCatalog, (catalog) =>
-            catalog
-                .listNetworks({ limit: input.limit, offset: input.offset })
-                .pipe(Effect.map((result) => result.data))
-        )
-    )
-
-const listVolumeEntity: DockerEntityDomainShape['listVolumeEntity'] = (input) =>
-    fetchList<DockerVolume, DockerVolumeEntity>(
-        'volume',
-        Effect.flatMap(DockerCatalog, (catalog) =>
-            catalog
-                .listVolumes({ limit: input.limit, offset: input.offset })
-                .pipe(Effect.map((result) => result.data))
-        )
-    )
-
-const inspectContainerEntity: DockerEntityDomainShape['inspectContainerEntity'] =
-    (input) =>
-        inspect<DockerContainerEntity>(
-            'container',
-            input,
-            Effect.flatMap(DockerContainerResolution, (resolution) =>
-                resolution
-                    .inspectContainer(input.id)
-                    .pipe(
-                        Effect.map((detail) =>
-                            nullableEntity(() => toContainerEntity(detail))
-                        )
-                    )
-            )
-        )
-
-const inspectImageEntity: DockerEntityDomainShape['inspectImageEntity'] = (
-    input
-) =>
-    inspect<DockerImageEntity>(
-        'image',
-        input,
-        Effect.flatMap(DockerImages, (images) =>
-            images
-                .inspect({ imageId: input.id })
-                .pipe(
-                    Effect.map((detail) =>
-                        nullableEntity(() => toImageEntity(detail))
-                    )
-                )
-        )
-    )
-
-const inspectNetworkEntity: DockerEntityDomainShape['inspectNetworkEntity'] = (
-    input
-) =>
-    inspect<DockerNetworkEntity>(
-        'network',
-        input,
-        Effect.flatMap(DockerCatalog, (catalog) =>
-            catalog.listNetworks({ limit: 500, offset: 0 }).pipe(
-                Effect.map((list): DockerNetworkEntity | null => {
-                    const found = list.data.find(
-                        (network) => network.id === input.id
-                    )
-                    return found ? { ...found, relations: undefined } : null
-                })
-            )
-        )
-    )
-
-const inspectVolumeEntity: DockerEntityDomainShape['inspectVolumeEntity'] = (
-    input
-) =>
-    inspect<DockerVolumeEntity>(
-        'volume',
-        input,
-        Effect.flatMap(DockerCatalog, (catalog) =>
-            catalog.listVolumes({ limit: 500, offset: 0 }).pipe(
-                Effect.map((list): DockerVolumeEntity | null => {
-                    const found = list.data.find(
-                        (volume) => volume.name === input.id
-                    )
-                    return found ? { ...found, relations: undefined } : null
-                })
-            )
-        )
-    )
-
-const enrichEvent: DockerEntityDomainShape['enrichEvent'] = (event) =>
-    Effect.gen(function* () {
-        const id = event.actorId
-        if (!id) {
-            return null
-        }
-
-        if (isRemovalAction(event.source, event.action)) {
-            const kind = event.source
-            if (
-                kind !== 'container' &&
-                kind !== 'image' &&
-                kind !== 'network' &&
-                kind !== 'volume'
-            )
-                return null
-            return buildRemovedChunk(kind, event, id)
-        }
-
-        if (event.source === 'container') {
-            const { entity } = yield* inspectContainerEntity({
-                kind: 'container',
-                id,
-            })
-            return entity ? buildEventChunk('container', entity, event) : null
-        }
-        if (event.source === 'image') {
-            const { entity } = yield* inspectImageEntity({ kind: 'image', id })
-            return entity ? buildEventChunk('image', entity, event) : null
-        }
-        if (event.source === 'network') {
-            const { entity } = yield* inspectNetworkEntity({
-                kind: 'network',
-                id,
-            })
-            return entity ? buildEventChunk('network', entity, event) : null
-        }
-        if (event.source === 'volume') {
-            const { entity } = yield* inspectVolumeEntity({
-                kind: 'volume',
-                id,
-            })
-            return entity ? buildEventChunk('volume', entity, event) : null
-        }
-        return null
-    })
-
-/**
- * The entity reads behind `docker.entity`, as an Effect service.
+ * The entity reads behind `docker.entity`.
  *
- * The collaborators (`DockerContainerResolution`, `DockerImages`, `DockerCatalog`, the cache port) are yielded when a
- * method runs, so a handler's `R` names them and the requirement gate audits them. This used to reach the app-wide
- * runtime directly, which made every one of them invisible.
+ * Every read IS the logic: it yields the collaborator that serves it (`DockerContainerResolution`, `DockerImages`,
+ * `DockerCatalog`, the cache port) where it uses it, so a handler's `R` names them and the requirement gate audits
+ * them. `fetchList`/`inspectEntity` are the two helpers more than one read shares.
  *
- * Streams are NOT here: `DockerEntityOrchestratorService.withStreams` is the RxJS boundary.
+ * Streams are NOT here: `DockerEntityOrchestratorService` owns the RxJS boundary.
  */
 export class DockerEntityDomainService extends Context.Service<
     DockerEntityDomainService,
     DockerEntityDomainShape
 >()('runtime/DockerEntityDomainService') {
-    static readonly live: DockerEntityDomainShape = {
-        listContainerEntity,
-        listImageEntity,
-        listNetworkEntity,
-        listVolumeEntity,
-        inspectContainerEntity,
-        inspectImageEntity,
-        inspectNetworkEntity,
-        inspectVolumeEntity,
-        enrichEvent,
+    static readonly live = class DockerEntityDomainServiceImpl
+        implements DockerEntityDomainShape
+    {
+        /**
+         * A cached list: the fetch runs only on a miss, then the flat rows are wrapped as entities. The cache is a
+         * port, so the fetch Effect runs against the context this operation already has.
+         */
+        private fetchList<TFlat, TEntity>(
+            kind: DockerEntityKind,
+            fetch: Effect.Effect<TFlat[], unknown, DockerEntityDomainPorts>
+        ): Effect.Effect<
+            DockerEntityListResult<TFlat, TEntity>,
+            unknown,
+            DockerEntityDomainPorts
+        > {
+            return Effect.gen(function* () {
+                const cache = yield* DockerEntityCachePort
+                const context = yield* Effect.context<DockerEntityDomainPorts>()
+                const { payload, etag, hit } = yield* Effect.tryPromise({
+                    try: () =>
+                        cache.getOrCompute(kind, async () => ({
+                            payload: await Effect.runPromise(
+                                Effect.provideContext(fetch, context)
+                            ),
+                            ttlMs: LIST_TTL_MS,
+                        })),
+                    catch: (error) => error,
+                })
+                const entities = payload.map((flat) =>
+                    wrapAsEntity<TEntity>(flat)
+                )
+                return { flat: payload, entities, etag, hit }
+            })
+        }
+
+        /** An inspect read: a miss (or a failed lookup) is `entity: null` plus a stable missing etag. */
+        private inspectEntity<TEntity>(
+            kind: DockerEntityKind,
+            input: DockerEntityInspectInput,
+            fetch: Effect.Effect<
+                TEntity | null,
+                unknown,
+                DockerEntityDomainPorts
+            >
+        ): Effect.Effect<
+            DockerEntityInspectResult<TEntity>,
+            unknown,
+            DockerEntityDomainPorts
+        > {
+            return Effect.map(
+                fetch.pipe(Effect.catch(() => Effect.succeed(null))),
+                (entity) => ({
+                    entity,
+                    etag: entity
+                        ? fingerprintEtag(entity)
+                        : `"missing-${kind}-${input.id}"`,
+                })
+            )
+        }
+
+        listContainerEntity(
+            input: DockerEntityListInput
+        ): ReturnType<DockerEntityDomainShape['listContainerEntity']> {
+            return this.fetchList<DockerContainer, DockerContainerEntity>(
+                'container',
+                Effect.flatMap(DockerContainerResolution, (resolution) =>
+                    resolution
+                        .listContainers({
+                            limit: input.limit,
+                            offset: input.offset,
+                        })
+                        .pipe(Effect.map((result) => result.data))
+                )
+            )
+        }
+
+        listImageEntity(
+            input: DockerEntityListInput
+        ): ReturnType<DockerEntityDomainShape['listImageEntity']> {
+            return this.fetchList<DockerImage, DockerImageEntity>(
+                'image',
+                Effect.flatMap(DockerImages, (images) =>
+                    images
+                        .list({ limit: input.limit, offset: input.offset })
+                        .pipe(Effect.map((result) => result.data))
+                )
+            )
+        }
+
+        listNetworkEntity(
+            input: DockerEntityListInput
+        ): ReturnType<DockerEntityDomainShape['listNetworkEntity']> {
+            return this.fetchList<DockerNetwork, DockerNetworkEntity>(
+                'network',
+                Effect.flatMap(DockerCatalog, (catalog) =>
+                    catalog
+                        .listNetworks({
+                            limit: input.limit,
+                            offset: input.offset,
+                        })
+                        .pipe(Effect.map((result) => result.data))
+                )
+            )
+        }
+
+        listVolumeEntity(
+            input: DockerEntityListInput
+        ): ReturnType<DockerEntityDomainShape['listVolumeEntity']> {
+            return this.fetchList<DockerVolume, DockerVolumeEntity>(
+                'volume',
+                Effect.flatMap(DockerCatalog, (catalog) =>
+                    catalog
+                        .listVolumes({
+                            limit: input.limit,
+                            offset: input.offset,
+                        })
+                        .pipe(Effect.map((result) => result.data))
+                )
+            )
+        }
+
+        inspectContainerEntity(
+            input: DockerEntityInspectInput
+        ): ReturnType<DockerEntityDomainShape['inspectContainerEntity']> {
+            return this.inspectEntity<DockerContainerEntity>(
+                'container',
+                input,
+                Effect.flatMap(DockerContainerResolution, (resolution) =>
+                    resolution.listContainers({ limit: 500, offset: 0 }).pipe(
+                        Effect.map(
+                            (list): DockerContainerEntity | null => {
+                                const found = list.data.find(
+                                    (container) => container.id === input.id
+                                )
+                                return found
+                                    ? { ...found, relations: undefined }
+                                    : null
+                            }
+                        )
+                    )
+                )
+            )
+        }
+
+        inspectImageEntity(
+            input: DockerEntityInspectInput
+        ): ReturnType<DockerEntityDomainShape['inspectImageEntity']> {
+            return this.inspectEntity<DockerImageEntity>(
+                'image',
+                input,
+                Effect.flatMap(DockerImages, (images) =>
+                    images.list({ limit: 500, offset: 0 }).pipe(
+                        Effect.map((list): DockerImageEntity | null => {
+                            const found = list.data.find(
+                                (image) => image.id === input.id
+                            )
+                            return found
+                                ? { ...found, relations: undefined }
+                                : null
+                        })
+                    )
+                )
+            )
+        }
+
+        inspectNetworkEntity(
+            input: DockerEntityInspectInput
+        ): ReturnType<DockerEntityDomainShape['inspectNetworkEntity']> {
+            return this.inspectEntity<DockerNetworkEntity>(
+                'network',
+                input,
+                Effect.flatMap(DockerCatalog, (catalog) =>
+                    catalog.listNetworks({ limit: 500, offset: 0 }).pipe(
+                        Effect.map((list): DockerNetworkEntity | null => {
+                            const found = list.data.find(
+                                (network) => network.id === input.id
+                            )
+                            return found
+                                ? { ...found, relations: undefined }
+                                : null
+                        })
+                    )
+                )
+            )
+        }
+
+        inspectVolumeEntity(
+            input: DockerEntityInspectInput
+        ): ReturnType<DockerEntityDomainShape['inspectVolumeEntity']> {
+            return this.inspectEntity<DockerVolumeEntity>(
+                'volume',
+                input,
+                Effect.flatMap(DockerCatalog, (catalog) =>
+                    catalog.listVolumes({ limit: 500, offset: 0 }).pipe(
+                        Effect.map((list): DockerVolumeEntity | null => {
+                            const found = list.data.find(
+                                (volume) => volume.name === input.id
+                            )
+                            return found
+                                ? { ...found, relations: undefined }
+                                : null
+                        })
+                    )
+                )
+            )
+        }
+
+        enrichEvent(
+            event: DockerRuntimeEvent
+        ): ReturnType<DockerEntityDomainShape['enrichEvent']> {
+            return Effect.gen({ self: this }, function* () {
+                const id = event.actorId
+                if (!id) {
+                    return null
+                }
+
+                if (isRemovalAction(event.source, event.action)) {
+                    const kind = event.source
+                    if (
+                        kind !== 'container' &&
+                        kind !== 'image' &&
+                        kind !== 'network' &&
+                        kind !== 'volume'
+                    )
+                        return null
+                    return buildRemovedChunk(kind, event, id)
+                }
+
+                if (event.source === 'container') {
+                    const { entity } = yield* this.inspectContainerEntity({
+                        kind: 'container',
+                        id,
+                    })
+                    return entity
+                        ? buildEventChunk('container', entity, event)
+                        : null
+                }
+                if (event.source === 'image') {
+                    const { entity } = yield* this.inspectImageEntity({
+                        kind: 'image',
+                        id,
+                    })
+                    return entity ? buildEventChunk('image', entity, event) : null
+                }
+                if (event.source === 'network') {
+                    const { entity } = yield* this.inspectNetworkEntity({
+                        kind: 'network',
+                        id,
+                    })
+                    return entity
+                        ? buildEventChunk('network', entity, event)
+                        : null
+                }
+                if (event.source === 'volume') {
+                    const { entity } = yield* this.inspectVolumeEntity({
+                        kind: 'volume',
+                        id,
+                    })
+                    return entity
+                        ? buildEventChunk('volume', entity, event)
+                        : null
+                }
+                return null
+            })
+        }
     }
 }

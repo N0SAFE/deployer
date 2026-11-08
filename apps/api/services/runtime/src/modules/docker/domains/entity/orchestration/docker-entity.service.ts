@@ -1,6 +1,6 @@
-import { Context } from 'effect'
+import { Context, Effect } from 'effect'
 
-import { serviceOver, type Over } from '@deployer/effect-core'
+import type { DockerEntityStreamChunk } from '@deployer/contracts-entities'
 import type {
     DockerEntityInspectInput,
     DockerEntityListInput,
@@ -8,63 +8,162 @@ import type {
 
 import {
     DockerEntityOrchestratorService,
-    type DockerEntityOrchestratorPorts,
+    type DockerEntityListResult,
 } from './docker-entity-orchestrator.service'
+import type {
+    DockerEntityDomainPorts,
+    DockerEntityDomainService,
+} from './docker-entity-domain.service'
+
+/** Everything a read leaves open: the orchestrator it goes through, and the domain that orchestrator reads. */
+type EntityReadRequirements =
+    | DockerEntityOrchestratorService
+    | DockerEntityDomainService
+    | DockerEntityDomainPorts
 
 /**
  * The entity facade a handler may call, as an Effect service.
  *
- * It delegates to `DockerEntityOrchestratorService`, whose constant methods yield their collaborators when they run.
- * The handler declares `DockerEntity` in its `R`, so the requirement gate audits the dependency.
+ * Each operation IS the logic: it yields `DockerEntityOrchestratorService` and returns what that read produced. The
+ * handler declares `DockerEntity` in its `R`, so the requirement gate audits the dependency.
  */
 export type DockerEntityShape = {
     readonly listContainers: (
         input: DockerEntityListInput
-    ) => ReturnType<DockerEntityOrchestratorService['listContainers']>
+    ) => Effect.Effect<
+        DockerEntityListResult<'container'>,
+        unknown,
+        EntityReadRequirements
+    >
     readonly listImages: (
         input: DockerEntityListInput
-    ) => ReturnType<DockerEntityOrchestratorService['listImages']>
+    ) => Effect.Effect<
+        DockerEntityListResult<'image'>,
+        unknown,
+        EntityReadRequirements
+    >
     readonly listNetworks: (
         input: DockerEntityListInput
-    ) => ReturnType<DockerEntityOrchestratorService['listNetworks']>
+    ) => Effect.Effect<
+        DockerEntityListResult<'network'>,
+        unknown,
+        EntityReadRequirements
+    >
     readonly listVolumes: (
         input: DockerEntityListInput
-    ) => ReturnType<DockerEntityOrchestratorService['listVolumes']>
+    ) => Effect.Effect<
+        DockerEntityListResult<'volume'>,
+        unknown,
+        EntityReadRequirements
+    >
     readonly inspectContainer: (
         input: DockerEntityInspectInput
-    ) => ReturnType<DockerEntityOrchestratorService['inspectContainer']>
+    ) => Effect.Effect<
+        DockerEntityStreamChunk | null,
+        unknown,
+        EntityReadRequirements
+    >
     readonly inspectImage: (
         input: DockerEntityInspectInput
-    ) => ReturnType<DockerEntityOrchestratorService['inspectImage']>
+    ) => Effect.Effect<
+        DockerEntityStreamChunk | null,
+        unknown,
+        EntityReadRequirements
+    >
     readonly inspectNetwork: (
         input: DockerEntityInspectInput
-    ) => ReturnType<DockerEntityOrchestratorService['inspectNetwork']>
+    ) => Effect.Effect<
+        DockerEntityStreamChunk | null,
+        unknown,
+        EntityReadRequirements
+    >
     readonly inspectVolume: (
         input: DockerEntityInspectInput
-    ) => ReturnType<DockerEntityOrchestratorService['inspectVolume']>
+    ) => Effect.Effect<
+        DockerEntityStreamChunk | null,
+        unknown,
+        EntityReadRequirements
+    >
 }
 
 /** Everything a caller must be able to see for these calls to run. */
-export type DockerEntityPorts =
-    DockerEntityOrchestratorService | DockerEntityOrchestratorPorts
+export type DockerEntityPorts = EntityReadRequirements | DockerEntityDomainPorts
 
 export class DockerEntity extends Context.Service<
     DockerEntity,
-    Over<DockerEntityShape, DockerEntityPorts>
+    DockerEntityShape
 >()('runtime/DockerEntity') {
-    /** Stateless: the orchestrator is resolved on every call. */
-    static readonly live: Over<DockerEntityShape, DockerEntityPorts> =
-        serviceOver(
-            DockerEntityOrchestratorService,
-            (entities): DockerEntityShape => ({
-                listContainers: (input) => entities.listContainers(input),
-                listImages: (input) => entities.listImages(input),
-                listNetworks: (input) => entities.listNetworks(input),
-                listVolumes: (input) => entities.listVolumes(input),
-                inspectContainer: (input) => entities.inspectContainer(input),
-                inspectImage: (input) => entities.inspectImage(input),
-                inspectNetwork: (input) => entities.inspectNetwork(input),
-                inspectVolume: (input) => entities.inspectVolume(input),
+    static readonly live = class DockerEntityImpl implements DockerEntityShape {
+        listContainers(
+            input: DockerEntityListInput
+        ): ReturnType<DockerEntityShape['listContainers']> {
+            return Effect.gen(function* () {
+                const entities = yield* DockerEntityOrchestratorService
+                return yield* entities.listContainers(input)
             })
-        )
+        }
+
+        listImages(
+            input: DockerEntityListInput
+        ): ReturnType<DockerEntityShape['listImages']> {
+            return Effect.gen(function* () {
+                const entities = yield* DockerEntityOrchestratorService
+                return yield* entities.listImages(input)
+            })
+        }
+
+        listNetworks(
+            input: DockerEntityListInput
+        ): ReturnType<DockerEntityShape['listNetworks']> {
+            return Effect.gen(function* () {
+                const entities = yield* DockerEntityOrchestratorService
+                return yield* entities.listNetworks(input)
+            })
+        }
+
+        listVolumes(
+            input: DockerEntityListInput
+        ): ReturnType<DockerEntityShape['listVolumes']> {
+            return Effect.gen(function* () {
+                const entities = yield* DockerEntityOrchestratorService
+                return yield* entities.listVolumes(input)
+            })
+        }
+
+        inspectContainer(
+            input: DockerEntityInspectInput
+        ): ReturnType<DockerEntityShape['inspectContainer']> {
+            return Effect.gen(function* () {
+                const entities = yield* DockerEntityOrchestratorService
+                return yield* entities.inspectContainer(input)
+            })
+        }
+
+        inspectImage(
+            input: DockerEntityInspectInput
+        ): ReturnType<DockerEntityShape['inspectImage']> {
+            return Effect.gen(function* () {
+                const entities = yield* DockerEntityOrchestratorService
+                return yield* entities.inspectImage(input)
+            })
+        }
+
+        inspectNetwork(
+            input: DockerEntityInspectInput
+        ): ReturnType<DockerEntityShape['inspectNetwork']> {
+            return Effect.gen(function* () {
+                const entities = yield* DockerEntityOrchestratorService
+                return yield* entities.inspectNetwork(input)
+            })
+        }
+
+        inspectVolume(
+            input: DockerEntityInspectInput
+        ): ReturnType<DockerEntityShape['inspectVolume']> {
+            return Effect.gen(function* () {
+                const entities = yield* DockerEntityOrchestratorService
+                return yield* entities.inspectVolume(input)
+            })
+        }
+    }
 }

@@ -5,7 +5,6 @@ import type {
     DockerContainerLinkPath,
     DockerContainerWithLinks,
 } from '@deployer/contracts-entities'
-import { serviceOver, type Over } from '@deployer/effect-core'
 import type { DbError } from '@deployer/effect-infra'
 
 import {
@@ -36,32 +35,41 @@ export type DockerContainerLinksShape = {
     >
 }
 
-const makeDockerContainerLinks = ({
-    lookup,
-}: {
-    lookup: DockerContainerLinksLookup['Service']
-}): DockerContainerLinksShape => ({
-    attach: (containers, includePaths, platformRole) => {
-        if (containers.length === 0) {
-            return Effect.succeed([])
-        }
-        const include = inclusionOf(includePaths)
-        if (!include.deployment && !include.service && !include.project) {
-            return Effect.succeed(withoutLinks(containers))
-        }
-        return Effect.map(lookup.lookup(containers, include), (rows) =>
-            assembleContainerLinks(containers, include, platformRole, rows)
-        )
-    },
-})
-
-/** Container links for the linked-containers list; a constant that reads the lookup from the Effect context when it runs. */
+/**
+ * Container links for the linked-containers list.
+ *
+ * The scope decision IS the logic: nothing asked for is answered without a query, and only a real link request yields
+ * the lookup (and, through it, the database).
+ */
 export class DockerContainerLinks extends Context.Service<
     DockerContainerLinks,
-    Over<DockerContainerLinksShape, DockerContainerLinksLookup>
+    DockerContainerLinksShape
 >()('runtime/DockerContainerLinks') {
-    static readonly live = serviceOver(
-        Effect.all({ lookup: DockerContainerLinksLookup }),
-        makeDockerContainerLinks
-    )
+    static readonly live = class DockerContainerLinksImpl
+        implements DockerContainerLinksShape
+    {
+        attach(
+            containers: readonly DockerContainer[],
+            includePaths: readonly DockerContainerLinkPath[],
+            platformRole: string | null
+        ): ReturnType<DockerContainerLinksShape['attach']> {
+            if (containers.length === 0) {
+                return Effect.succeed([])
+            }
+            const include = inclusionOf(includePaths)
+            if (!include.deployment && !include.service && !include.project) {
+                return Effect.succeed(withoutLinks(containers))
+            }
+            return Effect.gen(function* () {
+                const lookup = yield* DockerContainerLinksLookup
+                const rows = yield* lookup.lookup(containers, include)
+                return assembleContainerLinks(
+                    containers,
+                    include,
+                    platformRole,
+                    rows
+                )
+            })
+        }
+    }
 }

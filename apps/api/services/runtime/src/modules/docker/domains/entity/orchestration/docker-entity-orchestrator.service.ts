@@ -56,82 +56,68 @@ export const entityDebug = (
     debugLogger.debug(source, context)
 }
 
-const listOf = <TKind extends DockerEntityKind, TEntity>(
-    kind: TKind,
-    fetch: (
-        domain: DockerEntityDomainService['Service']
+/** What one unary read needs: the domain service, plus whatever its method left open. */
+type EntityReadRequirements = DockerEntityDomainService | DockerEntityDomainPorts
+
+/** The unary reads `docker.entity` serves: one list and one inspect per kind. */
+export type DockerEntityOrchestratorUnaryShape = {
+    readonly listContainers: (
+        input: DockerEntityListInput
     ) => Effect.Effect<
-        { entities: TEntity[]; etag: string; hit: boolean },
+        DockerEntityListResult<'container'>,
         unknown,
-        DockerEntityDomainPorts
+        EntityReadRequirements
     >
-) =>
-    Effect.flatMap(DockerEntityDomainService, (domain) =>
-        Effect.map(fetch(domain), (result) => ({
-            kind,
-            data: buildListChunks(
-                kind,
-                result.entities,
-                new Date().toISOString(),
-                chunkLog
-            ),
-            etag: result.etag,
-            hit: result.hit,
-        }))
-    )
-
-const inspectOf = <TKind extends DockerEntityKind>(
-    kind: TKind,
-    fetch: (
-        domain: DockerEntityDomainService['Service']
+    readonly listImages: (
+        input: DockerEntityListInput
     ) => Effect.Effect<
-        { entity: unknown | null; etag: string },
+        DockerEntityListResult<'image'>,
         unknown,
-        DockerEntityDomainPorts
+        EntityReadRequirements
     >
-) =>
-    Effect.flatMap(DockerEntityDomainService, (domain) =>
-        Effect.map(fetch(domain), (result) =>
-            buildInspectChunk(
-                kind,
-                result.entity,
-                new Date().toISOString(),
-                chunkLog
-            )
-        )
-    )
-
-const makeUnary = () => ({
-    listContainers: (
-        input: DockerEntityListInput = {} as DockerEntityListInput
-    ) => listOf('container', (domain) => domain.listContainerEntity(input)),
-    listImages: (input: DockerEntityListInput) =>
-        listOf('image', (domain) => domain.listImageEntity(input)),
-    listNetworks: (input: DockerEntityListInput) =>
-        listOf('network', (domain) => domain.listNetworkEntity(input)),
-    listVolumes: (input: DockerEntityListInput) =>
-        listOf('volume', (domain) => domain.listVolumeEntity(input)),
-
-    inspectContainer: (input: DockerEntityInspectInput) =>
-        inspectOf('container', (domain) =>
-            domain.inspectContainerEntity(input)
-        ),
-    inspectImage: (input: DockerEntityInspectInput) =>
-        inspectOf('image', (domain) => domain.inspectImageEntity(input)),
-    inspectNetwork: (input: DockerEntityInspectInput) =>
-        inspectOf('network', (domain) => domain.inspectNetworkEntity(input)),
-    inspectVolume: (input: DockerEntityInspectInput) =>
-        inspectOf('volume', (domain) => domain.inspectVolumeEntity(input)),
-})
-
-export type DockerEntityOrchestratorUnaryShape = ReturnType<typeof makeUnary>
-
-/** The services a caller must be able to see for any unary call to run. */
-export type DockerEntityOrchestratorPorts = {
-    [K in keyof DockerEntityOrchestratorUnaryShape]: Effect.Services<
-        ReturnType<DockerEntityOrchestratorUnaryShape[K]>
+    readonly listNetworks: (
+        input: DockerEntityListInput
+    ) => Effect.Effect<
+        DockerEntityListResult<'network'>,
+        unknown,
+        EntityReadRequirements
     >
-}[keyof DockerEntityOrchestratorUnaryShape]
+    readonly listVolumes: (
+        input: DockerEntityListInput
+    ) => Effect.Effect<
+        DockerEntityListResult<'volume'>,
+        unknown,
+        EntityReadRequirements
+    >
+    readonly inspectContainer: (
+        input: DockerEntityInspectInput
+    ) => Effect.Effect<
+        DockerEntityStreamChunk | null,
+        unknown,
+        EntityReadRequirements
+    >
+    readonly inspectImage: (
+        input: DockerEntityInspectInput
+    ) => Effect.Effect<
+        DockerEntityStreamChunk | null,
+        unknown,
+        EntityReadRequirements
+    >
+    readonly inspectNetwork: (
+        input: DockerEntityInspectInput
+    ) => Effect.Effect<
+        DockerEntityStreamChunk | null,
+        unknown,
+        EntityReadRequirements
+    >
+    readonly inspectVolume: (
+        input: DockerEntityInspectInput
+    ) => Effect.Effect<
+        DockerEntityStreamChunk | null,
+        unknown,
+        EntityReadRequirements
+    >
+}
 
 /** The whole entity facade: the unary calls as Effects, the event stream as RxJS. */
 export type DockerEntityOrchestratorShape = DockerEntityOrchestratorUnaryShape &
@@ -140,22 +126,179 @@ export type DockerEntityOrchestratorShape = DockerEntityOrchestratorUnaryShape &
 /**
  * Per-kind facade for the unified `docker.entity` API.
  *
- * The unary methods are constant Effects over `DockerEntityDomainService`; the stream keeps its RxJS shape and is
- * attached by `withStreams`, which owns the `EffectHost` touchpoint.
+ * Each unary read IS the logic: it yields `DockerEntityDomainService` and wraps what the domain returned as the chunks
+ * the contract carries. The stream keeps its RxJS shape and arrives through the constructor, because it owns the
+ * `EffectHost` runtime touchpoint and cannot be yielded.
  */
 export class DockerEntityOrchestratorService extends Context.Service<
     DockerEntityOrchestratorService,
     DockerEntityOrchestratorShape
 >()('runtime/DockerEntityOrchestratorService') {
-    static readonly live: DockerEntityOrchestratorUnaryShape = makeUnary()
+    static readonly live = class DockerEntityOrchestratorServiceImpl
+        implements DockerEntityOrchestratorShape
+    {
+        readonly streamEntities: DockerEntityStreamsShape['streamEntities']
 
-    static readonly withStreams = (
-        streams: DockerEntityStreamsShape
-    ): DockerEntityOrchestratorShape => ({
-        ...makeUnary(),
-        ...streams,
-    })
+        constructor(streams: DockerEntityStreamsShape) {
+            this.streamEntities = streams.streamEntities
+        }
+
+        listContainers(
+            input: DockerEntityListInput = {} as DockerEntityListInput
+        ): Effect.Effect<
+            DockerEntityListResult<'container'>,
+            unknown,
+            EntityReadRequirements
+        > {
+            return this.listOf('container', (domain) =>
+                domain.listContainerEntity(input)
+            )
+        }
+
+        listImages(
+            input: DockerEntityListInput
+        ): Effect.Effect<
+            DockerEntityListResult<'image'>,
+            unknown,
+            EntityReadRequirements
+        > {
+            return this.listOf('image', (domain) =>
+                domain.listImageEntity(input)
+            )
+        }
+
+        listNetworks(
+            input: DockerEntityListInput
+        ): Effect.Effect<
+            DockerEntityListResult<'network'>,
+            unknown,
+            EntityReadRequirements
+        > {
+            return this.listOf('network', (domain) =>
+                domain.listNetworkEntity(input)
+            )
+        }
+
+        listVolumes(
+            input: DockerEntityListInput
+        ): Effect.Effect<
+            DockerEntityListResult<'volume'>,
+            unknown,
+            EntityReadRequirements
+        > {
+            return this.listOf('volume', (domain) =>
+                domain.listVolumeEntity(input)
+            )
+        }
+
+        inspectContainer(
+            input: DockerEntityInspectInput
+        ): Effect.Effect<
+            DockerEntityStreamChunk | null,
+            unknown,
+            EntityReadRequirements
+        > {
+            return this.inspectOf('container', (domain) =>
+                domain.inspectContainerEntity(input)
+            )
+        }
+
+        inspectImage(
+            input: DockerEntityInspectInput
+        ): Effect.Effect<
+            DockerEntityStreamChunk | null,
+            unknown,
+            EntityReadRequirements
+        > {
+            return this.inspectOf('image', (domain) =>
+                domain.inspectImageEntity(input)
+            )
+        }
+
+        inspectNetwork(
+            input: DockerEntityInspectInput
+        ): Effect.Effect<
+            DockerEntityStreamChunk | null,
+            unknown,
+            EntityReadRequirements
+        > {
+            return this.inspectOf('network', (domain) =>
+                domain.inspectNetworkEntity(input)
+            )
+        }
+
+        inspectVolume(
+            input: DockerEntityInspectInput
+        ): Effect.Effect<
+            DockerEntityStreamChunk | null,
+            unknown,
+            EntityReadRequirements
+        > {
+            return this.inspectOf('volume', (domain) =>
+                domain.inspectVolumeEntity(input)
+            )
+        }
+
+        /** A cached domain list, turned into the chunks and etag the list contract returns. */
+        private listOf<TKind extends DockerEntityKind>(
+            kind: TKind,
+            fetch: (
+                domain: DockerEntityDomainService['Service']
+            ) => Effect.Effect<
+                { entities: readonly unknown[]; etag: string; hit: boolean },
+                unknown,
+                EntityReadRequirements
+            >
+        ): Effect.Effect<
+            DockerEntityListResult<TKind>,
+            unknown,
+            EntityReadRequirements
+        > {
+            return Effect.gen(function* () {
+                const domain = yield* DockerEntityDomainService
+                const result = yield* fetch(domain)
+                return {
+                    kind,
+                    data: buildListChunks(
+                        kind,
+                        result.entities,
+                        new Date().toISOString(),
+                        chunkLog
+                    ),
+                    etag: result.etag,
+                    hit: result.hit,
+                }
+            })
+        }
+
+        /** A domain inspect, turned into the chunk an event stream would have produced. */
+        private inspectOf<TKind extends DockerEntityKind>(
+            kind: TKind,
+            fetch: (
+                domain: DockerEntityDomainService['Service']
+            ) => Effect.Effect<
+                { entity: unknown; etag: string },
+                unknown,
+                EntityReadRequirements
+            >
+        ): Effect.Effect<
+            DockerEntityStreamChunk | null,
+            unknown,
+            EntityReadRequirements
+        > {
+            return Effect.gen(function* () {
+                const domain = yield* DockerEntityDomainService
+                const result = yield* fetch(domain)
+                return buildInspectChunk(
+                    kind,
+                    result.entity,
+                    new Date().toISOString(),
+                    chunkLog
+                )
+            })
+        }
+    }
+
+    /** The token's instance type: `DockerController` injects it and reads `streamEntities` straight off it. */
+    declare readonly streamEntities: DockerEntityStreamsShape['streamEntities']
 }
-
-/** The Nest provider hands a value, not an instance: `DockerController` reads `streamEntities` off this token. */
-export interface DockerEntityOrchestratorService extends DockerEntityOrchestratorShape {}

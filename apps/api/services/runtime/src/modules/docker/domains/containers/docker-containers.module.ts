@@ -84,7 +84,7 @@ export class DockerContainersModule extends createModuleContext({
         { provide: ContainersLocalPort, useExisting: DockerRepository },
         {
             provide: DockerContainerResolution,
-            useValue: DockerContainerResolution.live,
+            useClass: DockerContainerResolution.live,
         },
         {
             provide: LOCAL_NODE_OPERATIONS,
@@ -92,12 +92,12 @@ export class DockerContainersModule extends createModuleContext({
                 makeLocalNodeOperations(host, repository),
             inject: [EffectHost, DockerRepository],
         },
-        // The container surface: unary calls are Effects that yield their collaborators; the streams keep the RxJS shape and
-        // the host is only the adapter's runtime touchpoint.
+        // The container surface: unary calls live on `DockerContainers` (each yields its collaborator); the streams keep
+        // the RxJS shape and the host is only the adapter's runtime touchpoint.
         {
             provide: DockerContainersOrchestratorService,
             useFactory: (host: EffectHostShape) =>
-                DockerContainersOrchestratorService.withStreams(
+                new DockerContainersOrchestratorService.live(
                     containerStreamsOver(host)
                 ),
             inject: [EffectHost],
