@@ -1,7 +1,6 @@
 import { and, eq, ne } from 'drizzle-orm'
 import { Context, Effect } from 'effect'
 
-import { serviceOver, type Over } from '@deployer/effect-core'
 import { projectDomains } from '@deployer/nest-schema/global/project/domain'
 
 import { DatabasePort, StorageFailure, storage } from '../../database/storage'
@@ -13,214 +12,292 @@ export type ProjectDomainRepositoryShape = {
     /** Domains attach directly to a project. */
     readonly create: (
         data: InsertProjectDomain
-    ) => Effect.Effect<ProjectDomain, StorageFailure>
+    ) => Effect.Effect<ProjectDomain, StorageFailure, DatabasePort>
     readonly findById: (
         id: string
-    ) => Effect.Effect<ProjectDomain | null, StorageFailure>
+    ) => Effect.Effect<ProjectDomain | null, StorageFailure, DatabasePort>
     readonly findByProjectId: (
         projectId: string
-    ) => Effect.Effect<ProjectDomain[], StorageFailure>
+    ) => Effect.Effect<ProjectDomain[], StorageFailure, DatabasePort>
     readonly findByProjectAndDomain: (
         projectId: string,
         domain: string
-    ) => Effect.Effect<ProjectDomain | null, StorageFailure>
+    ) => Effect.Effect<
+        ProjectDomain | null,
+        StorageFailure,
+        DatabasePort
+    >
     /** Whether the project already has this domain name (optionally ignoring one row). */
     readonly hasProjectDomain: (
         projectId: string,
         domain: string,
         excludeId?: string
-    ) => Effect.Effect<boolean, StorageFailure>
+    ) => Effect.Effect<boolean, StorageFailure, DatabasePort>
     /** Pending domains, for the auto-verification sweep. */
-    readonly findPending: () => Effect.Effect<ProjectDomain[], StorageFailure>
+    readonly findPending: () => Effect.Effect<
+        ProjectDomain[],
+        StorageFailure,
+        DatabasePort
+    >
     /** The project's own verified domains (direct-domain model, no org). */
     readonly getAvailableDomainsForProject: (
         projectId: string
     ) => Effect.Effect<
         { id: string; domain: string; verifiedAt: Date }[],
-        StorageFailure
+        StorageFailure,
+        DatabasePort
     >
     /** `null` when the row does not exist. */
     readonly update: (
         id: string,
         data: Partial<ProjectDomain>
-    ) => Effect.Effect<ProjectDomain | null, StorageFailure>
+    ) => Effect.Effect<
+        ProjectDomain | null,
+        StorageFailure,
+        DatabasePort
+    >
     readonly updateAllowedSubdomains: (
         id: string,
         allowedSubdomains: string[]
-    ) => Effect.Effect<ProjectDomain | null, StorageFailure>
+    ) => Effect.Effect<
+        ProjectDomain | null,
+        StorageFailure,
+        DatabasePort
+    >
     /** Whether a row was deleted. */
-    readonly delete: (id: string) => Effect.Effect<boolean, StorageFailure>
+    readonly delete: (
+        id: string
+    ) => Effect.Effect<boolean, StorageFailure, DatabasePort>
     readonly countByProjectId: (
         projectId: string
-    ) => Effect.Effect<number, StorageFailure>
+    ) => Effect.Effect<number, StorageFailure, DatabasePort>
 }
 
-type Ports = { readonly database: Context.Service.Shape<typeof DatabasePort> }
-
-export function makeProjectDomainRepository({
-    database,
-}: Ports): ProjectDomainRepositoryShape {
-    const first = <A>(rows: A[]): A | null => rows[0] ?? null
-    return {
-        create: (data) =>
-            storage(database, (db) =>
-                db.insert(projectDomains).values(data).returning()
-            ).pipe(
-                Effect.flatMap(([domain]) =>
-                    domain
-                        ? Effect.logDebug(
-                              `Created project domain ${domain.domain} for project ${domain.projectId}`
-                          ).pipe(Effect.as(domain))
-                        : Effect.fail(
-                              new StorageFailure({
-                                  cause: new Error('insert returned no row'),
-                              })
-                          )
-                )
-            ),
-
-        findById: (id) =>
-            storage(database, (db) =>
-                db
-                    .select()
-                    .from(projectDomains)
-                    .where(eq(projectDomains.id, id))
-                    .limit(1)
-            ).pipe(Effect.map(first)),
-
-        findByProjectId: (projectId) =>
-            storage(database, (db) =>
-                db
-                    .select()
-                    .from(projectDomains)
-                    .where(eq(projectDomains.projectId, projectId))
-            ),
-
-        findByProjectAndDomain: (projectId, domain) =>
-            storage(database, (db) =>
-                db
-                    .select()
-                    .from(projectDomains)
-                    .where(
-                        and(
-                            eq(projectDomains.projectId, projectId),
-                            eq(projectDomains.domain, domain)
-                        )
-                    )
-                    .limit(1)
-            ).pipe(Effect.map(first)),
-
-        hasProjectDomain: (projectId, domain, excludeId) =>
-            storage(database, (db) =>
-                db
-                    .select({ id: projectDomains.id })
-                    .from(projectDomains)
-                    .where(
-                        and(
-                            eq(projectDomains.projectId, projectId),
-                            eq(projectDomains.domain, domain),
-                            ...(excludeId
-                                ? [ne(projectDomains.id, excludeId)]
-                                : [])
-                        )
-                    )
-                    .limit(1)
-            ).pipe(Effect.map((rows) => rows.length > 0)),
-
-        findPending: () =>
-            storage(database, (db) =>
-                db
-                    .select()
-                    .from(projectDomains)
-                    .where(eq(projectDomains.verificationStatus, 'pending'))
-            ),
-
-        getAvailableDomainsForProject: (projectId) =>
-            storage(database, (db) =>
-                db
-                    .select({
-                        id: projectDomains.id,
-                        domain: projectDomains.domain,
-                        verifiedAt: projectDomains.verifiedAt,
-                    })
-                    .from(projectDomains)
-                    .where(
-                        and(
-                            eq(projectDomains.projectId, projectId),
-                            eq(projectDomains.verificationStatus, 'verified')
-                        )
-                    )
-            ).pipe(
-                Effect.map((rows) =>
-                    rows.filter(
-                        (d): d is typeof d & { verifiedAt: Date } =>
-                            d.verifiedAt !== null
-                    )
-                )
-            ),
-
-        update: (id, data) =>
-            storage(database, (db) =>
-                db
-                    .update(projectDomains)
-                    .set({ ...data, updatedAt: new Date() })
-                    .where(eq(projectDomains.id, id))
-                    .returning()
-            ).pipe(
-                Effect.map(first),
-                Effect.tap((updated) =>
-                    updated
-                        ? Effect.logDebug(`Updated project domain: ${id}`)
-                        : Effect.void
-                )
-            ),
-
-        updateAllowedSubdomains: (id, allowedSubdomains) =>
-            storage(database, (db) =>
-                db
-                    .update(projectDomains)
-                    .set({ allowedSubdomains, updatedAt: new Date() })
-                    .where(eq(projectDomains.id, id))
-                    .returning()
-            ).pipe(
-                Effect.map(first),
-                Effect.tap((updated) =>
-                    updated
-                        ? Effect.logInfo(
-                              `Updated allowed subdomains for project domain ${id}: [${allowedSubdomains.join(', ')}]`
-                          )
-                        : Effect.void
-                )
-            ),
-
-        delete: (id) =>
-            storage(database, (db) =>
-                db.delete(projectDomains).where(eq(projectDomains.id, id))
-            ).pipe(
-                Effect.map((result) => (result.rowCount ?? 0) > 0),
-                Effect.tap((deleted) =>
-                    deleted
-                        ? Effect.logDebug(`Deleted project domain: ${id}`)
-                        : Effect.void
-                )
-            ),
-
-        countByProjectId: (projectId) =>
-            storage(database, (db) =>
-                db
-                    .select({ count: projectDomains.id })
-                    .from(projectDomains)
-                    .where(eq(projectDomains.projectId, projectId))
-            ).pipe(Effect.map((rows) => rows.length)),
-    }
-}
+const first = <A>(rows: A[]): A | null => rows[0] ?? null
 
 export class ProjectDomainRepository extends Context.Service<
     ProjectDomainRepository,
-    Over<ProjectDomainRepositoryShape, DatabasePort>
+    ProjectDomainRepositoryShape
 >()('shared/ProjectDomainRepository') {
-    static readonly live = serviceOver(
-        Effect.all({ database: DatabasePort }),
-        makeProjectDomainRepository
-    )
+    static readonly live = class ProjectDomainRepositoryImpl
+        implements ProjectDomainRepositoryShape
+    {
+        create(
+            data: InsertProjectDomain
+        ): ReturnType<ProjectDomainRepositoryShape['create']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                const [domain] = yield* storage(database, (db) =>
+                    db.insert(projectDomains).values(data).returning()
+                )
+                if (!domain) {
+                    return yield* Effect.fail(
+                        new StorageFailure({
+                            cause: new Error('insert returned no row'),
+                        })
+                    )
+                }
+                yield* Effect.logDebug(
+                    `Created project domain ${domain.domain} for project ${domain.projectId}`
+                )
+                return domain
+            })
+        }
+
+        findById(
+            id: string
+        ): ReturnType<ProjectDomainRepositoryShape['findById']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                const rows = yield* storage(database, (db) =>
+                    db
+                        .select()
+                        .from(projectDomains)
+                        .where(eq(projectDomains.id, id))
+                        .limit(1)
+                )
+                return first(rows)
+            })
+        }
+
+        findByProjectId(
+            projectId: string
+        ): ReturnType<ProjectDomainRepositoryShape['findByProjectId']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* storage(database, (db) =>
+                    db
+                        .select()
+                        .from(projectDomains)
+                        .where(eq(projectDomains.projectId, projectId))
+                )
+            })
+        }
+
+        findByProjectAndDomain(
+            projectId: string,
+            domain: string
+        ): ReturnType<ProjectDomainRepositoryShape['findByProjectAndDomain']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                const rows = yield* storage(database, (db) =>
+                    db
+                        .select()
+                        .from(projectDomains)
+                        .where(
+                            and(
+                                eq(projectDomains.projectId, projectId),
+                                eq(projectDomains.domain, domain)
+                            )
+                        )
+                        .limit(1)
+                )
+                return first(rows)
+            })
+        }
+
+        hasProjectDomain(
+            projectId: string,
+            domain: string,
+            excludeId?: string
+        ): ReturnType<ProjectDomainRepositoryShape['hasProjectDomain']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                const rows = yield* storage(database, (db) =>
+                    db
+                        .select({ id: projectDomains.id })
+                        .from(projectDomains)
+                        .where(
+                            and(
+                                eq(projectDomains.projectId, projectId),
+                                eq(projectDomains.domain, domain),
+                                ...(excludeId
+                                    ? [ne(projectDomains.id, excludeId)]
+                                    : [])
+                            )
+                        )
+                        .limit(1)
+                )
+                return rows.length > 0
+            })
+        }
+
+        findPending(): ReturnType<ProjectDomainRepositoryShape['findPending']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                return yield* storage(database, (db) =>
+                    db
+                        .select()
+                        .from(projectDomains)
+                        .where(eq(projectDomains.verificationStatus, 'pending'))
+                )
+            })
+        }
+
+        getAvailableDomainsForProject(
+            projectId: string
+        ): ReturnType<
+            ProjectDomainRepositoryShape['getAvailableDomainsForProject']
+        > {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                const rows = yield* storage(database, (db) =>
+                    db
+                        .select({
+                            id: projectDomains.id,
+                            domain: projectDomains.domain,
+                            verifiedAt: projectDomains.verifiedAt,
+                        })
+                        .from(projectDomains)
+                        .where(
+                            and(
+                                eq(projectDomains.projectId, projectId),
+                                eq(
+                                    projectDomains.verificationStatus,
+                                    'verified'
+                                )
+                            )
+                        )
+                )
+                return rows.filter(
+                    (d): d is typeof d & { verifiedAt: Date } =>
+                        d.verifiedAt !== null
+                )
+            })
+        }
+
+        update(
+            id: string,
+            data: Partial<ProjectDomain>
+        ): ReturnType<ProjectDomainRepositoryShape['update']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                const rows = yield* storage(database, (db) =>
+                    db
+                        .update(projectDomains)
+                        .set({ ...data, updatedAt: new Date() })
+                        .where(eq(projectDomains.id, id))
+                        .returning()
+                )
+                const updated = first(rows)
+                if (updated)
+                    yield* Effect.logDebug(`Updated project domain: ${id}`)
+                return updated
+            })
+        }
+
+        updateAllowedSubdomains(
+            id: string,
+            allowedSubdomains: string[]
+        ): ReturnType<
+            ProjectDomainRepositoryShape['updateAllowedSubdomains']
+        > {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                const rows = yield* storage(database, (db) =>
+                    db
+                        .update(projectDomains)
+                        .set({ allowedSubdomains, updatedAt: new Date() })
+                        .where(eq(projectDomains.id, id))
+                        .returning()
+                )
+                const updated = first(rows)
+                if (updated)
+                    yield* Effect.logInfo(
+                        `Updated allowed subdomains for project domain ${id}: [${allowedSubdomains.join(', ')}]`
+                    )
+                return updated
+            })
+        }
+
+        delete(
+            id: string
+        ): ReturnType<ProjectDomainRepositoryShape['delete']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                const result = yield* storage(database, (db) =>
+                    db.delete(projectDomains).where(eq(projectDomains.id, id))
+                )
+                const deleted = (result.rowCount ?? 0) > 0
+                if (deleted)
+                    yield* Effect.logDebug(`Deleted project domain: ${id}`)
+                return deleted
+            })
+        }
+
+        countByProjectId(
+            projectId: string
+        ): ReturnType<ProjectDomainRepositoryShape['countByProjectId']> {
+            return Effect.gen(function* () {
+                const database = yield* DatabasePort
+                const rows = yield* storage(database, (db) =>
+                    db
+                        .select({ count: projectDomains.id })
+                        .from(projectDomains)
+                        .where(eq(projectDomains.projectId, projectId))
+                )
+                return rows.length
+            })
+        }
+    }
 }

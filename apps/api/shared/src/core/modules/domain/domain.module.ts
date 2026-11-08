@@ -8,10 +8,9 @@ import { DatabaseModule } from '../database/database.module'
 import { DatabasePort } from '../database/storage'
 import { TraefikCoreModule } from '../traefik/traefik.module'
 
-import {
-    makeProjectDomainRepository,
-    ProjectDomainRepository,
-} from './repositories/project-domain.repository'
+import { ProjectDomainRepository } from './repositories/project-domain.repository'
+
+import type { ProjectDomainRepositoryShape } from './repositories/project-domain.repository'
 import { ServiceDomainMappingRepository } from './repositories/service-domain-mapping.repository'
 import { DomainConflictService } from './services/domain-conflict.service'
 import { DomainRoutingService } from './services/domain-routing.service'
@@ -19,7 +18,6 @@ import {
     DomainVerificationService,
     makeDomainVerificationService,
 } from './services/domain-verification.service'
-import { ServiceDomainMappingService } from './services/service-domain-mapping.service'
 
 import type { Context } from 'effect'
 
@@ -43,17 +41,13 @@ export const CoreDomainModule = createGlobalModule({
         // Repositories
         {
             provide: ProjectDomainRepository,
-            useValue: ProjectDomainRepository.live,
+            useClass: ProjectDomainRepository.live,
         },
         {
             provide: ServiceDomainMappingRepository,
-            useValue: ServiceDomainMappingRepository.live,
+            useClass: ServiceDomainMappingRepository.live,
         },
         // Services
-        {
-            provide: ServiceDomainMappingService,
-            useValue: ServiceDomainMappingService.live,
-        },
         {
             provide: DomainConflictService,
             useValue: DomainConflictService.live,
@@ -62,19 +56,16 @@ export const CoreDomainModule = createGlobalModule({
         {
             provide: DomainVerificationService,
             useFactory: (
+                projectDomains: ProjectDomainRepositoryShape,
                 database: Context.Service.Shape<typeof DatabasePort>
-            ) =>
-                makeDomainVerificationService(
-                    makeProjectDomainRepository({ database })
-                ),
-            inject: [DatabasePort],
+            ) => makeDomainVerificationService(projectDomains, database),
+            inject: [ProjectDomainRepository, DatabasePort],
         },
         serviceLifecycle(DomainVerificationService),
     ],
     exports: [
         DomainVerificationService,
         DomainConflictService,
-        ServiceDomainMappingService,
         DomainRoutingService,
         ProjectDomainRepository,
         ServiceDomainMappingRepository,

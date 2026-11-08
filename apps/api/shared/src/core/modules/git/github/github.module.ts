@@ -4,7 +4,6 @@ import { DatabasePort } from '../../database/storage'
 
 import {
     GithubDeploymentCacheRepository,
-    makeGithubDeploymentCacheRepository,
 } from './repositories/github-deployment-cache.repository'
 import {
     GithubDeploymentRulesRepository,
@@ -39,27 +38,9 @@ export class GitHubModule extends createModuleContext({
     providers: [
         // The App registry is in-memory state: one instance per process.
         { provide: GitHubService, useFactory: makeGitHubService },
-        {
-            provide: GithubDeploymentCacheRepository,
-            useFactory: (
-                database: Context.Service.Shape<typeof DatabasePort>
-            ) => makeGithubDeploymentCacheRepository({ database }),
-            inject: [DatabasePort],
-        },
-        {
-            provide: GithubDeploymentRulesRepository,
-            useFactory: (
-                database: Context.Service.Shape<typeof DatabasePort>
-            ) => makeGithubDeploymentRulesRepository({ database }),
-            inject: [DatabasePort],
-        },
-        {
-            provide: GithubRepositoryConfigRepository,
-            useFactory: (
-                database: Context.Service.Shape<typeof DatabasePort>
-            ) => makeGithubRepositoryConfigRepository({ database }),
-            inject: [DatabasePort],
-        },
+        { provide: GithubDeploymentCacheRepository, useClass: GithubDeploymentCacheRepository.live },
+        { provide: GithubDeploymentRulesRepository, useFactory: makeGithubDeploymentRulesRepository },
+        { provide: GithubRepositoryConfigRepository, useFactory: makeGithubRepositoryConfigRepository },
     ],
     exports: [
         GitHubService,

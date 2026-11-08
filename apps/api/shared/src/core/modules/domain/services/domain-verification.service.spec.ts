@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { ProjectDomainNotFoundError } from '../errors'
 
+import { DatabasePort } from '../../database/storage'
 import { makeDomainVerificationService } from './domain-verification.service'
 
 import type { ProjectDomainRepositoryShape } from '../repositories/project-domain.repository'
@@ -26,12 +27,19 @@ function service(domain: unknown) {
             ])
         ),
     } as unknown as ProjectDomainRepositoryShape
-    return { repository, service: makeDomainVerificationService(repository) }
+    return { repository, service: makeDomainVerificationService(repository, {} as never) }
 }
+
+/**
+ * Runs an operation with the database port its repository leaves open; the fake repository never
+ * touches it, and providing it is what discharges the channel.
+ */
+const run = <A, E>(effect: Effect.Effect<A, E, DatabasePort>): Promise<A> =>
+    Effect.runPromise(Effect.provideService(effect, DatabasePort, {} as never))
 
 describe('DomainVerificationService', () => {
     it('fails with ProjectDomainNotFoundError when the domain belongs to another project', async () => {
-        const error = await Effect.runPromise(
+        const error = await run(
             Effect.flip(
                 service(verified).service.verifyProjectDomain('other', 'd1')
             )
@@ -41,7 +49,7 @@ describe('DomainVerificationService', () => {
 
     it('answers an already verified domain without touching DNS or the row', async () => {
         const t = service(verified)
-        const result = await Effect.runPromise(
+        const result = await run(
             t.service.verifyProjectDomain('p1', 'd1')
         )
         expect(result).toMatchObject({ success: true, status: 'verified' })
@@ -50,7 +58,7 @@ describe('DomainVerificationService', () => {
 
     it('counts pending domains', async () => {
         expect(
-            await Effect.runPromise(
+            await run(
                 service(verified).service.getPendingDomainsCount('p1')
             )
         ).toBe(1)

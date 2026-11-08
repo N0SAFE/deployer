@@ -10,7 +10,7 @@ import {
     validateBasePath,
     validateSubdomain,
 } from './domain-conflict.service'
-import { ServiceDomainMappingService } from './service-domain-mapping.service'
+import { ServiceDomainMappingRepository } from '../repositories/service-domain-mapping.repository'
 
 const row = (basePath: string | null) => ({
     serviceId: 's1',
@@ -27,11 +27,11 @@ function conflicts(rows: ReturnType<typeof row>[] | StorageFailure) {
                 : Effect.succeed(rows),
     }
     return provideTo(
-        DomainConflictService.live,
+        new DomainConflictService.live(),
         (effect) =>
             effect.pipe(
                 Effect.provideService(
-                    ServiceDomainMappingService,
+                    ServiceDomainMappingRepository,
                     mappings as never
                 )
             ) as Effect.Effect<unknown>

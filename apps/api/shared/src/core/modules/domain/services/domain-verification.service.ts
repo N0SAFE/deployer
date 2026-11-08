@@ -7,7 +7,7 @@ import type { ServiceLifecycleShape } from '@deployer/nest-effect'
 
 import { ProjectDomainNotFoundError, VerificationAttemptError } from '../errors'
 
-import type { StorageFailure } from '../../database/storage'
+import { DatabasePort, type StorageFailure } from '../../database/storage'
 import type {
     VerificationInstructions,
     VerifyDomainResult,
@@ -31,22 +31,28 @@ export type DomainVerificationServiceShape = ServiceLifecycleShape & {
         domainId: string
     ) => Effect.Effect<
         VerifyDomainResult,
-        ProjectDomainNotFoundError | VerificationAttemptError | StorageFailure
+        ProjectDomainNotFoundError | VerificationAttemptError | StorageFailure,
+        DatabasePort
     >
     readonly getPendingDomainsCount: (
         projectId: string
-    ) => Effect.Effect<number, StorageFailure>
+    ) => Effect.Effect<number, StorageFailure, DatabasePort>
     /** Reset to pending, then verify again. */
     readonly retryVerification: (
         projectId: string,
         domainId: string
     ) => Effect.Effect<
         VerifyDomainResult,
-        ProjectDomainNotFoundError | VerificationAttemptError | StorageFailure
+        ProjectDomainNotFoundError | VerificationAttemptError | StorageFailure,
+        DatabasePort
     >
     /** One sweep over every pending domain. Never fails: a domain that errors is logged and skipped. */
-    readonly autoVerifyPendingDomains: () => Effect.Effect<void>
+    readonly autoVerifyPendingDomains: () => Effect.Effect<void, never, DatabasePort>
     /** The hourly sweep. Never completes; `serviceLifecycle` forks it and interrupts it on stop. */
+    /**
+     * The hourly sweep. `ServiceLifecycleShape` gives a lifecycle member an empty requirement channel, so
+     * the port its repository needs is settled once where the loop is built (see the returned `run`).
+     */
     readonly run: () => Effect.Effect<void>
 }
 
@@ -126,7 +132,8 @@ const verifyCnameRecord = (recordName: string, expectedToken: string) =>
 
 /** Stateful (it owns the hourly sweep), so it is built once over a repository whose requirements are already settled. */
 export function makeDomainVerificationService(
-    projectDomains: ProjectDomainRepositoryShape
+    projectDomains: ProjectDomainRepositoryShape,
+    database: Context.Service.Shape<typeof DatabasePort>
 ): DomainVerificationServiceShape {
     const verifyProjectDomain: DomainVerificationServiceShape['verifyProjectDomain'] =
         (projectId, domainId) =>
@@ -213,7 +220,11 @@ export function makeDomainVerificationService(
                 } satisfies VerifyDomainResult
             })
 
-    const autoVerifyPendingDomains = (): Effect.Effect<void> =>
+    const autoVerifyPendingDomains = (): Effect.Effect<
+        void,
+        never,
+        DatabasePort
+    > =>
         Effect.gen(function* () {
             yield* Effect.logInfo(
                 'Running auto-verification for pending domains...'
@@ -277,12 +288,17 @@ export function makeDomainVerificationService(
                 ),
         autoVerifyPendingDomains,
         // First sweep after one interval, like the timer this replaces, so a boot does not hit DNS for every pending domain.
+        // The lifecycle member cannot carry a requirement, so the sweep's port is settled here, once.
         run: () =>
-            Effect.forever(
-                Effect.andThen(
-                    Effect.sleep(AUTO_VERIFICATION_INTERVAL),
-                    autoVerifyPendingDomains()
-                )
+            Effect.provideService(
+                Effect.forever(
+                    Effect.andThen(
+                        Effect.sleep(AUTO_VERIFICATION_INTERVAL),
+                        autoVerifyPendingDomains()
+                    )
+                ),
+                DatabasePort,
+                database
             ),
     }
 }

@@ -1,20 +1,16 @@
 import { Context, Effect } from 'effect'
 
-import { serviceOver, type Over } from '@deployer/effect-core'
-
-import { DatabasePort, type StorageFailure } from '../../database/storage'
-import { ServiceDomainMappingRepository } from '../repositories/service-domain-mapping.repository'
-
-import { ServiceDomainMappingService } from './service-domain-mapping.service'
+import type { DatabasePort, StorageFailure } from '../../database/storage'
+import {
+    ServiceDomainMappingRepository,
+    type ServiceDomainMappingRepositoryShape,
+} from '../repositories/service-domain-mapping.repository'
 
 import type {
     SubdomainAvailabilityResult,
     SubdomainValidationResult,
     BasePathValidationResult,
 } from '../interfaces'
-
-/** The mapping service forwards to the repository, which reads the database: all three are left to the container. */
-type Needs = DatabasePort | ServiceDomainMappingRepository
 
 export type DomainConflictServiceShape = {
     /** Whether a subdomain + base path combination is free on a project domain. */
@@ -23,11 +19,13 @@ export type DomainConflictServiceShape = {
         subdomain: string | null,
         basePath: string | null,
         excludeServiceId?: string
-    ) => Effect.Effect<SubdomainAvailabilityResult, StorageFailure, Needs>
-}
-
-type Ports = {
-    readonly mappings: Context.Service.Shape<typeof ServiceDomainMappingService>
+    ) => Effect.Effect<
+        SubdomainAvailabilityResult,
+        StorageFailure,
+        ServiceDomainMappingRepository
+        | ServiceDomainMappingRepositoryShape
+        | DatabasePort
+    >
 }
 
 const COMMON_BASE_PATHS = [
@@ -50,6 +48,66 @@ const computePlaceholderUrl = (
     basePath: string | null
 ): string =>
     `https://${subdomain ? `${subdomain}.` : ''}{domain}${basePath ?? ''}`
+
+/**
+ * The availability decision: exact match wins, then a bare subdomain already taken at the root, then a
+ * subdomain shared over other base paths, else free. Pure, so it takes the rows it judged.
+ */
+const decideAvailability = (
+    existing: readonly {
+        serviceId: string
+        serviceName: string
+        subdomain: string | null
+        basePath: string | null
+    }[],
+    basePath: string | null
+): SubdomainAvailabilityResult => {
+    const conflicts = existing.map((m) => ({
+        ...m,
+        fullUrl: computePlaceholderUrl(m.subdomain, m.basePath),
+    }))
+    const usedBasePaths = existing
+        .map((m) => m.basePath)
+        .filter((path): path is string => path !== null)
+
+    if (existing.some((m) => m.basePath === basePath))
+        return {
+            available: false,
+            conflicts,
+            suggestions: {
+                availableBasePaths: [],
+                message:
+                    'This exact URL is already in use. Please choose a different subdomain or base path.',
+            },
+        }
+    if (!basePath && existing.some((m) => !m.basePath))
+        return {
+            available: false,
+            conflicts,
+            suggestions: {
+                availableBasePaths: generateAvailableBasePaths(usedBasePaths),
+                message:
+                    'This subdomain is already used without a base path. Add a base path to differentiate your service.',
+            },
+        }
+    if (existing.length > 0)
+        return {
+            available: true,
+            conflicts,
+            suggestions: {
+                availableBasePaths: generateAvailableBasePaths(usedBasePaths),
+                message: `This subdomain is shared with ${String(existing.length)} other service(s) using different base paths.`,
+            },
+        }
+    return {
+        available: true,
+        conflicts: [],
+        suggestions: {
+            availableBasePaths: [],
+            message: 'This subdomain is available.',
+        },
+    }
+}
 
 /** Multi-level subdomains ('v2.staging.api') are validated label by label (DNS rules). Pure, so not part of the service's Effect shape. */
 export function validateSubdomain(
@@ -99,98 +157,44 @@ export function validateBasePath(basePath: string): BasePathValidationResult {
     return { valid: true }
 }
 
-function makeDomainConflictService({
-    mappings,
-}: Ports): DomainConflictServiceShape {
-    return {
-        checkSubdomainAvailability: (
-            projectDomainId,
-            subdomain,
-            basePath,
-            excludeServiceId
-        ) =>
-            mappings
-                .findByProjectDomainAndPathWithServiceNames(
-                    projectDomainId,
-                    subdomain,
-                    basePath,
-                    excludeServiceId
-                )
-                .pipe(
-                    Effect.map((existing): SubdomainAvailabilityResult => {
-                        const conflicts = existing.map((m) => ({
-                            ...m,
-                            fullUrl: computePlaceholderUrl(
-                                m.subdomain,
-                                m.basePath
-                            ),
-                        }))
-                        const usedBasePaths = existing
-                            .map((m) => m.basePath)
-                            .filter(Boolean) as string[]
-
-                        if (existing.some((m) => m.basePath === basePath)) {
-                            return {
-                                available: false,
-                                conflicts,
-                                suggestions: {
-                                    availableBasePaths: [],
-                                    message:
-                                        'This exact URL is already in use. Please choose a different subdomain or base path.',
-                                },
-                            }
-                        }
-                        if (!basePath && existing.some((m) => !m.basePath)) {
-                            return {
-                                available: false,
-                                conflicts,
-                                suggestions: {
-                                    availableBasePaths:
-                                        generateAvailableBasePaths(
-                                            usedBasePaths
-                                        ),
-                                    message:
-                                        'This subdomain is already used without a base path. Add a base path to differentiate your service.',
-                                },
-                            }
-                        }
-                        if (existing.length > 0) {
-                            return {
-                                available: true,
-                                conflicts,
-                                suggestions: {
-                                    availableBasePaths:
-                                        generateAvailableBasePaths(
-                                            usedBasePaths
-                                        ),
-                                    message: `This subdomain is shared with ${String(existing.length)} other service(s) using different base paths.`,
-                                },
-                            }
-                        }
-                        return {
-                            available: true,
-                            conflicts: [],
-                            suggestions: {
-                                availableBasePaths: [],
-                                message: 'This subdomain is available.',
-                            },
-                        }
-                    }),
-                    Effect.tapError((error) =>
-                        Effect.logError(
-                            `Subdomain availability check failed: ${error.message}`
-                        )
-                    )
-                ),
-    }
-}
-
+/**
+ * Tag and implementation together: the tag is the contract, `live` the one implementation.
+ *
+ * The availability decision reads the mapping table through its repository, yielded when the operation
+ * runs — the requirement channel says so, so a spec provides the repository and nothing else.
+ */
 export class DomainConflictService extends Context.Service<
     DomainConflictService,
-    Over<DomainConflictServiceShape, ServiceDomainMappingService>
+    DomainConflictServiceShape
 >()('shared/DomainConflictService') {
-    static readonly live = serviceOver(
-        Effect.all({ mappings: ServiceDomainMappingService }),
-        makeDomainConflictService
-    )
+    static readonly live = class DomainConflictServiceImpl
+        implements DomainConflictServiceShape
+    {
+        checkSubdomainAvailability(
+            projectDomainId: string,
+            subdomain: string | null,
+            basePath: string | null,
+            excludeServiceId?: string
+        ): ReturnType<
+            DomainConflictServiceShape['checkSubdomainAvailability']
+        > {
+            return Effect.gen(function* () {
+                const mappings = yield* ServiceDomainMappingRepository
+                const existing =
+                    yield* mappings.findByProjectDomainAndPathWithServiceNames(
+                        projectDomainId,
+                        subdomain,
+                        basePath,
+                        excludeServiceId
+                    )
+                return decideAvailability(existing, basePath)
+            }).pipe(
+                Effect.tapError((error) =>
+                    Effect.logError(
+                        `Subdomain availability check failed: ${error.message}`
+                    )
+                )
+            )
+        }
+    }
 }
