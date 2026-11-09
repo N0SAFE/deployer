@@ -116,7 +116,6 @@ class RemoteInitializationServiceImpl implements RemoteInitializationServiceShap
     ): Promise<{ nodeId: string; databaseUrl: string }> {
         const {
             nodeConfigRepository,
-            envService,
             swarmBootstrap,
             swarmCluster,
             host,

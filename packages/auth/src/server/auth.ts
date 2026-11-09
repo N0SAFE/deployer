@@ -24,6 +24,7 @@ import { passkeyCoordinates } from './plugins/securityPlugins'
 
 import type { MailSink } from '../mail'
 import type { StepUpSink } from './plugins/step-up'
+import type { AnyRelations } from 'drizzle-orm'
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
 
 /** The environment the factory reads. One named shape, shared by every helper. */
@@ -129,7 +130,7 @@ export interface BetterAuthFactoryResult {
  * concrete here - widening it to a homogeneous array erases every plugin method
  * from the browser client's type.
  */
-function buildAuthConfig<TSchema extends Record<string, unknown>>(
+function buildAuthConfig<TSchema extends AnyRelations>(
     database: NodePgDatabase<TSchema>,
     env: AuthFactoryEnv,
     { origins, isHttps, cookieDomain }: AuthConfigContext,
@@ -427,7 +428,7 @@ function authAuditHook(sink: AuthAuditSink) {
 }
 
 export const betterAuthFactory = <
-    TSchema extends Record<string, unknown> = Record<string, never>,
+    TSchema extends AnyRelations = AnyRelations,
 >(
     database: NodePgDatabase<TSchema>,
     env: AuthFactoryEnv,

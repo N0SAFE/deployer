@@ -1,4 +1,4 @@
-import { Cause, Effect, Layer } from 'effect'
+import { Effect, Layer } from 'effect'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 import { DockerEngine, PostgresProvisioner } from '@deployer/docker'

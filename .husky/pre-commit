@@ -23,7 +23,7 @@ PACKAGE_DIRS=$(printf '%s\n' "$STAGED" | while IFS= read -r file; do
     [ -f "$dir/package.json" ] && printf './%s\n' "${dir#./}"
 done | sort -u)
 
-echo "🔎 pre-commit: type-check for the staged packages, lint for the staged files (tests run on pre-push)"
+echo "🔎 pre-commit: type-check + tests for the staged packages, lint for the staged files"
 
 # ── SCOPE ───────────────────────────────────────────────────────────────────
 # The packages are resolved from the STAGED FILES (nearest package.json), not from turbo's `[HEAD]`: a staged root
@@ -32,9 +32,9 @@ echo "🔎 pre-commit: type-check for the staged packages, lint for the staged f
 #
 # type-check: the staged packages and, through turbo's dependency graph, the packages they import, because a change
 #   here can break a consumer that still compiles on its own.
-# NO TESTS HERE. A suite is minutes of work for a commit, and a commit is the unit people make most often: a gate that
-#   costs that much teaches everyone to bypass it. Tests run on pre-push (`check -- --affected`), where the cost is paid
-#   once per push instead of once per commit, and where web's e2e project (it needs a production build) is covered too.
+# test: the staged packages only. A dependency's suite is long, and it is the dependency's own commit that proves it.
+#   web is skipped because its `test` runs the e2e project too, which needs a production build; the pre-push gate
+#   runs the full check, compile included, so e2e is covered there.
 #
 # lint runs on the staged FILES, not the packages: `bun lint` exits non-zero on warnings, and the tree carries
 # pre-existing ones in files nobody touched (auth 42 warnings; ~1750 problems across the tree). A gate that is red
@@ -47,6 +47,11 @@ if [ -n "$PACKAGE_DIRS" ]; then
 
     for dir in $PACKAGE_DIRS; do
         bun --bun x turbo run type-check --continue --output-logs=errors-only --filter="...{${dir}}"
+    done
+
+    for dir in $PACKAGE_DIRS; do
+        [ "$dir" = "./apps/web" ] && continue
+        bun --bun x turbo run test --continue --output-logs=errors-only --filter="${dir}"
     done
 fi
 

@@ -16,7 +16,6 @@ const sharedRules: Partial<Linter.RulesRecord> = {
     '@typescript-eslint/explicit-function-return-type': 'off',
     '@typescript-eslint/explicit-module-boundary-types': 'off',
     '@typescript-eslint/no-extraneous-class': 'off',
-    '@typescript-eslint/no-explicit-any': 'off',
     '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     'no-unused-vars': 'off',
     // Off for Nest: constructor-injected classes must stay VALUE imports

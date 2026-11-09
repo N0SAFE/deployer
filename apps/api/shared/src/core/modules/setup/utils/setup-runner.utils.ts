@@ -56,7 +56,7 @@ export async function runStep<T>(
 ): Promise<T> {
     // Tell the UI about this step before it starts running, so it
     // can create a placeholder task immediately.
-    emit(tracker.stepDetailEvent(stepId, title, description || title))
+    emit(tracker.stepDetailEvent(stepId, title, description ?? title))
     tracker.start(stepId, title, description)
     emit(tracker.snapshot())
 
@@ -191,7 +191,7 @@ export function runStepEffect<A, E, R>(
 ): Effect.Effect<A, E, R> {
     return Effect.suspend(() => {
         // Tell the UI about this step before it starts running, so it can create a placeholder task.
-        emit(tracker.stepDetailEvent(stepId, title, description || title))
+        emit(tracker.stepDetailEvent(stepId, title, description ?? title))
         tracker.start(stepId, title, description)
         emit(tracker.snapshot())
 

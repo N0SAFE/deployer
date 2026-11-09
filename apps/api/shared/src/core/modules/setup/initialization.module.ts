@@ -1,9 +1,3 @@
-import {
-    DockerEngine,
-    PostgresProvisioner,
-    type DockerEngineShape,
-    type PostgresProvisionerShape,
-} from '@deployer/docker'
 import { AppLifecycle, type AppLifecycleShape } from '@deployer/lifecycle'
 import {
     createModuleContext,
@@ -16,10 +10,6 @@ import {
     NodeConfigRepository,
     type NodeConfigRepositoryShape,
 } from '@deployer/node-state'
-import {
-    SupervisorOrchestrator,
-    type SupervisorOrchestratorShape,
-} from '@deployer/supervision'
 import {
     SwarmBootstrap,
     SwarmCluster,

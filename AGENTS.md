@@ -35,8 +35,9 @@ This file defines how AI coding agents must operate in this repository. It exist
 - Scope with `--filter`, never run the whole repo for a local change: `bun x turbo run lint type-check test --filter=@deployer/<name>`.
 - Merge several tasks into ONE invocation (`turbo run lint type-check test --filter=…`) so Turbo schedules them in parallel and in dependency order; do not chain separate `turbo run` calls.
 - Multiple targets: repeat `--filter` (`--filter=@deployer/api-fleet --filter=@deployer/api-shared`); add `...` to include dependents (`--filter=...@deployer/<name>`) or `--affected` for everything changed.
+- **Never loop** (`for p in …; do turbo run … --filter=$p; done`, `xargs`, `&&` chains): one `turbo run` process per target defeats scheduling and re-pays Turbo's startup each time. Always ONE process with every target as a repeated `--filter`.
+- **Do not pass `--concurrency`** by default. Turbo's default parallelism is right and `--concurrency=1` serialises everything, which is much slower. The test workers are already capped by the vitest config. Only lower it after an actual out-of-memory failure, and then to `2` before `1`.
 - Pass test args after `--` (`turbo run test --filter=@deployer/<name> -- <file>`). Don't use `--force` or `--no-cache` unless diagnosing a cache problem.
-- **Never loop** (`for p in …; do turbo run … --filter=$p; done`, `xargs`, `&&` chains): one `turbo run` process per target defeats scheduling, shares no task graph, and re-pays Turbo's startup each time. Always ONE process with every target as a repeated `--filter`. If memory is the worry, keep the single process and cap it with `--concurrency=1` (or `=2`) instead of looping.
 - Package names come from each workspace's `package.json`; verify with `repo://packages` before guessing a filter.
 
 5) Documentation is mandatory
@@ -68,7 +69,7 @@ This file defines how AI coding agents must operate in this repository. It exist
 
 ### Git Hooks (`.husky/`, activated via `core.hooksPath`)
 
-- `pre-commit` — `type-check` for the staged packages (and what they import) and `lint` for the staged files. **No tests**: a suite is too much work for a commit, so tests run on pre-push. Skipped during rebase/merge. Bypass with `git commit --no-verify` only for WIP commits that never get pushed.
+- `pre-commit` — `turbo run lint type-check test --filter='[HEAD]'` on packages touched by staged changes. Skipped during rebase/merge. Bypass with `git commit --no-verify` only for WIP commits that never get pushed.
 - `pre-push` — `bun --bun run check -- --affected` (full compile → lint → test → type-check gate).
 - Enable once per clone: `git config core.hooksPath .husky` (the tracked root `.gitconfig` already sets it for clones that include it).
 
@@ -112,8 +113,8 @@ Both run Bun's built-in tools; no workspace invokes the ESLint or Prettier CLI.
 | `bun run format:check` | `bun fmt --check` in every workspace | no |
 
 - **Per workspace**: `bun run lint`, `bun run lint:fix`, `bun run lint:fix+`,
-  `bun run format`, `bun run format:check`. Turbo tasks are
-  `lint`, `lint:fix`, `lint:fix+`, `format`, `format:check`.
+  `bun run prettify`, `bun run format`, `bun run format:check`. Turbo tasks are
+  `lint`, `lint:fix`, `lint:fix+`, `prettify`, `format:check`.
 - **Lint policy** lives in each workspace's `eslint.config.ts`; the shared rules
   are in `tooling/eslint` (`@deployer/config-eslint`). `bunfig.toml` holds only
   repo-wide lint defaults (`allowUnsupported`, ignore patterns) — never a rule
