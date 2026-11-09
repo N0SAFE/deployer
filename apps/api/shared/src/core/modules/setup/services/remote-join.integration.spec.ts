@@ -9,7 +9,7 @@ import type { SwarmBootstrapShape, SwarmClusterShape } from '@deployer/swarm'
 
 import { DEPLOYER_VERSION } from '../../../utils/deployer-version'
 
-import { makeRemoteInitializationService } from './remote-initialization.service'
+import { RemoteInitializationService } from './remote-initialization.service'
 import { SetupStepTracker } from './setup-step-tracker'
 
 import type { EnvService } from '../../../../config/env/env.module'
@@ -210,7 +210,7 @@ function makeJoiner(
             key === 'APP_URL' ? 'https://joiner.example.com' : undefined,
     } as unknown as EnvService
 
-    const shape = makeRemoteInitializationService({
+    const shape = new RemoteInitializationService.live({
         host: {
             run: (effect) => Effect.runPromise(effect as never),
             // Mirrors `runPromiseUnwrapped`: reject with the ORIGINAL failure, not a wrapper, so a

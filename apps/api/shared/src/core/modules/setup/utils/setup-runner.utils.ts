@@ -1,6 +1,8 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { Cause, Effect } from 'effect'
+
 import type { SetupStepId } from '@deployer/contracts-entities'
 
 import { SetupStepTracker } from '../services/setup-step-tracker'
@@ -166,4 +168,53 @@ export function slugify(value: string): string {
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/^-+|-+$/g, '') || 'resource'
     )
+}
+
+/**
+ * `runStep` for an Effect body.
+ *
+ * Same detail/start/log/complete/fail dance, but the work is an Effect, so the body can `yield*`
+ * whatever the runtime provides and the failure keeps its typed error — the Promise version can only
+ * rethrow. `Effect.tapErrorCause` is what reports the failure to the tracker, so a defect is reported
+ * too, not just an `Effect.fail`.
+ */
+export function runStepEffect<A, E, R>(
+    tracker: SetupStepTracker,
+    emit: EmitEvent,
+    stepId: SetupStepId,
+    title: string,
+    body: (log: (line: string) => void) => Effect.Effect<A, E, R>,
+    description?: string
+): Effect.Effect<A, E, R> {
+    return Effect.suspend(() => {
+        // Tell the UI about this step before it starts running, so it can create a placeholder task.
+        emit(tracker.stepDetailEvent(stepId, title, description || title))
+        tracker.start(stepId, title, description)
+        emit(tracker.snapshot())
+
+        const stepLog = (line: string): void => {
+            tracker.log(stepId, line)
+            const event = tracker.logEvent(stepId, line)
+            if (event) emit(event)
+        }
+
+        return body(stepLog).pipe(
+            Effect.tap(() =>
+                Effect.sync(() => {
+                    tracker.complete(stepId)
+                    emit(tracker.snapshot())
+                })
+            ),
+            Effect.catchCause((cause) =>
+                Effect.sync(() => {
+                    const error = Cause.squash(cause)
+                    const message =
+                        error instanceof Error ? error.message : String(error)
+                    stepLog(`❌ ${message}`)
+                    tracker.fail(stepId, message)
+                    emit(tracker.snapshot())
+                }).pipe(Effect.andThen(Effect.failCause(cause)))
+            )
+        )
+    })
 }

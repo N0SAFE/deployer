@@ -63,7 +63,8 @@ export type RemoteInitializationServiceShape = {
     >
 }
 
-type Ports = {
+/** What the service is built from. */
+export type RemoteInitializationOptions = {
     readonly nodeConfigRepository: NodeConfigRepositoryShape
     readonly envService: EnvService
     /** Joins this node to the FLEET's swarm from the grant the fleet issued. */
@@ -81,20 +82,47 @@ type Ports = {
     readonly agentLink?: () => ClientLink<ClientContext> | undefined
 }
 
-export function makeRemoteInitializationService(
-    ports: Ports
-): RemoteInitializationServiceShape {
-    const { nodeConfigRepository, envService, swarmBootstrap, swarmCluster } =
-        ports
-    const { host } = ports
-    const nodeDoor = ports.nodeDoor ?? (() => nodeDoorFromEnv(envService))
-    const agentLink = ports.agentLink ?? (() => nodeAgentLink())
+/**
+ * The one implementation of `RemoteInitializationServiceShape`.
+ *
+ * A NAMED class: this package emits declarations, and TS4094 forbids private members on an
+ * anonymous exported class whose type is exported. Every collaborator is a constructor argument,
+ * and each method destructures `this` once so its body reads as the factory's did.
+ */
+class RemoteInitializationServiceImpl implements RemoteInitializationServiceShape {
+    private readonly nodeConfigRepository: NodeConfigRepositoryShape
+    private readonly envService: EnvService
+    private readonly swarmBootstrap: SwarmBootstrapShape
+    private readonly swarmCluster: SwarmClusterShape
+    private readonly host: EffectHostShape
+    private readonly nodeDoor: () => NodeDoorClient
+    private readonly agentLink: () => ClientLink<ClientContext> | undefined
 
-    async function initialize(
+    constructor(options: RemoteInitializationOptions) {
+        this.nodeConfigRepository = options.nodeConfigRepository
+        this.envService = options.envService
+        this.swarmBootstrap = options.swarmBootstrap
+        this.swarmCluster = options.swarmCluster
+        this.host = options.host
+        this.nodeDoor = options.nodeDoor ?? (() => nodeDoorFromEnv(options.envService))
+        this.agentLink = options.agentLink ?? (() => nodeAgentLink())
+    }
+
+    /** The join flow as plain async code; the public method lifts it into the typed Effect. */
+    private async initializeFlow(
         input: SetupInitializeRemoteInput,
         tracker: SetupStepTracker,
         emit: EmitEvent
     ): Promise<{ nodeId: string; databaseUrl: string }> {
+        const {
+            nodeConfigRepository,
+            envService,
+            swarmBootstrap,
+            swarmCluster,
+            host,
+            nodeDoor,
+            agentLink,
+        } = this
         let nodeId = ''
         let databaseUrl = ''
         /** The fleet's platform secret: this node adopts it instead of keeping one of its own. */
@@ -108,7 +136,7 @@ export function makeRemoteInitializationService(
 
         const agent = agentLink()
         const door = nodeDoor()
-        const serverUrl = resolveServerUrl() ?? input.serverUrl
+        const serverUrl = this.resolveServerUrl() ?? input.serverUrl
         /**
          * The token the agent handshake uses. `meshJoinToken` is the agent's own (the encoded one `roster.join`
          * accepts); `token` is the platform's grant. They are the same string on a node added from the fleet's UI, so the
@@ -383,7 +411,7 @@ export function makeRemoteInitializationService(
                 // The managers advertise MESH addresses, so the join can only succeed
                 // once a WireGuard link is up — wait for it rather than racing it.
                 if (meshJoined) {
-                    const linked = await waitForLink(door)
+                    const linked = await this.waitForLink(door)
                     stepLog(
                         linked
                             ? '✅ Mesh link established'
@@ -419,7 +447,7 @@ export function makeRemoteInitializationService(
      * Wait until the agent has completed a WireGuard handshake with some member — the moment Swarm can reach a manager's
      * mesh address. Returns false on timeout (the caller proceeds and lets Swarm's own join retry report the outcome).
      */
-    async function waitForLink(
+    private async waitForLink(
         door: NodeDoorClient,
         timeoutMs = 60_000,
         pollMs = 2_000
@@ -451,18 +479,18 @@ export function makeRemoteInitializationService(
      * A value for a key `EnvService` types as `string`, which an unset key still answers `undefined` for at runtime.
      * Reading through a method keeps the optional chain honest instead of a crash on `undefined.trim`.
      */
-    function optionalEnv(
+    private optionalEnv(
         key: 'APP_URL' | 'NEXT_PUBLIC_APP_URL'
     ): string | undefined {
-        return envService.get(key)
+        return this.envService.get(key)
     }
 
-    function resolveServerUrl(): string | null {
-        const appUrl = optionalEnv('APP_URL')?.trim() ?? ''
+    private resolveServerUrl(): string | null {
+        const appUrl = this.optionalEnv('APP_URL')?.trim() ?? ''
         const candidate =
             appUrl.length > 0
                 ? appUrl
-                : (optionalEnv('NEXT_PUBLIC_APP_URL')?.trim() ?? '')
+                : (this.optionalEnv('NEXT_PUBLIC_APP_URL')?.trim() ?? '')
         if (!candidate) {
             return null
         }
@@ -474,23 +502,30 @@ export function makeRemoteInitializationService(
         }
     }
 
-    return {
-        initialize: (input, tracker, emit) =>
-            Effect.tryPromise({
-                try: () => initialize(input, tracker, emit),
-                catch: (cause) =>
-                    new SetupInitializationFailed({
-                        reason:
-                            cause instanceof Error
-                                ? cause.message
-                                : String(cause),
-                        cause,
-                    }),
-            }),
+    initialize(
+        input: SetupInitializeRemoteInput,
+        tracker: SetupStepTracker,
+        emit: EmitEvent
+    ): Effect.Effect<
+        { nodeId: string; databaseUrl: string },
+        SetupInitializationFailed
+    > {
+        return Effect.tryPromise({
+            try: () => this.initializeFlow(input, tracker, emit),
+            catch: (cause) =>
+                new SetupInitializationFailed({
+                    reason:
+                        cause instanceof Error ? cause.message : String(cause),
+                    cause,
+                }),
+        })
     }
 }
 
 export class RemoteInitializationService extends Context.Service<
     RemoteInitializationService,
     RemoteInitializationServiceShape
->()('shared/RemoteInitializationService') {}
+>()('shared/RemoteInitializationService') {
+    /** The implementation: it owns every collaborator. */
+    static readonly live = RemoteInitializationServiceImpl
+}

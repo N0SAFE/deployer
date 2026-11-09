@@ -59,7 +59,6 @@ import {
     type LocalInitializationServiceShape,
 } from './services/local-initialization.service'
 import {
-    makeRemoteInitializationService,
     RemoteInitializationService,
     type RemoteInitializationServiceShape,
 } from './services/remote-initialization.service'
@@ -143,7 +142,7 @@ export class CoreInitializationModule extends createModuleContext({
                 swarmCluster: SwarmClusterShape,
                 host: EffectHostShape
             ) =>
-                makeRemoteInitializationService({
+                new RemoteInitializationService.live({
                     nodeConfigRepository,
                     envService,
                     swarmBootstrap,

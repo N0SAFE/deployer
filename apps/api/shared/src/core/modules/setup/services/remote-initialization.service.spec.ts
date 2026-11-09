@@ -5,7 +5,7 @@ import type { NodeDoorClient } from '@deployer/mesh-client'
 import type { NodeConfigRepositoryShape } from '@deployer/node-state'
 import type { SwarmBootstrapShape, SwarmClusterShape } from '@deployer/swarm'
 
-import { makeRemoteInitializationService } from './remote-initialization.service'
+import { RemoteInitializationService } from './remote-initialization.service'
 import { SetupStepTracker } from './setup-step-tracker'
 
 import type { EnvService } from '../../../../config/env/env.module'
@@ -18,7 +18,7 @@ function serviceWith(
     joinWithToken: (token: string) => Promise<unknown>,
     agent?: ClientLink<ClientContext>
 ) {
-    return makeRemoteInitializationService({
+    return new RemoteInitializationService.live({
         host: {
             run: (effect) => Effect.runPromise(effect as never),
             // Mirrors `runPromiseUnwrapped`: reject with the ORIGINAL failure, not a wrapper, so a
