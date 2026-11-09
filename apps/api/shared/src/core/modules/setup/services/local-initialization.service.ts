@@ -418,6 +418,10 @@ const ensureDatabaseEmpty: (
         // `information_schema.tables` is declared as a Drizzle table (`@deployer/nest-schema/global/
         // catalog`), so this is an ordinary `select().from().where()`: bound parameters, typed
         // columns, and no schema name interpolated into a string.
+        //
+        // `table_name` is typed nullable because PostgreSQL reports every `information_schema`
+        // column that way. The join is on it, so the `filter` is a type narrowing, and a null name
+        // cannot match `information_schema`'s own rows in the first place.
         const tables = yield* withPg(databaseUrl, (sqlClient) =>
             Effect.flatMap(effectDatabase(sqlClient), (db) =>
                 db
@@ -438,7 +442,11 @@ const ensureDatabaseEmpty: (
                                     cause,
                                 })
                         ),
-                        Effect.map((rows) => rows.map((row) => row.tableName))
+                        Effect.map((rows) =>
+                            rows
+                                .map((row) => row.tableName)
+                                .filter((name) => name !== null)
+                        )
                     )
             )
         )

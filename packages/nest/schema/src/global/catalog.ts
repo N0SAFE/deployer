@@ -20,10 +20,17 @@ const informationSchema = pgSchema('information_schema')
 /**
  * One row per table or view the server knows about, restricted by `table_schema` / `table_type`.
  * Only the columns this platform filters or projects on are declared; the view has more.
+ *
+ * WHY NOTHING IS `.notNull()`
+ * These are VIEWS over `pg_catalog`, and it shows: verified against PostgreSQL 16, every column of
+ * `information_schema.tables` reports `is_nullable = YES`. A row surfaces only for an object the
+ * current role may see, and the standard leaves enforcement to the server, so the type must admit
+ * null rather than assert otherwise. Filtering with `where(...)` narrows what a caller gets, but it
+ * does not let this schema claim a guarantee PostgreSQL never made.
  */
 export const catalogTables = informationSchema.table('tables', {
-    tableCatalog: varchar('table_catalog').notNull(),
-    tableSchema: varchar('table_schema').notNull(),
-    tableName: varchar('table_name').notNull(),
-    tableType: varchar('table_type').notNull(),
+    tableCatalog: varchar('table_catalog'),
+    tableSchema: varchar('table_schema'),
+    tableName: varchar('table_name'),
+    tableType: varchar('table_type'),
 })
