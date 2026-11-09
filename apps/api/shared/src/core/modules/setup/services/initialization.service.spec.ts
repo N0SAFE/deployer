@@ -22,6 +22,11 @@ describe('InitializationService', () => {
             } as unknown as NodeConfigRepositoryShape,
             localInitializationService: { initialize: vi.fn() },
             remoteInitializationService: { initialize: vi.fn() },
+            // The flows are mocked with no requirements, so the bare runtime is enough here.
+            host: {
+                runUnwrapped: (effect: Effect.Effect<unknown, unknown>) =>
+                    Effect.runPromise(effect),
+            } as never,
             setupEventService: {
                 emit: vi.fn(),
                 observeProgress$: vi.fn(),

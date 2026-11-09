@@ -1,4 +1,3 @@
-import type { EffectHostShape } from '@deployer/nest-effect'
 import { Context, Effect } from 'effect'
 import z from 'zod/v4'
 
@@ -17,6 +16,7 @@ import {
     serviceLink,
     type NodeDoorClient,
 } from '@deployer/mesh-client'
+import type { EffectHostShape } from '@deployer/nest-effect'
 import type { NodeConfigRepositoryShape } from '@deployer/node-state'
 import type { SwarmBootstrapShape, SwarmClusterShape } from '@deployer/swarm'
 

@@ -1,22 +1,35 @@
-import { Cause, Effect } from 'effect'
+import { Cause, Effect, Layer } from 'effect'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
-import type { PostgresProvisionerShape } from '@deployer/docker'
+import { DockerEngine, PostgresProvisioner } from '@deployer/docker'
 import type { DockerEngineShape } from '@deployer/docker'
+import type { SetupInitializeLocalInput } from '@deployer/contracts-entities'
+import type { PostgresProvisionerShape } from '@deployer/docker'
 import { runPromiseUnwrapped } from '@deployer/effect-core'
+import { NodeConfigRepository } from '@deployer/node-state'
 import type { NodeConfigRepositoryShape } from '@deployer/node-state'
+import { SupervisorOrchestrator } from '@deployer/supervision'
 import type { SupervisorOrchestratorShape } from '@deployer/supervision'
+import {
+    SwarmBootstrap,
+    SwarmCluster,
+    SwarmParticipation,
+    type SwarmParticipationShape,
+} from '@deployer/swarm'
 import type { SwarmBootstrapShape } from '@deployer/swarm'
 import type { SwarmClusterShape } from '@deployer/swarm'
 
 import { SetupStepTracker } from '../utils/setup-runner.utils'
 
 import {
-    makeLocalInitializationService,
+    LocalInitializationService,
     type LocalInitializationSteps,
 } from './local-initialization.service'
 
-import type { EnvService } from '../../../../config/env/env.module'
+import {
+    ApiEnvironment,
+    type EnvService,
+} from '../../../../config/env/env.module'
 import type { EmitEvent } from '../utils/setup-runner.utils'
 
 /**
@@ -61,65 +74,94 @@ function makeMocks() {
     }
 }
 
+/**
+ * Builds the service and a runner that provides everything `initialize` yields.
+ *
+ * The real module registers each of these under its Effect key; the spec does the same in one
+ * `Layer`, which is what lets the flow yield them exactly as it does in production.
+ */
 function makeService(
     mocks: ReturnType<typeof makeMocks>,
     steps: Partial<LocalInitializationSteps> = {}
 ) {
-    return makeLocalInitializationService({
-        // The real host runs on the app runtime; here the fake bootstrap yields nothing, so the bare
-        // runtime is enough to observe the flow.
-        host: {
-            run: (effect) => Effect.runPromise(effect as never),
-            // Mirrors `runPromiseUnwrapped`: reject with the ORIGINAL failure, not a wrapper, so a
-            // spec can assert on the typed error the step produced.
-            runUnwrapped: async (effect) => {
-                const exit = await Effect.runPromiseExit(effect as never)
-                if (exit._tag === 'Failure') throw Cause.squash(exit.cause)
-                return exit.value
-            },
-        } as never,
-        postgresProvisioner: mocks.postgresProvisioner,
-        dockerEngine: mocks.dockerService,
-        env: mocks.env,
-        nodeConfigRepository: mocks.nodeConfigRepository,
-        // The flow founds the swarm before provisioning (a locally-managed
-        // Postgres is a swarm service). These specs exercise the marker
-        // persistence, not convergence, so a silent no-op + inactive snapshot
-        // keeps them deterministic.
-        swarmBootstrap: {
-            converge: vi.fn(() => Effect.void),
-        } as unknown as SwarmBootstrapShape,
-        // "active" is REQUIRED for the local path: the swarm step correctly
-        // throws when the cluster never comes up, because a locally-managed
-        // Postgres is a swarm service that cannot be provisioned otherwise.
-        swarmCluster: {
-            getLocalClusterSnapshot: vi.fn(
-                () =>
-                    Effect.succeed({
-                        localNodeState: 'active',
-                        nodeCount: 1,
-                        managerCount: 1,
-                        localNode: { swarmRole: 'manager' },
-                        master: { nodeId: 'self' },
-                    }) as never
-            ),
-        } as unknown as SwarmClusterShape,
-        // On-demand convergence of the app-wiring supervisor, called right
-        // before the DSN is used so the overlay attach is not left to the
-        // supervisor's 30s cadence. These specs assert marker persistence, not
-        // network wiring, so a resolved no-op keeps them deterministic.
-        supervisors: {
-            convergeNow: vi.fn(() => Effect.succeed(null)),
-        } as unknown as SupervisorOrchestratorShape,
+    return makeServiceWith(
+        {
+            postgresProvisioner: mocks.postgresProvisioner,
+            dockerEngine: mocks.dockerService,
+            env: mocks.env,
+            nodeConfigRepository: mocks.nodeConfigRepository,
+            // The flow founds the swarm before provisioning (a locally-managed Postgres is a swarm
+            // service). These specs exercise marker persistence, not convergence, so a silent no-op +
+            // inactive snapshot keeps them deterministic.
+            swarmBootstrap: {
+                converge: vi.fn(() => Effect.void),
+            } as unknown as SwarmBootstrapShape,
+            // "active" is REQUIRED for the local path: the swarm step correctly throws when the cluster
+            // never comes up, because a locally-managed Postgres is a swarm service.
+            swarmCluster: {
+                getLocalClusterSnapshot: vi.fn(
+                    () =>
+                        Effect.succeed({
+                            localNodeState: 'active',
+                            nodeCount: 1,
+                            managerCount: 1,
+                            localNode: { swarmRole: 'manager' },
+                            master: { nodeId: 'self' },
+                        }) as never
+                ),
+            } as unknown as SwarmClusterShape,
+            // On-demand convergence of the app-wiring supervisor, called right before the DSN is used.
+            supervisors: {
+                convergeNow: vi.fn(() => Effect.succeed(null)),
+            } as unknown as SupervisorOrchestratorShape,
+        },
         // Short-circuit the DB-heavy steps. The provision step sets the URL; the migrate/seed steps must be no-ops for a
         // deterministic run.
-        steps: {
-            ensureDatabaseEmpty: () => Promise.resolve([]),
-            runMigrations: () => Promise.resolve(),
-            seedInitialData: () => Promise.resolve({ userId: 'u1' }),
+        {
+            ensureDatabaseEmpty: () => Effect.succeed([]),
+            runMigrations: () => Effect.void,
+            seedInitialData: () => Effect.succeed({ userId: 'u1' }),
             ...steps,
-        },
-    })
+        }
+    )
+}
+
+/** The services `initialize` yields, provided as the module would provide them. */
+type Provided = {
+    readonly postgresProvisioner: PostgresProvisionerShape
+    readonly dockerEngine: DockerEngineShape
+    readonly env: EnvService
+    readonly nodeConfigRepository: NodeConfigRepositoryShape
+    readonly swarmBootstrap: SwarmBootstrapShape
+    readonly swarmCluster: SwarmClusterShape
+    readonly supervisors: SupervisorOrchestratorShape
+}
+
+function makeServiceWith(services: Provided, steps: Partial<LocalInitializationSteps>) {
+    const impl = new LocalInitializationService.live({ steps })
+    const layer = Layer.mergeAll(
+        Layer.succeed(PostgresProvisioner, services.postgresProvisioner),
+        Layer.succeed(DockerEngine, services.dockerEngine),
+        Layer.succeed(ApiEnvironment, services.env as never),
+        Layer.succeed(NodeConfigRepository, services.nodeConfigRepository),
+        Layer.succeed(SwarmBootstrap, services.swarmBootstrap),
+        Layer.succeed(
+            SwarmParticipation,
+            {} as unknown as SwarmParticipationShape
+        ),
+        Layer.succeed(SwarmCluster, services.swarmCluster),
+        Layer.succeed(SupervisorOrchestrator, services.supervisors)
+    )
+    return {
+        initialize: (
+            input: SetupInitializeLocalInput,
+            tracker: SetupStepTracker,
+            emit: EmitEvent
+        ) =>
+            impl
+                .initialize(input, tracker, emit)
+                .pipe(Effect.provide(layer), Effect.scoped),
+    }
 }
 
 const noopEmit: EmitEvent = () => undefined
@@ -136,7 +178,7 @@ describe('LocalInitializationService — databaseProvisioning marker', () => {
         const mocks = makeMocks()
         // No existingDatabaseUrl → provisionDockerDatabase path (locally managed).
         const service = makeService(mocks, {
-            provisionDockerDatabase: () => Promise.resolve(LOCAL_URL),
+            provisionDockerDatabase: () => Effect.succeed(LOCAL_URL),
         })
 
         await Effect.runPromise(
@@ -165,7 +207,7 @@ describe('LocalInitializationService — databaseProvisioning marker', () => {
         const mocks = makeMocks()
         // existingDatabaseUrl → probeExistingDatabase path (externally managed).
         const service = makeService(mocks, {
-            probeExistingDatabase: () => Promise.resolve(EXTERNAL_URL),
+            probeExistingDatabase: () => Effect.succeed(EXTERNAL_URL),
         })
 
         await Effect.runPromise(
@@ -210,10 +252,10 @@ describe('LocalInitializationService — databaseProvisioning marker', () => {
 
         const probeSpy = vi.fn(
             (_url: string, _log: (message: string) => void) =>
-                Promise.resolve(EXTERNAL_URL)
+                Effect.succeed(EXTERNAL_URL)
         )
         const provisionSpy = vi.fn(() =>
-            Promise.reject(
+            Effect.fail(
                 new Error(
                     'must not provision a container when a DB is provided'
                 )
@@ -307,17 +349,8 @@ function makeMatrixService(options: {
                   ? 'deployer'
                   : flags[key],
     } as unknown as EnvService
-    const service = makeLocalInitializationService({
-        host: {
-            run: (effect) => Effect.runPromise(effect as never),
-            // Mirrors `runPromiseUnwrapped`: reject with the ORIGINAL failure, not a wrapper, so a
-            // spec can assert on the typed error the step produced.
-            runUnwrapped: async (effect) => {
-                const exit = await Effect.runPromiseExit(effect as never)
-                if (exit._tag === 'Failure') throw Cause.squash(exit.cause)
-                return exit.value
-            },
-        } as never,
+    const service = makeServiceWith(
+        {
         postgresProvisioner: {
             ensure: vi.fn(() => Effect.succeed({ name: 'pg' })),
         } as unknown as PostgresProvisionerShape,
@@ -342,29 +375,30 @@ function makeMatrixService(options: {
         supervisors: {
             convergeNow: () => Effect.succeed(null),
         } as unknown as SupervisorOrchestratorShape,
+        },
         // The DB-heavy steps are the factory's overridable ports: each records its place on the timeline.
-        steps: {
+        {
             provisionDockerDatabase: () => (
                 timeline.push('database:provision'),
-                Promise.resolve(LOCAL_URL)
+                Effect.succeed(LOCAL_URL)
             ),
             probeExistingDatabase: () => (
                 timeline.push('database:probe'),
-                Promise.resolve(EXTERNAL_URL)
+                Effect.succeed(EXTERNAL_URL)
             ),
-            ensureDatabaseEmpty: () => Promise.resolve([]),
+            ensureDatabaseEmpty: () => Effect.succeed([]),
             runMigrations: () => (
                 timeline.push('database:migrate'),
                 options.migrationsFail === true
-                    ? Promise.reject(new Error('migration failed'))
-                    : Promise.resolve()
+                    ? Effect.fail(new Error('migration failed'))
+                    : Effect.void
             ),
             seedInitialData: () => (
                 timeline.push('database:seed'),
-                Promise.resolve({ userId: 'u1' })
+                Effect.succeed({ userId: 'u1' })
             ),
-        },
-    })
+        }
+    )
     return { service, timeline, rows }
 }
 

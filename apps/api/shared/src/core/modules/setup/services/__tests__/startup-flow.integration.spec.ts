@@ -141,6 +141,11 @@ describe('Startup Flow Integration', { timeout: 30_000 }, () => {
 
         const real = makeInitializationService({
             nodeConfigRepository: mockNodeConfigRepo as never,
+            // The flows are mocked with no requirements, so the bare runtime is enough here.
+            host: {
+                runUnwrapped: (effect: Effect.Effect<unknown, unknown>) =>
+                    Effect.runPromise(effect),
+            } as never,
             // The flows are mocked as Promises (they are async work); the service sees them as Effects.
             localInitializationService: {
                 initialize: (...args: unknown[]) =>

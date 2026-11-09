@@ -1,4 +1,5 @@
 import { ConfigService } from '@nestjs/config'
+import { Context } from 'effect'
 
 import { runSyncUnwrapped } from '@deployer/effect-core'
 import { apiEnvSchema, type ApiEnv } from '@deployer/env'
@@ -14,10 +15,24 @@ import { makeEnvironment, type EnvironmentShape } from '@deployer/environment'
  * Nest provides the shape under this token directly (`apiEnvironmentProvider`), there is no wrapper.
  */
 // The tag and its shape are one name on purpose (Nest provides the shape under this token); the empty class is
-// the token, and the interface is the merged type. `eslint-disable` names why the merge is intended.
-// eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging
+// the token, and the interface is the merged type. Both rules fire on that intentional merge, and both are
+// disabled HERE rather than globally so the rest of the workspace keeps them.
+/* eslint-disable @typescript-eslint/no-empty-object-type, @typescript-eslint/no-unsafe-declaration-merging */
 export abstract class EnvService {}
 export interface EnvService extends EnvironmentShape<ApiEnv> {}
+/* eslint-enable @typescript-eslint/no-empty-object-type, @typescript-eslint/no-unsafe-declaration-merging */
+
+/**
+ * The Effect key for the SAME instance.
+ *
+ * `EnvService` is a constructor-token abstract class, which Effect cannot `yield*`. This key is
+ * bound to the identical object by `apiEnvironmentProvider`, so Effect code reaches the environment
+ * through the container (`yield* ApiEnvironment`) instead of taking it as a constructor argument.
+ */
+export class ApiEnvironment extends Context.Service<
+    ApiEnvironment,
+    EnvironmentShape<ApiEnv>
+>()('api/ApiEnvironment') {}
 
 /** The `ConfigModule` has merged the `.env` files into its store; the schema validates what it reads. */
 export const apiEnvironmentProvider = {
@@ -30,4 +45,11 @@ export const apiEnvironmentProvider = {
             })
         ),
     inject: [ConfigService],
+}
+
+/** Same instance, Effect key — what `collectEffectLayer` picks up for `yield* ApiEnvironment`. */
+export const apiEnvironmentEffectProvider = {
+    provide: ApiEnvironment,
+    useFactory: (env: EnvService): EnvService => env,
+    inject: [EnvService],
 }

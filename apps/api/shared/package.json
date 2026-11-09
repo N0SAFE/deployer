@@ -42,6 +42,7 @@
         "test:coverage": "bun --bun vitest run --coverage"
     },
     "dependencies": {
+        "@effect/sql-pg": "catalog:database",
         "@deployer/auth": "*",
         "@deployer/bff-contracts": "*",
         "@deployer/contracts-common": "*",

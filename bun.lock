@@ -453,6 +453,7 @@
         "@deployer/swarm": "*",
         "@deployer/system-metrics": "*",
         "@deployer/type-guards": "*",
+        "@effect/sql-pg": "catalog:database",
         "@nestjs/common": "catalog:api:nest",
         "@nestjs/config": "catalog:api:nest",
         "@nestjs/core": "catalog:api:nest",
@@ -1071,6 +1072,7 @@
       "version": "1.0.0",
       "dependencies": {
         "@deployer/effect-core": "*",
+        "@effect/sql-pg": "catalog:database",
         "drizzle-orm": "catalog:database",
         "effect": "catalog:effect",
       },
@@ -2683,6 +2685,8 @@
     "@drizzle-team/brocli": ["@drizzle-team/brocli@0.10.2", "", {}, "sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w=="],
 
     "@dual-bundle/import-meta-resolve": ["@dual-bundle/import-meta-resolve@4.2.1", "", {}, "sha512-id+7YRUgoUX6CgV0DtuhirQWodeeA7Lf4i2x71JS/vtA5pRb/hIGWlw+G6MeXvsM+MXrz0VAydTGElX1rAfgPg=="],
+
+    "@effect/sql-pg": ["@effect/sql-pg@4.0.6", "", { "peerDependencies": { "effect": "^4.0.6" } }, "sha512-mh2Z+Hi1/AWtkoGuzub2PPCHN7ZsMAbY8dlv/YbdJ6PoXVdrVAGsr+FeeoeD6f0rdnln4DQm7PvFjv1htAjY9w=="],
 
     "@emnapi/core": ["@emnapi/core@1.11.2", "", { "dependencies": { "@emnapi/wasi-threads": "1.2.2", "tslib": "^2.4.0" } }, "sha512-TC8MkTuZUtcTSiFeuC0ksCh9QIJ5+F21MvZ4Wn4ORfYaFJ/0dsiudv5tVkejgwZlwQ39jL9WWDe2lz8x0WglOA=="],
 

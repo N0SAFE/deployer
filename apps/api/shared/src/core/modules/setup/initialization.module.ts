@@ -55,7 +55,6 @@ import {
 } from './services/initialization.service'
 import {
     LocalInitializationService,
-    makeLocalInitializationService,
     type LocalInitializationServiceShape,
 } from './services/local-initialization.service'
 import {
@@ -101,37 +100,10 @@ export class CoreInitializationModule extends createModuleContext({
     ],
     providers: [
         {
+            // Every collaborator is yielded per run (see `LocalInitializationPorts`), so the service
+            // itself is a constant: only the step overrides would be per-instance config.
             provide: LocalInitializationService,
-            useFactory: (
-                postgresProvisioner: PostgresProvisionerShape,
-                dockerEngine: DockerEngineShape,
-                env: EnvService,
-                nodeConfigRepository: NodeConfigRepositoryShape,
-                swarmBootstrap: SwarmBootstrapShape,
-                swarmCluster: SwarmClusterShape,
-                supervisors: SupervisorOrchestratorShape,
-                host: EffectHostShape
-            ) =>
-                makeLocalInitializationService({
-                    postgresProvisioner,
-                    dockerEngine,
-                    env,
-                    nodeConfigRepository,
-                    swarmBootstrap,
-                    swarmCluster,
-                    supervisors,
-                    host,
-                }),
-            inject: [
-                PostgresProvisioner,
-                DockerEngine,
-                EnvService,
-                NodeConfigRepository,
-                SwarmBootstrap,
-                SwarmCluster,
-                SupervisorOrchestrator,
-                EffectHost,
-            ],
+            useFactory: () => new LocalInitializationService.live(),
         },
         {
             provide: RemoteInitializationService,
@@ -164,7 +136,8 @@ export class CoreInitializationModule extends createModuleContext({
                 localInitializationService: LocalInitializationServiceShape,
                 remoteInitializationService: RemoteInitializationServiceShape,
                 setupEventService: SetupEventService,
-                lifecycle: AppLifecycleShape
+                lifecycle: AppLifecycleShape,
+                host: EffectHostShape
             ) =>
                 makeInitializationService({
                     nodeConfigRepository,
@@ -172,6 +145,7 @@ export class CoreInitializationModule extends createModuleContext({
                     remoteInitializationService,
                     setupEventService,
                     lifecycle,
+                    host,
                 }),
             inject: [
                 NodeConfigRepository,
@@ -179,6 +153,7 @@ export class CoreInitializationModule extends createModuleContext({
                 RemoteInitializationService,
                 SetupEventService,
                 AppLifecycle,
+                EffectHost,
             ],
         },
         serviceLifecycle(InitializationService),

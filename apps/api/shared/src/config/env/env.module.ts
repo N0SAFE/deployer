@@ -6,11 +6,15 @@ import { ConfigModule } from '@nestjs/config'
 import { apiEnvSchema } from '@deployer/env'
 import { createModuleContext } from '@deployer/nest-effect'
 
-import { apiEnvironmentProvider, EnvService } from './env.service'
+import {
+    apiEnvironmentEffectProvider,
+    apiEnvironmentProvider,
+    EnvService,
+} from './env.service'
 
 // Re-exported so `@/config/env/env.module` is the ONE import path for both the
 // module and its service, matching how consumers already write it.
-export { EnvService }
+export { ApiEnvironment, EnvService } from './env.service'
 
 /**
  * The API's environment module.
@@ -35,6 +39,6 @@ export class EnvModule extends createModuleContext({
             cache: true,
         }),
     ],
-    providers: [apiEnvironmentProvider],
-    exports: [EnvService, ConfigModule],
+    providers: [apiEnvironmentProvider, apiEnvironmentEffectProvider],
+    exports: [EnvService, apiEnvironmentEffectProvider, ConfigModule],
 }) {}

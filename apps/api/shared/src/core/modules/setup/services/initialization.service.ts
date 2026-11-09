@@ -24,7 +24,10 @@ import {
     stripBrackets,
 } from '@deployer/effect-infra'
 import type { AppLifecycleShape } from '@deployer/lifecycle'
-import type { ServiceLifecycleShape } from '@deployer/nest-effect'
+import type {
+    EffectHostShape,
+    ServiceLifecycleShape,
+} from '@deployer/nest-effect'
 import type {
     NodeConfigRepositoryShape,
     NodeConfigRow,
@@ -192,6 +195,12 @@ type Ports = {
         AppLifecycleShape,
         'markDatabaseProbeNow' | 'markMeshConnectedNow' | 'markReadyNow'
     >
+    /**
+     * The app runtime, for the flows that YIELD their collaborators. `runPromiseUnwrapped` runs on a
+     * throwaway context, so it cannot supply the ports — the app runtime's own context is the one
+     * place that holds what the module registered.
+     */
+    readonly host: EffectHostShape
 }
 
 /** How often to prove the socket is alive while provisioning is quiet. */
@@ -208,6 +217,7 @@ export function makeInitializationService(
         remoteInitializationService,
         setupEventService,
         lifecycle,
+        host,
     } = ports
     const logger = new Logger('InitializationService')
     const completedSubject = new ReplaySubject<SetupCompletionStatus>(1)
@@ -532,7 +542,7 @@ export function makeInitializationService(
         tracker: SetupStepTracker,
         emit: EmitEvent
     ): Promise<{ nodeId: string; databaseUrl: string }> {
-        return await runPromiseUnwrapped(
+        return await host.runUnwrapped(
             localInitializationService.initialize(input, tracker, emit)
         )
     }

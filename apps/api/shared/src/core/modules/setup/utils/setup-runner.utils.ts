@@ -178,12 +178,15 @@ export function slugify(value: string): string {
  * rethrow. `Effect.tapErrorCause` is what reports the failure to the tracker, so a defect is reported
  * too, not just an `Effect.fail`.
  */
+/** A step's log line, as an Effect so a body can `yield*` it like any other effectful call. */
+export type StepLog = (message: string) => Effect.Effect<void>
+
 export function runStepEffect<A, E, R>(
     tracker: SetupStepTracker,
     emit: EmitEvent,
     stepId: SetupStepId,
     title: string,
-    body: (log: (line: string) => void) => Effect.Effect<A, E, R>,
+    body: (log: StepLog) => Effect.Effect<A, E, R>,
     description?: string
 ): Effect.Effect<A, E, R> {
     return Effect.suspend(() => {
@@ -192,11 +195,12 @@ export function runStepEffect<A, E, R>(
         tracker.start(stepId, title, description)
         emit(tracker.snapshot())
 
-        const stepLog = (line: string): void => {
+        const record = (line: string): void => {
             tracker.log(stepId, line)
             const event = tracker.logEvent(stepId, line)
             if (event) emit(event)
         }
+        const stepLog: StepLog = (line) => Effect.sync(() => { record(line); })
 
         return body(stepLog).pipe(
             Effect.tap(() =>
@@ -210,7 +214,7 @@ export function runStepEffect<A, E, R>(
                     const error = Cause.squash(cause)
                     const message =
                         error instanceof Error ? error.message : String(error)
-                    stepLog(`❌ ${message}`)
+                    record(`❌ ${message}`)
                     tracker.fail(stepId, message)
                     emit(tracker.snapshot())
                 }).pipe(Effect.andThen(Effect.failCause(cause)))

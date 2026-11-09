@@ -1,27 +1,25 @@
-import type { EffectHostShape } from '@deployer/nest-effect'
 import { randomUUID } from 'node:crypto'
 
-import { Logger } from '@nestjs/common'
-import { eq, defineRelations } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/node-postgres'
-import { migrate } from 'drizzle-orm/node-postgres/migrator'
-import { Context, Effect } from 'effect'
+import { eq } from 'drizzle-orm'
+import * as PgDrizzle from 'drizzle-orm/effect-postgres'
+import { migrate } from 'drizzle-orm/effect-postgres/migrator'
+import { drizzle as drizzleNodePg } from 'drizzle-orm/node-postgres'
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres'
+import { layer as pgClientLayer, PgClient as PgClientTag } from '@effect/sql-pg/PgClient'
+import type { PgClient } from '@effect/sql-pg/PgClient'
+import {
+    Clock,
+    Config,
+    Context,
+    Data,
+    DateTime,
+    Effect,
+    Layer,
+    Option,
+    Ref,
+    Schedule,
+} from 'effect'
 import { Pool } from 'pg'
-
-// ── WHY THE PACKAGE CONSTANT AND NOT A RELATIVE PATH ───────────────────────
-// This used to be `new URL("../../../../config/drizzle/global/migrations",
-// import.meta.url)` — five `../` counted from THIS file's location. When
-// `src/config` was relocated under `shared/`, the count stopped reaching a real
-// directory, so the migrator was handed a path that does not exist:
-//
-//   ▸ Migration folder: /app/apps/api/shared/src/config/drizzle/global/migrations
-//   ▸ Found 0 migration file(s):
-//   ❌ Can't find meta/_journal.json file
-//
-// Note the failure shape: it reports "Found 0" and then dies inside drizzle,
-// which reads like a missing journal rather than "this directory is not there".
-// `GLOBAL_MIGRATIONS_DIR` is resolved by the schema package itself, which owns
-// the migrations, so the path cannot drift when a caller moves.
 
 import { provisionUserAccount } from '@deployer/auth/server'
 import type { SetupInitializeLocalInput } from '@deployer/contracts-entities'
@@ -30,23 +28,35 @@ import {
     MANAGED_POSTGRES_PORT,
     MANAGED_POSTGRES_VOLUME_NAME,
     managedPostgresServiceName,
+    platformNetworkName,
 } from '@deployer/docker'
-import { platformNetworkName } from '@deployer/docker'
 import type {
     DockerEngineShape,
     PostgresProvisionerShape,
 } from '@deployer/docker'
-import { runPromiseUnwrapped } from '@deployer/effect-core'
 import { splitManagedEnv } from '@deployer/env'
 import { AppError, ConflictError } from '@deployer/errors'
 import { GLOBAL_MIGRATIONS_DIR } from '@deployer/nest-schema'
 import * as globalSchema from '@deployer/nest-schema/global'
+import { globalRelations } from '../../database/global/global-database.service'
+import type { Logger as DrizzleLogger } from 'drizzle-orm/logger'
 import { user } from '@deployer/nest-schema/global/identity/auth'
-import type { NodeConfigRepositoryShape } from '@deployer/node-state'
-import type { SupervisorOrchestratorShape } from '@deployer/supervision'
-import type { SwarmBootstrapShape, SwarmClusterShape } from '@deployer/swarm'
+import {
+    NodeConfigRepository,
+} from '@deployer/node-state'
+import {
+    SupervisorOrchestrator,
+} from '@deployer/supervision'
+import {
+    SwarmBootstrap,
+    SwarmCluster,
+    SwarmParticipation,
+} from '@deployer/swarm'
 
-import { createBetterAuth, provisioningSecret } from '../../../../config/auth/auth'
+import {
+    createBetterAuth,
+    provisioningSecret,
+} from '../../../../config/auth/auth'
 import { DEPLOYER_VERSION } from '../../../utils/deployer-version'
 import { resolvePostgresIdentity } from '../../docker/containers/postgres/postgres-identity'
 import { SWARM_APP_WIRING_SUPERVISOR_ID } from '../../supervisors/platform/swarm-app-wiring.supervisor'
@@ -55,37 +65,86 @@ import {
     SetupStepTracker,
     listMigrationNames,
     redactUrl,
-    runStep,
+    runStepEffect as runStep,
     type EmitEvent,
 } from '../utils/setup-runner.utils'
 
-import type { EnvService } from '../../../../config/env/env.module'
-import type { Logger as DrizzleLogger } from 'drizzle-orm/logger'
+import { ApiEnvironment, EnvService } from '../../../../config/env/env.module'
+import * as Redacted from 'effect/Redacted'
+import type { SqlError } from 'effect/sql/SqlError'
+import { DockerEngine, PostgresProvisioner } from '@deployer/docker'
+
+// ── WHY THE PACKAGE CONSTANT AND NOT A RELATIVE PATH ───────────────────────
+// `GLOBAL_MIGRATIONS_DIR` is resolved by the schema package that owns the
+// migrations, so the path cannot drift when a caller moves (a relative
+// `../../../..` count once pointed at a directory that no longer existed and
+// surfaced as a misleading "Can't find meta/_journal.json").
+
+// ─── Errors ──────────────────────────────────────────────────────────────────
+
+/** A pg / drizzle call failed (probe, query, CREATE DATABASE, migrate…). */
+export class PostgresOperationError extends Data.TaggedError(
+    'PostgresOperationError'
+)<{
+    readonly operation: string
+    readonly message: string
+    readonly cause: unknown
+}> {}
+
+/** Postgres never accepted a connection within the retry budget. */
+export class PostgresNotReadyError extends Data.TaggedError(
+    'PostgresNotReadyError'
+)<{
+    readonly attempts: number
+    readonly message: string
+    readonly cause: unknown
+}> {}
+
+/** Reading the migration folder failed. */
+export class MigrationFolderError extends Data.TaggedError(
+    'MigrationFolderError'
+)<{
+    readonly folder: string
+    readonly message: string
+    readonly cause: unknown
+}> {}
+
+/** Seeding the initial admin failed. */
+export class SeedFailedError extends Data.TaggedError('SeedFailedError')<{
+    readonly stage: string
+    readonly message: string
+    readonly cause: unknown
+}> {}
+
+const messageOf = (cause: unknown): string =>
+    cause instanceof Error ? cause.message : String(cause)
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+/** A step log line is an effect, so it composes in the same pipeline as the work. */
+export type StepLog = (message: string) => Effect.Effect<void>
+
 /**
- * Local bootstrap flow.
+ * What one run resolves from the container.
  *
- * Owns the business logic of bringing a fresh node online:
- *  1. Provision a Postgres database (existing URL, or a new SWARM SERVICE
- *     scheduled through the `PostgresProvisioner` Effect service).
- *  2. Verify the database is empty.
- *  3. Apply Drizzle migrations.
- *  4. Seed the initial admin user.
- *  5. Persist the node config.
- *  6. Finalize.
- *
- * The flow is a pure side-effecting pipeline: the orchestration layer
- * hands us a {@link SetupStepTracker} (state holder) and an
- * {@link EmitEvent} closure (already bound to the core event
- * service's `progress` channel). We walk the steps, mutating the
- * tracker and emitting events at every transition. We never create
- * our own subjects — the core event service already does buffering,
- * persistence and subject management.
+ * These are YIELDED, not constructed: the flow runs on the app runtime, so each collaborator comes
+ * from the module that registered it — the same way a handler reaches its services.
  */
+export type LocalInitializationPorts =
+    | PostgresProvisioner
+    | DockerEngine
+    | ApiEnvironment
+    | NodeConfigRepository
+    | SwarmBootstrap
+    | SwarmParticipation
+    | SwarmCluster
+    | SupervisorOrchestrator
+
 export type LocalInitializationServiceShape = {
     /**
-     * Run the full local bootstrap flow. Resolves the final `nodeId` and `databaseUrl` so the orchestration layer can emit
-     * the terminal `completed` event. The steps are async work (Postgres, migrations, seeding, swarm) driven through the
-     * step tracker; a stop is a `SetupInitializationFailed` carrying the step's message.
+     * Run the full local bootstrap flow. Succeeds with the final `nodeId` and `databaseUrl` so the
+     * orchestration layer can emit the terminal `completed` event; any step failure is a
+     * `SetupInitializationFailed` carrying the step's message.
      */
     readonly initialize: (
         input: SetupInitializeLocalInput,
@@ -93,7 +152,8 @@ export type LocalInitializationServiceShape = {
         emit: EmitEvent
     ) => Effect.Effect<
         { nodeId: string; databaseUrl: string },
-        SetupInitializationFailed
+        SetupInitializationFailed,
+        LocalInitializationPorts
     >
 }
 
@@ -101,665 +161,434 @@ export type LocalInitializationServiceShape = {
 export type LocalInitializationSteps = {
     readonly probeExistingDatabase: (
         databaseUrl: string,
-        log: (message: string) => void
-    ) => Promise<string>
+        log: StepLog
+    ) => Effect.Effect<string, unknown>
     readonly provisionDockerDatabase: (
-        log: (message: string) => void,
+        log: StepLog,
         deploymentOwnsEverything: boolean
-    ) => Promise<string>
-    readonly ensureDatabaseEmpty: (databaseUrl: string) => Promise<string[]>
+    ) => Effect.Effect<string, unknown, LocalInitializationPorts>
+    readonly ensureDatabaseEmpty: (
+        databaseUrl: string
+    ) => Effect.Effect<ReadonlyArray<string>, unknown>
     readonly runMigrations: (
         databaseUrl: string,
         migrationsFolder: string,
-        log: (message: string) => void
-    ) => Promise<void>
+        log: StepLog
+    ) => Effect.Effect<void, unknown>
     readonly seedInitialData: (
         databaseUrl: string,
         input: SetupInitializeLocalInput,
-        log: (message: string) => void
-    ) => Promise<{ userId: string }>
+        log: StepLog
+    ) => Effect.Effect<{ userId: string }, unknown>
 }
 
-type Ports = {
-    readonly postgresProvisioner: PostgresProvisionerShape
-    readonly dockerEngine: DockerEngineShape
-    readonly env: EnvService
-    readonly nodeConfigRepository: NodeConfigRepositoryShape
-    /**
-     * FOUNDS the cluster. Provisioning Postgres as a SWARM SERVICE needs an active swarm, so this runs BEFORE the database
-     * step — the previous ordering called the provisioner while the engine was still inactive.
-     */
-    readonly swarmBootstrap: SwarmBootstrapShape
-    /** Read-back of the engine state for the setup stream's report. */
-    readonly swarmCluster: SwarmClusterShape
-    /**
-     * On-demand convergence of the app-wiring supervisor, so the overlay attach below happens BEFORE the DSN is used rather
-     * than on the supervisor's 30s cadence (see the call site).
-     */
-    readonly supervisors: SupervisorOrchestratorShape
-    /**
-     * The app runtime. `SwarmBootstrap.converge` yields `SwarmParticipation`, so it runs here rather
-     * than through the bare `runPromiseUnwrapped`, which has no context to resolve it from.
-     */
-    readonly host: EffectHostShape
+/** The only per-instance configuration: the step overrides a spec injects. */
+export type LocalInitializationOptions = {
     readonly steps?: Partial<LocalInitializationSteps>
 }
 
 /** The env var set by globalSetup (e2e) pointing at a shared Postgres. */
 const SHARED_PG_ENV = 'E2E_SHARED_POSTGRES_CONNECTION_URI'
 
-export function makeLocalInitializationService(
-    ports: Ports
-): LocalInitializationServiceShape {
-    const {
-        postgresProvisioner,
-        dockerEngine,
-        env,
-        nodeConfigRepository,
-        swarmBootstrap,
-        swarmCluster,
-        supervisors,
-        host,
-    } = ports
-    const logger = new Logger('LocalInitializationService')
+// ─── Generic Effect helpers ──────────────────────────────────────────────────
 
-    const steps: LocalInitializationSteps = {
-        probeExistingDatabase:
-            ports.steps?.probeExistingDatabase ??
-            ((databaseUrl, log) => probeExistingDatabase(databaseUrl, log)),
-        provisionDockerDatabase:
-            ports.steps?.provisionDockerDatabase ??
-            ((log, owns) => provisionDockerDatabase(log, owns)),
-        ensureDatabaseEmpty:
-            ports.steps?.ensureDatabaseEmpty ??
-            ((databaseUrl) => ensureDatabaseEmpty(databaseUrl)),
-        runMigrations:
-            ports.steps?.runMigrations ??
-            ((databaseUrl, folder, log) =>
-                runMigrations(databaseUrl, folder, log)),
-        seedInitialData:
-            ports.steps?.seedInitialData ??
-            ((databaseUrl, input, log) =>
-                seedInitialData(databaseUrl, input, log)),
+/** Emit several log lines, in order. */
+const logLines = (log: StepLog, lines: ReadonlyArray<string>) =>
+    Effect.forEach(lines, log, { discard: true })
+
+/** Optional env var as `string | undefined`, read through `Config` instead of `process.env`. */
+const optionalEnv = (name: string) =>
+    Config.option(Config.String(name)).pipe(Effect.map(Option.getOrUndefined))
+
+/**
+ * A database session whose lifetime is bound to `use`.
+ *
+ * The pool, the connection and the teardown belong to the Effect runtime: `pgClientLayer` opens it
+ * and `Effect.scoped` closes it — success, failure or interruption. Nothing calls `pool.end()`.
+ */
+const withPg = <A, E>(
+    url: string,
+    use: (sql: PgClient) => Effect.Effect<A, E>
+): Effect.Effect<A, E | SqlError> =>
+    Effect.scoped(
+        Effect.gen(function* () {
+            const sql = yield* PgClientTag
+            return yield* use(sql)
+        }).pipe(Effect.provide(pgClientLayer({ url: Redacted.make(url) })))
+    )
+
+/**
+ * A typed query through the Effect driver. `sql` is `@effect/sql`'s client, so a statement IS an
+ * Effect returning the rows — no Promise boundary, no `tryPromise`, no `.rows` unwrapping.
+ */
+const query = <T extends object = Record<string, unknown>>(
+    sql: PgClient,
+    statement: string,
+    operation = 'query'
+) =>
+    sql.unsafe<T>(statement).pipe(
+        Effect.mapError(
+            (cause: SqlError) =>
+                new PostgresOperationError({
+                    operation,
+                    message: messageOf(cause),
+                    cause,
+                })
+        )
+    )
+
+/** The Drizzle query builder bound to the caller's own `PgClient` — no second pool. */
+const effectDatabase = (sql: PgClient) =>
+    PgDrizzle
+        .makeWithDefaults({ relations: globalRelations })
+        .pipe(Effect.provideService(PgClientTag, sql))
+
+/**
+ * A Promise-facing Drizzle handle. NOT a fallback: better-auth's drizzle adapter `await`s every
+ * builder, and an Effect is not a Promise, so the ONE consumer that needs it is the auth instance
+ * the seed provisions the super-admin through. Nothing else in this file uses it.
+ */
+const withPromiseDatabase = <A, E>(
+    url: string,
+    use: (db: NodePgDatabase) => Effect.Effect<A, E>
+): Effect.Effect<A, E> =>
+    Effect.acquireUseRelease(
+        Effect.sync(() => new Pool({ connectionString: url, max: 1 })),
+        (pool) =>
+            use(
+                drizzleNodePg({
+                    client: pool,
+                    relations: globalRelations,
+                }) as unknown as NodePgDatabase
+            ),
+        (pool) => Effect.promise(() => pool.end().then(() => undefined))
+    )
+
+/** Collapse blank runs, indent each line — one SQL statement as a log block. */
+const formatStatement = (sql: string): string =>
+    sql
+        .split('\n')
+        .map((line) => line.replace(/\s+$/, ''))
+        .filter(
+            (line, idx, arr) =>
+                !(line === '' && (idx === 0 || arr[idx - 1] === ''))
+        )
+        .map((line) => (line.length > 0 ? `    ${line}` : line))
+        .join('\n')
+
+const buildAdminDatabaseUrl = (connectionUri: string) =>
+    Effect.try({
+        try: () => {
+            const parsed = new URL(connectionUri)
+            if (parsed.hostname === 'localhost') parsed.hostname = '127.0.0.1'
+            parsed.pathname = '/postgres'
+            return parsed.toString()
+        },
+        catch: (cause) =>
+            new PostgresOperationError({
+                operation: 'parse-shared-uri',
+                message: messageOf(cause),
+                cause,
+            }),
+    })
+
+// ─── Service ─────────────────────────────────────────────────────────────────
+
+/**
+ * The one implementation of `LocalInitializationServiceShape`.
+ *
+ * A NAMED class: this package emits declarations, and TS4094 forbids private members on an
+ * anonymous exported class whose type is exported.
+ *
+ * Every collaborator is YIELDED per run, so the service has no constructor ports — only the step
+ * overrides a spec injects, which are genuine per-instance configuration.
+ */
+class LocalInitializationServiceImpl implements LocalInitializationServiceShape {
+    private readonly overrides: Partial<LocalInitializationSteps>
+
+    constructor(options: LocalInitializationOptions = {}) {
+        this.overrides = options.steps ?? {}
     }
 
-    /**
-     * Whether the DEPLOYMENT owns every platform service (compose / operator).
-     *
-     * True for the plain `dev` profile, where all of `MANAGED_*_ENABLED` are
-     * `true`: the supervisors all skip registration, compose runs redis, Traefik
-     * and the local DB, and NOTHING is ever scheduled onto a swarm.
-     *
-     * Read from the SAME `splitManagedEnv` source the supervisors use, so this
-     * cannot disagree with them about who owns what.
-     */
-    function deploymentOwnsAllServices(): boolean {
-        const managed = splitManagedEnv(env)
-        return (
-            managed.traefik.enabled &&
-            managed.redis.enabled &&
-            managed.localDb.enabled
-        )
+    // ─── The steps, overridden or not ────────────────────────────────────────
+
+    private makeSteps(): LocalInitializationSteps {
+        return {
+            probeExistingDatabase:
+                this.overrides.probeExistingDatabase ??
+                this.probeExistingDatabase,
+            provisionDockerDatabase:
+                this.overrides.provisionDockerDatabase ??
+                this.provisionDockerDatabase,
+            ensureDatabaseEmpty:
+                this.overrides.ensureDatabaseEmpty ?? this.ensureDatabaseEmpty,
+            runMigrations:
+                this.overrides.runMigrations ?? this.runMigrations,
+            seedInitialData:
+                this.overrides.seedInitialData ?? this.seedInitialData,
+        }
     }
 
+    // ─── Database helpers, one per heavy step ────────────────────────────────
+
+    private readonly probeExistingDatabase: (
+        databaseUrl: string,
+        log: StepLog
+    ) => Effect.Effect<string, unknown> = Effect.fn('probeExistingDatabase')(
+        function* (databaseUrl: string, log: StepLog) {
+            const t0 = yield* Clock.currentTimeMillis
+            yield* withPg(databaseUrl, (sql) =>
+                Effect.gen(function* () {
+                    yield* log('dispatching SELECT 1 …')
+                    yield* query(sql, 'SELECT 1', 'probe')
+                })
+            )
+            const t1 = yield* Clock.currentTimeMillis
+            yield* log(`reply received in ${String(t1 - t0)} ms`)
+            return databaseUrl
+        }
+    )
+
     /**
-     * Run the full local bootstrap flow.
-     *
-     * Returns the final `nodeId` and `databaseUrl` so the orchestration
-     * layer can emit the terminal `completed` event.
+     * Retry `SELECT 1` with a linear back-off (1s, 2s, 3s…) up to 30 attempts. A fresh pool per
+     * attempt; "does not exist" is permanent and stops the retries immediately.
      */
-    async function initialize(
-        input: SetupInitializeLocalInput,
-        tracker: SetupStepTracker,
-        emit: EmitEvent
-    ): Promise<{ nodeId: string; databaseUrl: string }> {
-        const nodeId = randomUUID()
+    private readonly waitForPostgres: (
+        connectionString: string,
+        log?: StepLog
+    ) => Effect.Effect<void, PostgresNotReadyError> = Effect.fn(
+        'waitForPostgres'
+    )(function* (
+        connectionString: string,
+        log?: StepLog
+    ) {
+        const maxRetries = 30
+        const attempts = yield* Ref.make(0)
 
-        // ── Database source resolution ───────────────────────────────────
-        // 1. existingDatabaseUrl in the request → operator-supplied URL
-        //    (the wizard's "Use an existing PostgreSQL database" path).
-        // 2. Otherwise, a URL already persisted for this node as a SETUP
-        //    CANDIDATE (compose-managed global DB via MANAGED_GLOBAL_DB_*,
-        //    or a Phase-0 explicit URL) → the node was GIVEN a database, so
-        //    initialization must target it ("select managed → use this
-        //    node's provided DB") instead of provisioning another container.
-        // 3. Otherwise → the API spawns its own Postgres container ("local",
-        //    supervised by GlobalDbSupervisorService).
-        const explicitUrl = input.existingDatabaseUrl?.trim() ?? ''
-
-        const providedCfg = explicitUrl
-            ? null
-            : await runPromiseUnwrapped(nodeConfigRepository.find())
-        const providedUrl = (() => {
-            if (explicitUrl) return ''
-            const cfg = providedCfg
-            const alreadyDone = cfg?.setupState === 'setup_done'
-            if (
-                !alreadyDone &&
-                cfg?.databaseUrl?.trim() &&
-                cfg.databaseProvisioning === 'external'
-            ) {
-                return cfg.databaseUrl.trim()
-            }
-            return ''
-        })()
-
-        // Read ONCE at method scope: the swarm step founds the cluster from it,
-        // `register_node` persists it, and `finalize` reports it — all three must
-        // see the SAME operator choice.
-        const swarmChoice = input.swarm
-
-        const databaseProvisioning =
-            explicitUrl || providedUrl ? 'external' : 'local'
-
-        // ── Swarm FIRST (unless the deployment owns everything) ────────────────
-        // Locally-managed Postgres is a SWARM SERVICE, so the engine must be a
-        // cluster BEFORE the database step runs. Founding it here (not in
-        // `finalize`) is what removes the former deadlock: provisioning called
-        // `createSwarmService` while the engine was still inactive.
-        //
-        // Skipped for an externally-provided URL: that node consumes someone
-        // else's database and joins a fleet (which converges from the fleet's
-        // grant), so it must not invent a cluster of its own.
-        //
-        // ── ALSO SKIPPED WHEN THE DEPLOYMENT OWNS EVERY SERVICE ────────────────
-        // The plain `dev` profile is ENTIRELY compose-managed: every
-        // `MANAGED_*_ENABLED` is `true`, so every supervisor skips registration
-        // and nothing is ever scheduled onto a swarm. Founding one there is not
-        // merely useless — it mutates the developer's Docker engine:
-        //
-        //   SwarmParticipationShape: creating a new cluster (policy=auto)
-        //   SwarmBootstrapShape: Swarm converged (setup) — state=active,
-        //     role=manager, … master=sn6acv3hofym
-        //
-        // which then runs a swarm manager on the host for the rest of the
-        // session and makes "does dev use swarm?" ambiguous everywhere.
-        //
-        // The operator's explicit swarm choice is still PERSISTED below, so a
-        // later profile that does need a cluster converges from the same
-        // decision — only the engine mutation is skipped.
-        const deploymentOwnsEverything = deploymentOwnsAllServices()
-
-        if (databaseProvisioning === 'local' && !deploymentOwnsEverything) {
-            await runStep(
-                tracker,
-                emit,
-                'initialize_swarm',
-                'Create the Swarm cluster',
-                async (stepLog) => {
-                    stepLog('▸ Initializing Docker Swarm…')
-                    stepLog(`  mode    = ${swarmChoice?.mode ?? 'create'}`)
-                    stepLog(`  policy  = ${swarmChoice?.policy ?? 'auto'}`)
-                    if (swarmChoice?.advertiseAddr) {
-                        stepLog(`  advertise = ${swarmChoice.advertiseAddr}`)
-                    }
-                    if (swarmChoice?.joinAddrs.length) {
-                        stepLog(
-                            `  join    = ${swarmChoice.joinAddrs.join(', ')}`
+        yield* withPg(connectionString, (sql) =>
+            query(sql, 'SELECT 1', 'wait-for-postgres')
+        ).pipe(
+            Effect.tapError((error) =>
+                Ref.updateAndGet(attempts, (n) => n + 1).pipe(
+                    Effect.flatMap((attempt) => {
+                        const msg = `Postgres not ready (attempt ${String(attempt)}/${String(maxRetries)}): ${error.message}`
+                        return Effect.logDebug(msg).pipe(
+                            Effect.andThen(log ? log(msg) : Effect.void)
                         )
-                    }
-
-                    // PERSIST THE OPERATOR'S CHOICE BEFORE CONVERGING.
-                    // `converge()` resolves the participation from
-                    // `node_config.swarmConfig` (SwarmParticipationShape
-                    // .effectiveConfig), NOT from the request — so without this the
-                    // engine would converge from env defaults and a wizard choice of
-                    // `join` would be silently ignored, founding a cluster the
-                    // operator explicitly did not ask for. `register_node` writes the
-                    // same values later; this earlier write is what makes the DECISION
-                    // authoritative at the moment it is acted on.
-                    const cfg = await runPromiseUnwrapped(
-                        nodeConfigRepository.find()
-                    )
-                    const nowIso = new Date().toISOString()
-                    await runPromiseUnwrapped(
-                        nodeConfigRepository.upsert({
-                            ...(cfg ?? {}),
-                            nodeId,
-                            strategy: 'local',
-                            // Not `setup_done` yet — setup is still running; this row is
-                            // completed by `register_node` below.
-                            setupState: cfg?.setupState ?? 'not_started',
-                            deployerVersion: DEPLOYER_VERSION,
-                            swarmConfig: {
-                                mode: swarmChoice?.mode ?? 'create',
-                                policy: swarmChoice?.policy ?? 'auto',
-                                advertiseAddr:
-                                    swarmChoice?.advertiseAddr ?? null,
-                                joinToken: swarmChoice?.joinToken ?? null,
-                                joinAddrs: swarmChoice?.joinAddrs ?? [],
-                            },
-                            updatedAt: nowIso,
-                        })
-                    )
-                    stepLog(
-                        '  → participation persisted (node_config.swarmConfig)'
-                    )
-
-                    await host.runUnwrapped(swarmBootstrap.converge('setup'))
-                    const snapshot = await runPromiseUnwrapped(
-                        swarmCluster.getLocalClusterSnapshot()
-                    )
-
-                    if (snapshot.localNodeState !== 'active') {
-                        // A service-based database CANNOT be provisioned without a
-                        // swarm, so this is fatal for the local path — surface it
-                        // now rather than failing later with a confusing engine error.
-                        throw new AppError(
-                            `Swarm cluster did not become active (state=${snapshot.localNodeState}); ` +
-                                'a locally-managed Postgres is scheduled as a swarm service and cannot be provisioned without it',
-                            'SWARM_UNAVAILABLE',
-                            { localNodeState: snapshot.localNodeState }
-                        )
-                    }
-
-                    stepLog('✅ Swarm cluster active')
-                    stepLog(`  role    = ${snapshot.localNode.swarmRole}`)
-                    stepLog(`  master  = ${snapshot.master?.nodeId ?? 'self'}`)
-                    stepLog(
-                        `  nodes   = ${String(snapshot.nodeCount)} (managers ${String(snapshot.managerCount)})`
-                    )
-                }
-            )
-        }
-
-        const databaseUrl = await runStep(
-            tracker,
-            emit,
-            'provision_database',
-            'Set up the database',
-            async (stepLog) => {
-                if (explicitUrl) {
-                    stepLog(
-                        '▸ Using database URL supplied in the setup request'
-                    )
-                    stepLog(`  host = ${redactUrl(explicitUrl)}`)
-                    stepLog('▸ Opening probe connection (max 1 client)…')
-                    return await steps.probeExistingDatabase(
-                        explicitUrl,
-                        stepLog
-                    )
-                }
-                if (providedUrl) {
-                    stepLog(
-                        '▸ Using the database URL provided for this node (MANAGED_GLOBAL_DB_ENABLED / SETUP_AUTO)'
-                    )
-                    stepLog(`  host = ${redactUrl(providedUrl)}`)
-                    stepLog('▸ Opening probe connection (max 1 client)…')
-                    return await steps.probeExistingDatabase(
-                        providedUrl,
-                        stepLog
-                    )
-                }
-                stepLog('▸ Bootstrapping Docker Postgres 16…')
-                stepLog('  image  = postgres:16-alpine')
-                stepLog('  volume = deployer_postgres_data')
-                stepLog('  port   = 5432 (host-assigned)')
-                stepLog('▸ Pulling image (cached if present)…')
-                return await steps.provisionDockerDatabase(
-                    stepLog,
-                    deploymentOwnsEverything
-                )
-            }
-        )
-        const readyLine = `✅ Database ready at ${redactUrl(databaseUrl)}`
-        tracker.log('provision_database', readyLine)
-        const readyEvent = tracker.logEvent('provision_database', readyLine)
-        if (readyEvent) emit(readyEvent)
-
-        const existingTables = await runStep(
-            tracker,
-            emit,
-            'ensure_empty',
-            'Ensure database is empty',
-            async (stepLog) => {
-                stepLog('▸ Querying information_schema.tables …')
-                stepLog('  schema = public')
-                stepLog('  type   = BASE TABLE')
-                const tables = await steps.ensureDatabaseEmpty(databaseUrl)
-                if (tables.length === 0) {
-                    stepLog('  result = 0 tables')
-                    stepLog('✅ Database is empty')
-                } else {
-                    stepLog(`  result = ${String(tables.length)} tables`)
-                    stepLog(`  tables = ${tables.join(', ')}`)
-                    stepLog('✅ Database already initialized')
-                }
-                return tables
-            }
-        )
-
-        // If the database was already initialized (tables exist), skip migration and seed
-        if (existingTables.length === 0) {
-            await runStep(
-                tracker,
-                emit,
-                'run_migrations',
-                'Run migrations',
-                async (stepLog) => {
-                    // The canonical location, resolved by the package that owns the
-                    // migrations — not a `../..` count from this file. See the
-                    // import note: the relative form silently pointed at a
-                    // directory that no longer exists.
-                    const migrationsFolder = GLOBAL_MIGRATIONS_DIR
-                    const migrationNames = listMigrationNames(migrationsFolder)
-                    stepLog(`▸ Migration folder: ${migrationsFolder}`)
-                    stepLog(
-                        `▸ Found ${String(migrationNames.length)} migration file(s):`
-                    )
-                    for (const [i, name] of migrationNames.entries()) {
-                        stepLog(
-                            `  [${String(i + 1).padStart(2, '0')}/${String(migrationNames.length)}] ${name}`
-                        )
-                    }
-                    stepLog(
-                        '▸ Handing off to drizzle migrator (every statement will be streamed below)…'
-                    )
-                    await steps.runMigrations(
-                        databaseUrl,
-                        migrationsFolder,
-                        stepLog
-                    )
-                    stepLog(
-                        `✅ All ${String(migrationNames.length)} migration(s) applied successfully`
-                    )
-                },
-                'Connecting to the database and applying every Drizzle migration one statement at a time.'
-            )
-
-            await runStep(
-                tracker,
-                emit,
-                'seed_initial_data',
-                'Initialize workspace data',
-                async (stepLog) => {
-                    stepLog(`▸ Creating super-admin user: ${input.email}`)
-                    stepLog('  name  = ' + input.name)
-                    stepLog('  role  = super-admin')
-                    stepLog('▸ Hashing password (bcrypt, cost 12)…')
-                    stepLog('▸ Inserting user record…')
-                    stepLog('▸ Inserting credentials account…')
-                    const seedResult = await steps.seedInitialData(
-                        databaseUrl,
-                        input,
-                        stepLog
-                    )
-                    stepLog(
-                        `✅ User ${input.email} created with super-admin role`
-                    )
-                    stepLog(`  user.id  = ${seedResult.userId}`)
-                }
-            )
-        } else {
-            logger.log(
-                '⏭️  Database already initialized — skipping migration and seed steps'
-            )
-        }
-
-        await runStep(
-            tracker,
-            emit,
-            'register_node',
-            'Register this node',
-            async (stepLog) => {
-                stepLog(`▸ Assigning node ID ${nodeId}…`)
-                stepLog('  strategy = local')
-                stepLog('  mesh     = (none)')
-                stepLog(
-                    '  database = ' +
-                        (databaseProvisioning === 'local'
-                            ? 'locally managed (supervised)'
-                            : 'external (provided URL)')
-                )
-                if (swarmChoice) {
-                    stepLog(
-                        `  swarm    = ${swarmChoice.mode} cluster (policy=${swarmChoice.policy})`
-                    )
-                }
-                stepLog('▸ Persisting node config to global database…')
-                const now = new Date().toISOString()
-                await runPromiseUnwrapped(
-                    nodeConfigRepository.upsert({
-                        nodeId,
-                        strategy: 'local',
-                        setupState: 'setup_done',
-                        deployerVersion: DEPLOYER_VERSION,
-                        meshUrlsSnapshot: [],
-                        configuredAt: now,
-                        updatedAt: now,
-                        databaseUrl,
-                        databaseProvisioning,
-                        swarmConfig: swarmChoice
-                            ? {
-                                  mode: swarmChoice.mode,
-                                  policy: swarmChoice.policy,
-                                  advertiseAddr:
-                                      swarmChoice.advertiseAddr ?? null,
-                                  joinToken: swarmChoice.joinToken ?? null,
-                                  joinAddrs: swarmChoice.joinAddrs,
-                              }
-                            : undefined,
                     })
                 )
-                stepLog('✅ Node config persisted')
-            }
-        )
-
-        await runStep(
-            tracker,
-            emit,
-            'finalize',
-            'Finalize setup',
-            async (stepLog) => {
-                stepLog('▸ Marking setup as completed…')
-                stepLog(`  nodeId  = ${nodeId}`)
-                stepLog(`  dbUrl   = ${redactUrl(databaseUrl)}`)
-                stepLog('▸ Generating readiness summary…')
-                stepLog('  database  = ready')
-                stepLog('  migrations = applied')
-                stepLog('  workspace  = seeded')
-
-                // ── Swarm summary — the LAST step always reports the cluster
-                // outcome, so the operator sees the decision they made (create +
-                // policy, or join + the fleet's granted role) in the same stream
-                // that ran the setup. Reported from the LIVE engine snapshot rather
-                // than the earlier step's result, so a cluster that degraded since
-                // is reported honestly instead of echoing a stale success.
-                stepLog('▸ Swarm summary…')
-                const swarmSnapshot = await runPromiseUnwrapped(
-                    swarmCluster.getLocalClusterSnapshot()
+            ),
+            Effect.retry({
+                // `Schedule.linear` does not exist in effect 4 — a fixed 1s cadence is the closest
+                // supported ramp and is what the retry needs (the budget, not the curve, is the point).
+                schedule: Schedule.spaced('1 second'),
+                times: maxRetries - 1,
+                while: (error) => !error.message.includes('does not exist'),
+            }),
+            Effect.catch((error) =>
+                Ref.get(attempts).pipe(
+                    Effect.flatMap((n) =>
+                        Effect.fail(
+                            new PostgresNotReadyError({
+                                attempts: n,
+                                message: error.message,
+                                cause: error,
+                            })
+                        )
+                    )
                 )
-                if (swarmSnapshot.localNodeState === 'active') {
-                    stepLog('✅ Swarm cluster active')
-                    stepLog(`  mode    = ${swarmChoice?.mode ?? 'create'}`)
-                    stepLog(`  policy  = ${swarmChoice?.policy ?? 'auto'}`)
-                    stepLog(`  role    = ${swarmSnapshot.localNode.swarmRole}`)
-                    stepLog(
-                        `  master  = ${swarmSnapshot.master?.nodeId ?? 'self'}`
-                    )
-                    stepLog(
-                        `  nodes   = ${String(swarmSnapshot.nodeCount)} (managers ${String(swarmSnapshot.managerCount)})`
-                    )
-                    stepLog('  → every platform service is scheduled on Swarm')
-                } else {
-                    stepLog(
-                        `⚠️  Swarm not active (state=${swarmSnapshot.localNodeState})`
-                    )
-                    stepLog('  → re-converge from the Cluster page')
-                }
-
-                stepLog('✅ Setup complete')
-            }
-        )
-
-        return { nodeId, databaseUrl }
-    }
-
-    // ─── Database helpers ─────────────────────────────────────────────────────
-
-    async function probeExistingDatabase(
-        databaseUrl: string,
-        log: (message: string) => void
-    ): Promise<string> {
-        const t0 = Date.now()
-        const pool = new Pool({
-            connectionString: databaseUrl,
-            max: 1,
-            connectionTimeoutMillis: 5_000,
-        })
-        try {
-            log('dispatching SELECT 1 …')
-            await pool.query('SELECT 1')
-            log(`reply received in ${String(Date.now() - t0)} ms`)
-            return databaseUrl
-        } finally {
-            await pool.end().catch(() => undefined)
-        }
-    }
-
-    async function provisionDockerDatabase(
-        log: (message: string) => void,
-        deploymentOwnsEverything: boolean
-    ): Promise<string> {
-        // If a shared Postgres URI is available (e.g., from e2e globalSetup),
-        // create a database namespace inside it instead of a new service.
-        // This keeps database isolation without spawning many services.
-        const sharedUri = process.env[SHARED_PG_ENV]
-        if (sharedUri) {
-            log(
-                'detected E2E_SHARED_POSTGRES_CONNECTION_URI — using namespace mode'
             )
-            return await provisionDatabaseNamespace(sharedUri, log)
+        )
+    })
+
+    private readonly ensureDatabaseEmpty: (
+        databaseUrl: string
+    ) => Effect.Effect<ReadonlyArray<string>, unknown> = Effect.fn(
+        'ensureDatabaseEmpty'
+    )(
+        function* (databaseUrl: string) {
+            const tables = yield* withPg(databaseUrl, (sql) =>
+                query<{ table_name: string }>(
+                    sql,
+                    `SELECT table_name FROM information_schema.tables
+                     WHERE table_schema = 'public' AND table_type = 'BASE TABLE';`,
+                    'list-tables'
+                ).pipe(Effect.map((rows) => rows.map((row) => row.table_name)))
+            )
+
+            if (tables.length === 0) return tables
+
+            // Tables exist: with migration tracking this is a container reuse (let the flow proceed);
+            // without it, it is a leftover database and must be blocked.
+            const hasMigrations =
+                tables.includes('__drizzle_migrations') ||
+                tables.includes('schema_version')
+
+            if (!hasMigrations) {
+                return yield* Effect.fail(
+                    new ConflictError(
+                        `Database is not empty. Found tables: ${tables.join(', ')}`
+                    )
+                )
+            }
+
+            yield* Effect.logInfo(
+                `Database already initialized (${String(tables.length)} tables found) — skipping fresh setup`
+            )
+            return tables
+        }
+    )
+
+    private readonly runMigrations: (
+        databaseUrl: string,
+        migrationsFolder: string,
+        log: StepLog
+    ) => Effect.Effect<void, unknown> = Effect.fn('runMigrations')(function* (
+        databaseUrl: string,
+        migrationsFolder: string,
+        log: StepLog
+    ) {
+        // Drizzle's logger is SYNCHRONOUS, so it cannot yield. Collecting the statements into a plain
+        // array keeps the bridge side-effect-free: the array is flushed through `log` afterwards.
+        const statements: string[] = []
+        const migrationLogger: DrizzleLogger = {
+            logQuery: (sql: string, params: unknown[]) => {
+                statements.push(
+                    params.length > 0
+                        ? `${formatStatement(sql)}\n    -- params: ${JSON.stringify(params)}`
+                        : formatStatement(sql)
+                )
+            },
         }
 
-        // ── NO SWARM: use a plain container ────────────────────────────────────
-        // On a fully compose-managed profile (plain `dev`) there is no swarm and
-        // there never will be, so the swarm-service path below cannot run — it
-        // would fail on `createSwarmService` with `not a swarm manager`.
-        // Provisioning the SAME Postgres as a plain container keeps dev working
-        // without inventing a cluster.
-        if (deploymentOwnsEverything) {
-            return await provisionContainerDatabase(log)
-        }
+        yield* withPg(databaseUrl, (sql) =>
+            Effect.gen(function* () {
+                yield* log('acquiring connection')
+                yield* query(sql, 'SELECT 1', 'migration-probe')
+                yield* log('acquired — handing off to drizzle migrator')
 
-        // The global database is a SWARM SERVICE — the same object the
-        // GlobalDbSupervisorService converges for the rest of the platform's
-        // life, built from the same spec builder and the same credential
-        // resolver, so setup and the supervisor can never drift into two
-        // different Postgres instances (or two different credential sets).
-        log('▸ Scheduling the global Postgres as a swarm service …')
-        const prefix = env.get('DEPLOYER_PREFIX')
-        const serviceName = managedPostgresServiceName(prefix)
-        const identity = resolvePostgresIdentity(env)
-        log(`  service = ${serviceName}`)
-        log(`  image   = ${identity.image}`)
-        log(`  volume  = ${MANAGED_POSTGRES_VOLUME_NAME}`)
-        log(`  user    = ${identity.username}`)
-        log(`  db      = ${identity.databaseName}`)
-        log('  port    = 5432 (host mode, node-local)')
+                const db = yield* PgDrizzle
+                    .make({ relations: globalRelations })
+                    .pipe(
+                        Effect.provide(
+                            Layer.mergeAll(
+                                PgDrizzle.DefaultServices,
+                                Layer.succeed(PgClientTag, sql),
+                                PgDrizzle.EffectLogger.layerFromDrizzle(
+                                    migrationLogger
+                                )
+                            )
+                        )
+                    )
 
-        const spec = await runPromiseUnwrapped(
-            postgresProvisioner.ensure({ prefix, identity })
-        )
-        log(`✅ Service ${spec.name} has a running task`)
+                const t0 = yield* Clock.currentTimeMillis
+                yield* migrate(db, { migrationsFolder }).pipe(
+                    Effect.mapError(
+                        (cause) =>
+                            new PostgresOperationError({
+                                operation: 'migrate',
+                                message: messageOf(cause),
+                                cause,
+                            })
+                    )
+                )
+                const t1 = yield* Clock.currentTimeMillis
 
-        // ── Attach THIS container to the overlay BEFORE using the DSN ──────
-        // The DSN below addresses the database by its overlay alias
-        // (`global-db`), which only resolves for containers attached to the
-        // overlay. the swarm app-wiring supervisor does that wiring, but it
-        // converges on a 30s CADENCE — so on a fresh setup the probe below
-        // could run first and fail with `getaddrinfo ENOTFOUND global-db` even
-        // though the database was healthy (observed: wiring at 3:55:06, probe
-        // failure at 3:54:54). Converging it ON DEMAND here removes the race:
-        // the dependency is established before it is used, not eventually.
-        //
-        // The supervisor is the canonical owner of this concern (it resolves
-        // the aliases, handles the stale-endpoint re-attach case, and skips
-        // cleanly when the engine is not swarm-active), so this triggers its
-        // idempotent reconcile rather than duplicating the network call here.
-        await runPromiseUnwrapped(
-            supervisors.convergeNow(SWARM_APP_WIRING_SUPERVISOR_ID)
-        )
-        log(
-            '▸ Wired this container onto the platform overlay (global-db resolvable)'
-        )
-
-        // Replay the task logs so the user sees Postgres booting.
-        log('▸ Replaying recent service output …')
-        const initialLogs = await runPromiseUnwrapped(
-            dockerEngine.swarmServices.logs(spec.name, {
-                stdout: true,
-                stderr: true,
-                tail: 30,
+                yield* Effect.forEach(statements, log, { discard: true })
+                yield* log(
+                    `drizzle migrator returned in ${String(t1 - t0)} ms`
+                )
             })
         )
-        const initialLines = initialLogs
-            .split('\n')
-            .map((line) => line.trim())
-            .filter(Boolean)
-        if (initialLines.length === 0) {
-            log('  (no prior output)')
-        } else {
-            for (const line of initialLines) log(line)
-        }
+    })
 
-        // DNS name of the database on the platform overlay — every consumer
-        // (this API included, once it is attached to the overlay) resolves it.
-        // The DSN is assembled from the SAME identity the service was created
-        // with, so the credentials can never disagree with the cluster.
-        const { username, password, databaseName } = identity
-        const url = `postgresql://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${MANAGED_POSTGRES_ALIAS}:${String(MANAGED_POSTGRES_PORT)}/${databaseName}`
-        log(
-            `✅ Database ready at postgresql://${username}:***@${MANAGED_POSTGRES_ALIAS}:${String(MANAGED_POSTGRES_PORT)}/${databaseName}`
-        )
-        return url
+    private provisionDatabaseNamespace(
+        sharedUri: string,
+        log: StepLog
+    ): Effect.Effect<string, unknown> {
+        const self = this
+        return Effect.fn('provisionDatabaseNamespace')(function* () {
+            const adminUrl = yield* buildAdminDatabaseUrl(sharedUri)
+            const suffix = yield* Effect.sync(() =>
+                randomUUID().replace(/-/g, '').slice(0, 8)
+            )
+            const databaseName = `deployer_bootstrap_${suffix}`
+
+            yield* log(`target database = ${databaseName}`)
+            yield* log(`admin URL       = ${redactUrl(adminUrl)}`)
+
+            yield* withPg(adminUrl, (adminSql) =>
+                Effect.gen(function* () {
+                    yield* log('▸ Probing shared Postgres admin endpoint …')
+                    yield* self.waitForPostgres(adminUrl, log)
+
+                    const escapedName = `"${databaseName.replaceAll('"', '""')}"`
+                    yield* log(`▸ CREATE DATABASE ${escapedName} …`)
+                    yield* query(
+                        adminSql,
+                        `CREATE DATABASE ${escapedName}`,
+                        'create-database'
+                    )
+                    yield* log('  database created')
+                })
+            )
+
+            const parsed = yield* Effect.try({
+                try: () => {
+                    const url = new URL(sharedUri)
+                    url.pathname = `/${databaseName}`
+                    return url
+                },
+                catch: (cause) =>
+                    new PostgresOperationError({
+                        operation: 'parse-shared-uri',
+                        message: messageOf(cause),
+                        cause,
+                    }),
+            })
+            yield* log(
+                `namespace ready at ${parsed.hostname}:${parsed.port}${parsed.pathname}`
+            )
+            return parsed.toString()
+        })()
     }
 
     /**
-     * Provision the global Postgres as a PLAIN CONTAINER, for a profile with no
-     * swarm (compose owns every service).
-     *
-     * Reaches the database by the SAME alias the compose stack uses
-     * (`global-db`) so consumers cannot tell which incarnation provisioned it —
-     * the DSN written to `node_config` is identical either way.
+     * Provision the global Postgres as a PLAIN CONTAINER, for a profile with no swarm (compose owns
+     * every service). Reachable by the same alias the compose stack uses (`global-db`), so the DSN is
+     * identical either way.
      */
-    async function provisionContainerDatabase(
-        log: (message: string) => void
-    ): Promise<string> {
-        const prefix = env.get('DEPLOYER_PREFIX')
-        const name = managedPostgresServiceName(prefix)
-        const identity = resolvePostgresIdentity(env)
-        // The SAME network the platform's containers live on, so the alias
-        // below is resolvable by the API and by every service it schedules.
-        const network = platformNetworkName(prefix)
+    private provisionContainerDatabase(
+        log: StepLog
+    ): Effect.Effect<string, unknown, DockerEngine | ApiEnvironment> {
+        const self = this
+        return Effect.fn('provisionContainerDatabase')(function* () {
+            const dockerEngine = yield* DockerEngine
+            const env = yield* ApiEnvironment
 
-        log(
-            '▸ No swarm on this deployment (compose owns every service) — provisioning Postgres as a container'
-        )
-        log(`  container = ${name}`)
-        log(`  image     = ${identity.image}`)
-        log(`  volume    = ${MANAGED_POSTGRES_VOLUME_NAME}`)
-        log(`  user      = ${identity.username}`)
-        log(`  db        = ${identity.databaseName}`)
+            const prefix = env.get('DEPLOYER_PREFIX')
+            const name = managedPostgresServiceName(prefix)
+            const identity = resolvePostgresIdentity(env)
+            const network = platformNetworkName(prefix)
 
-        const engine = dockerEngine
+            yield* logLines(log, [
+                '▸ No swarm on this deployment (compose owns every service) — provisioning Postgres as a container',
+                `  container = ${name}`,
+                `  image     = ${identity.image}`,
+                `  volume    = ${MANAGED_POSTGRES_VOLUME_NAME}`,
+                `  user      = ${identity.username}`,
+                `  db        = ${identity.databaseName}`,
+            ])
 
-        // Volume first: recreating the container must reuse the existing data,
-        // so the volume is never removed here (only created when absent).
-        await runPromiseUnwrapped(
-            engine.volumes
+            // Volume first: recreating the container must reuse existing data, so it is never removed here.
+            yield* dockerEngine.volumes
                 .ensure(MANAGED_POSTGRES_VOLUME_NAME)
                 .pipe(Effect.ignore)
-        )
 
-        // Remove any leftover container by that name: `createContainer` fails on
-        // a name collision, and an interrupted earlier run can leave one behind.
-        await runPromiseUnwrapped(
-            engine.containers.removeIfExists(name).pipe(Effect.ignore)
-        )
+            // An interrupted earlier run can leave a container behind; `create` fails on a name collision.
+            yield* dockerEngine.containers.removeIfExists(name).pipe(Effect.ignore)
 
-        const container = await runPromiseUnwrapped(
-            engine.containers.create({
+            const container = yield* dockerEngine.containers.create({
                 name,
                 Image: identity.image,
                 Env: [
@@ -779,14 +608,8 @@ export function makeLocalInitializationService(
                     RestartPolicy: { Name: 'unless-stopped' },
                 },
                 ExposedPorts: { [`${String(MANAGED_POSTGRES_PORT)}/tcp`]: {} },
-                // ── THE ALIAS IS WHAT MAKES IT REACHABLE ─────────────────────────
-                // Without an explicit endpoint the container joins the DEFAULT
-                // bridge network, where `global-db` does not resolve at all — the
-                // DSN written to `node_config` then fails with
-                // `getaddrinfo ENOTFOUND global-db`, from the API and from every
-                // service scheduled later. Declaring the network AND the aliases at
-                // CREATE time is what puts it on the platform network under the
-                // same two names the compose stack and the supervisor use.
+                // The alias is what makes it reachable: declare network AND aliases at CREATE time,
+                // otherwise the container lands on the default bridge where `global-db` does not resolve.
                 NetworkingConfig: {
                     EndpointsConfig: {
                         [network]: {
@@ -795,308 +618,631 @@ export function makeLocalInitializationService(
                     },
                 },
             })
-        )
 
-        log(`▸ Starting container ${container.id.slice(0, 12)} …`)
-        await runPromiseUnwrapped(engine.containers.start(container.id))
+            yield* log(`▸ Starting container ${container.id.slice(0, 12)} …`)
+            yield* dockerEngine.containers.start(container.id)
 
-        const { username, password, databaseName } = identity
-        const url = `postgresql://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${MANAGED_POSTGRES_ALIAS}:${String(MANAGED_POSTGRES_PORT)}/${databaseName}`
+            const { username, password, databaseName } = identity
+            const url = `postgresql://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${MANAGED_POSTGRES_ALIAS}:${String(MANAGED_POSTGRES_PORT)}/${databaseName}`
 
-        // ── STARTED IS NOT THE SAME AS LISTENING ─────────────────────────────
-        // `container.start()` returns when the process is spawned, which is
-        // seconds before Postgres finishes its first-boot initdb and binds
-        // 5432. The very next step connects, so without this wait the FIRST
-        // install of a cold database fails with ECONNREFUSED while Postgres is
-        // still coming up — the database is fine, we simply asked too early.
-        log('▸ Waiting for Postgres to accept connections …')
-        await waitForPostgres(url, log)
+            // STARTED IS NOT LISTENING: wait for the first-boot initdb before the next step connects.
+            yield* log('▸ Waiting for Postgres to accept connections …')
+            yield* self.waitForPostgres(url, log)
 
-        log(
-            `✅ Database ready at postgresql://${username}:***@${MANAGED_POSTGRES_ALIAS}:${String(MANAGED_POSTGRES_PORT)}/${databaseName}`
-        )
-        return url
+            yield* log(
+                `✅ Database ready at postgresql://${username}:***@${MANAGED_POSTGRES_ALIAS}:${String(MANAGED_POSTGRES_PORT)}/${databaseName}`
+            )
+            return url
+        })()
     }
 
-    async function provisionDatabaseNamespace(
-        sharedUri: string,
-        log: (message: string) => void
-    ): Promise<string> {
-        const adminUrl = buildAdminDatabaseUrl(sharedUri)
-        const databaseName = `deployer_bootstrap_${randomUUID().replace(/-/g, '').slice(0, 8)}`
+    private provisionDockerDatabase(
+        log: StepLog,
+        deploymentOwnsEverything: boolean
+    ): Effect.Effect<
+        string,
+        unknown,
+        | PostgresProvisioner
+        | DockerEngine
+        | ApiEnvironment
+        | SupervisorOrchestrator
+    > {
+        const self = this
+        return Effect.fn('provisionDockerDatabase')(function* () {
+            const postgresProvisioner = yield* PostgresProvisioner
+            const dockerEngine = yield* DockerEngine
+            const env = yield* ApiEnvironment
+            const supervisors = yield* SupervisorOrchestrator
 
-        log(`target database = ${databaseName}`)
-        log(`admin URL       = ${redactUrl(adminUrl)}`)
-
-        const adminPool = new Pool({ connectionString: adminUrl, max: 1 })
-        try {
-            log('▸ Probing shared Postgres admin endpoint …')
-            await waitForPostgres(adminUrl, log)
-
-            const escapedName = `"${databaseName.replaceAll('"', '""')}"`
-            log(`▸ CREATE DATABASE ${escapedName} …`)
-            await adminPool.query(`CREATE DATABASE ${escapedName}`)
-            log('  database created')
-        } finally {
-            await adminPool.end().catch(() => undefined)
-        }
-
-        const parsed = new URL(sharedUri)
-        parsed.pathname = `/${databaseName}`
-        log(
-            `namespace ready at ${parsed.hostname}:${parsed.port}${parsed.pathname}`
-        )
-        return parsed.toString()
-    }
-
-    function buildAdminDatabaseUrl(connectionUri: string): string {
-        const parsed = new URL(connectionUri)
-        if (parsed.hostname === 'localhost') {
-            parsed.hostname = '127.0.0.1'
-        }
-        parsed.pathname = '/postgres'
-        return parsed.toString()
-    }
-
-    async function waitForPostgres(
-        connectionString: string,
-        log?: (message: string) => void
-    ): Promise<void> {
-        const maxRetries = 30
-        const baseDelay = 1_000
-        let lastError: Error | undefined
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            const pool = new Pool({
-                connectionString,
-                max: 1,
-                connectionTimeoutMillis: 3_000,
-            })
-            try {
-                await pool.query('SELECT 1')
-                return
-            } catch (err: unknown) {
-                lastError = err instanceof Error ? err : new Error(String(err))
-                if (lastError.message.includes('does not exist')) {
-                    throw lastError
-                }
-                const msg = `Postgres not ready (attempt ${String(attempt)}/${String(maxRetries)}): ${lastError.message}`
-                logger.debug(msg)
-                log?.(msg)
-            } finally {
-                await pool.end().catch(() => undefined)
+            // Shared Postgres (e2e globalSetup): namespace inside it instead of a new service.
+            const sharedUri = yield* optionalEnv(SHARED_PG_ENV)
+            if (sharedUri) {
+                yield* log(
+                    'detected E2E_SHARED_POSTGRES_CONNECTION_URI — using namespace mode'
+                )
+                return yield* self.provisionDatabaseNamespace(sharedUri, log)
             }
-            await new Promise((r) => setTimeout(r, baseDelay * attempt))
-        }
-        throw (
-            lastError ??
-            new Error('Timed out waiting for Postgres to become ready')
-        )
-    }
 
-    async function ensureDatabaseEmpty(databaseUrl: string): Promise<string[]> {
-        const pool = new Pool({
-            connectionString: databaseUrl,
-            max: 1,
-            connectionTimeoutMillis: 5_000,
-        })
-        try {
-            const res = await pool.query<{
-                table_name: string
-            }>(`
-                SELECT table_name FROM information_schema.tables
-                WHERE table_schema = 'public' AND table_type = 'BASE TABLE';
-            `)
-            const tables = res.rows.map((r) => r.table_name)
-            // If tables exist, check if the database was already initialized
-            // (has __drizzle_migrations or schema_version). If so, this is a
-            // container reuse — not a fresh database. Let the flow proceed.
-            if (tables.length > 0) {
-                const hasMigrations =
-                    tables.includes('__drizzle_migrations') ||
-                    tables.includes('schema_version')
-                if (hasMigrations) {
-                    // Database was already initialized — allow proceeding
-                    logger.log(
-                        `Database already initialized (${String(tables.length)} tables found) — skipping fresh setup`
-                    )
-                } else {
-                    // Tables exist but no migration tracking — this is a leftover database, block
-                    throw new ConflictError(
-                        `Database is not empty. Found tables: ${tables.join(', ')}`
-                    )
-                }
+            // Fully compose-managed profile: no swarm, so the swarm-service path below cannot run.
+            if (deploymentOwnsEverything) {
+                return yield* self.provisionContainerDatabase(log)
             }
-            return tables
-        } finally {
-            await pool.end().catch(() => undefined)
-        }
+
+            // The global database is a SWARM SERVICE — the same object GlobalDbSupervisorService
+            // converges for the rest of the platform's life (same spec builder, same resolver).
+            yield* log('▸ Scheduling the global Postgres as a swarm service …')
+            const prefix = env.get('DEPLOYER_PREFIX')
+            const serviceName = managedPostgresServiceName(prefix)
+            const identity = resolvePostgresIdentity(env)
+            yield* logLines(log, [
+                `  service = ${serviceName}`,
+                `  image   = ${identity.image}`,
+                `  volume  = ${MANAGED_POSTGRES_VOLUME_NAME}`,
+                `  user    = ${identity.username}`,
+                `  db      = ${identity.databaseName}`,
+                '  port    = 5432 (host mode, node-local)',
+            ])
+
+            const spec = yield* postgresProvisioner.ensure({ prefix, identity })
+            yield* log(`✅ Service ${spec.name} has a running task`)
+
+            // Attach THIS container to the overlay BEFORE using the DSN: the alias only resolves for
+            // attached containers, and the supervisor's own cadence (30s) would race the probe.
+            yield* supervisors.convergeNow(SWARM_APP_WIRING_SUPERVISOR_ID)
+            yield* log(
+                '▸ Wired this container onto the platform overlay (global-db resolvable)'
+            )
+
+            yield* log('▸ Replaying recent service output …')
+            const initialLogs = yield* dockerEngine.swarmServices.logs(
+                spec.name,
+                { stdout: true, stderr: true, tail: 30 }
+            )
+            const initialLines = initialLogs
+                .split('\n')
+                .map((line) => line.trim())
+                .filter(Boolean)
+            yield* initialLines.length === 0
+                ? log('  (no prior output)')
+                : logLines(log, initialLines)
+
+            const { username, password, databaseName } = identity
+            const url = `postgresql://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${MANAGED_POSTGRES_ALIAS}:${String(MANAGED_POSTGRES_PORT)}/${databaseName}`
+            yield* log(
+                `✅ Database ready at postgresql://${username}:***@${MANAGED_POSTGRES_ALIAS}:${String(MANAGED_POSTGRES_PORT)}/${databaseName}`
+            )
+            return url
+        })()
     }
 
-    async function runMigrations(
-        databaseUrl: string,
-        migrationsFolder: string,
-        log: (message: string) => void
-    ): Promise<void> {
-        const pool = new Pool({ connectionString: databaseUrl, max: 1 })
-        // Custom logger pipes every SQL statement Drizzle executes — including
-        // each migration's CREATE TABLE / CREATE INDEX / ALTER / DO blocks,
-        // plus the migrator's own bookkeeping queries against
-        // drizzle.__drizzle_migrations — into the setup progress stream, so
-        // the user can watch every single statement land instead of staring
-        // at a silent spinner.
-        //
-        // Each statement is emitted on its own line (multi-line SQL preserved
-        // with leading indentation), with bound parameters attached when
-        // present. No truncation — the stream buffers everything.
-        const migrationLogger: DrizzleLogger = {
-            logQuery: (query: string, params: unknown[]) => {
-                // Collapse only leading/trailing whitespace per line; keep
-                // statement structure intact (e.g. multi-line DO $$ ... $$).
-                const formatted = query
-                    .split('\n')
-                    .map((line) => line.replace(/\s+$/, ''))
-                    .filter(
-                        (line, idx, arr) =>
-                            !(line === '' && (idx === 0 || arr[idx - 1] === ''))
-                    )
-                    .join('\n')
-                const indented = formatted
-                    .split('\n')
-                    .map((line) => (line.length > 0 ? `    ${line}` : line))
-                    .join('\n')
-                log(indented)
-                if (params.length > 0) {
-                    log(`    -- params: ${JSON.stringify(params)}`)
-                }
-            },
-        }
-        const db = drizzle({
-            client: pool,
-            relations: defineRelations(globalSchema),
-            logger: migrationLogger,
-        })
-        try {
-            log('acquiring pool connection')
-            await pool.query('SELECT 1')
-            log('acquired — handing off to drizzle migrator')
-            const t0 = Date.now()
-            await migrate(db, { migrationsFolder })
-            log(`drizzle migrator returned in ${String(Date.now() - t0)} ms`)
-        } finally {
-            await pool.end().catch(() => undefined)
-        }
-    }
-
-    async function seedInitialData(
+    private readonly seedInitialData: (
         databaseUrl: string,
         input: SetupInitializeLocalInput,
-        log: (message: string) => void
-    ): Promise<{ userId: string }> {
-        const pool = new Pool({ connectionString: databaseUrl, max: 1 })
-        const db = drizzle({ client: pool, relations: defineRelations(globalSchema) })
-
-        try {
-            // Idempotent seed: if the admin already exists (e.g. two nodes
-            // racing against a shared database, or a heal that left the DB
-            // partially provisioned) never call signUpEmail a second time —
-            // just promote the existing user to super-admin.
-            log('▸ Checking whether the admin already exists…')
-            const existing = await db
-                .select({ id: user.id, role: user.role })
-                .from(user)
-                .where(eq(user.email, input.email))
-                .limit(1)
-            if (existing[0]) {
-                // AUTH-005: an existing account is never promoted by matching an email. A wizard re-run that finds
-                // the admin it already created is done; any other user keeps the role it was given.
-                log(
-                    `  user ${input.email} already exists — leaving its role untouched`
-                )
-                return { userId: existing[0].id }
-            }
-
-            // Create the super-admin user + credential account through the
-            // Better Auth service-side API. This is the single source of truth
-            // for user/account creation: Better Auth's internal adapter writes
-            // the credential account with `issuer = createLocalAccountIssuer(
-            // "credential")` ("local:credential") and hashes the password with
-            // the configured algorithm. Hardcoding those values here would
-            // drift from what Better Auth actually writes and break
-            // sign-in/email (INVALID_EMAIL_OR_PASSWORD).
-            log('▸ Creating Better Auth instance (service-side API)…')
-            const { auth } = createBetterAuth(db, {
-                DEV_AUTH_KEY: process.env.DEV_AUTH_KEY,
-                DEFAULT_ADMIN_EMAIL: process.env.DEFAULT_ADMIN_EMAIL,
-                NODE_ENV: process.env.NODE_ENV ?? 'development',
-                BASE_URL: process.env.NEXT_PUBLIC_API_URL,
-                APP_URL: process.env.APP_URL,
-                NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
-                TRUSTED_ORIGINS: process.env.TRUSTED_ORIGINS,
-                AUTH_BASE_DOMAIN: process.env.AUTH_BASE_DOMAIN,
-            }, provisioningSecret())
-
-            log(
-                "▸ Provisioning the super-admin through Better Auth's internal adapter …"
-            )
-            let userId: string
-            try {
-                // Public sign-up is disabled (AUTH-001), so the wizard provisions the first admin the same way the
-                // admin bootstrap does: verified, with its role written at creation and no follow-up UPDATE.
-                userId = await provisionUserAccount(auth, {
-                    email: input.email,
-                    name: input.name,
-                    password: input.password,
-                    role: 'superAdmin',
+        log: StepLog
+    ) => Effect.Effect<{ userId: string }, unknown> = Effect.fn(
+        'seedInitialData'
+    )(function* (
+        databaseUrl: string,
+        input: SetupInitializeLocalInput,
+        log: StepLog
+    ) {
+        const seedError =
+            (stage: string) =>
+            (cause: unknown): SeedFailedError =>
+                new SeedFailedError({
+                    stage,
+                    message: messageOf(cause),
+                    cause,
                 })
-            } catch (seedError: unknown) {
-                // Another node created the same admin concurrently (unique email constraint): the winner's row is the
-                // admin. Find it and leave it alone — never promote it.
-                const message =
-                    seedError instanceof Error
-                        ? seedError.message
-                        : String(seedError)
-                if (!/duplicate|already exists|unique/i.test(message))
-                    throw seedError
-                log(
-                    `  concurrent seed detected (${message}) — using the row that won`
-                )
-                const raced = await db
-                    .select({ id: user.id })
-                    .from(user)
-                    .where(eq(user.email, input.email))
-                    .limit(1)
-                const racedId = raced[0]?.id
-                if (!racedId) throw seedError
-                userId = racedId
-            }
-            log(`  user.id  = ${userId}`)
-            log(
-                '  user + credential account written, role superAdmin, email verified'
+
+        /** Read the admin row through the Effect driver — a statement IS an Effect here. */
+        const findAdminId = (stage: string) =>
+            withPg(databaseUrl, (sql) =>
+                Effect.gen(function* () {
+                    const db = yield* effectDatabase(sql)
+                    return yield* db
+                        .select({ id: user.id, role: user.role })
+                        .from(user)
+                        .where(eq(user.email, input.email))
+                        .limit(1)
+                        .pipe(
+                            Effect.mapError(seedError(stage)),
+                            Effect.map((rows) => rows[0])
+                        )
+                })
             )
 
-            return { userId }
-        } finally {
-            await pool.end().catch(() => undefined)
+        // Idempotent seed: never call sign-up a second time for an existing admin.
+        yield* log('▸ Checking whether the admin already exists…')
+        const existing = yield* findAdminId('lookup-existing')
+        if (existing) {
+            // AUTH-005: an existing account is never promoted by matching an email.
+            yield* log(
+                `  user ${input.email} already exists — leaving its role untouched`
+            )
+            return { userId: existing.id }
         }
+
+        // Better Auth is the single source of truth for user/account creation.
+        yield* log('▸ Creating Better Auth instance (service-side API)…')
+        const authEnv = yield* Effect.all({
+            DEV_AUTH_KEY: optionalEnv('DEV_AUTH_KEY'),
+            DEFAULT_ADMIN_EMAIL: optionalEnv('DEFAULT_ADMIN_EMAIL'),
+            NODE_ENV: Config.String('NODE_ENV').pipe(
+                Config.withDefault('development')
+            ),
+            BASE_URL: optionalEnv('NEXT_PUBLIC_API_URL'),
+            APP_URL: optionalEnv('APP_URL'),
+            NEXT_PUBLIC_APP_URL: optionalEnv('NEXT_PUBLIC_APP_URL'),
+            TRUSTED_ORIGINS: optionalEnv('TRUSTED_ORIGINS'),
+            AUTH_BASE_DOMAIN: optionalEnv('AUTH_BASE_DOMAIN'),
+        })
+
+        const userId = yield* withPromiseDatabase(databaseUrl, (db) =>
+            Effect.gen(function* () {
+                const { auth } = yield* Effect.try({
+                    try: () => createBetterAuth(db, authEnv, provisioningSecret()),
+                    catch: seedError('create-auth'),
+                })
+
+                yield* log(
+                    "▸ Provisioning the super-admin through Better Auth's internal adapter …"
+                )
+                // Public sign-up is disabled (AUTH-001): provision verified, role written at creation.
+                return yield* Effect.tryPromise({
+                    try: () =>
+                        provisionUserAccount(auth, {
+                            email: input.email,
+                            name: input.name,
+                            password: input.password,
+                            role: 'superAdmin',
+                        }),
+                    catch: seedError('provision-user'),
+                })
+            })
+        ).pipe(
+            // Another node created the same admin concurrently (unique email): the winner's row is
+            // the admin. Use it, never promote it.
+            Effect.catchIf(
+                (error) => /duplicate|already exists|unique/i.test(error.message),
+                (error) =>
+                    Effect.gen(function* () {
+                        yield* log(
+                            `  concurrent seed detected (${error.message}) — using the row that won`
+                        )
+                        const raced = yield* findAdminId('lookup-raced')
+                        if (!raced) return yield* Effect.fail(error)
+                        return raced.id
+                    })
+            )
+        )
+
+        yield* logLines(log, [
+            `  user.id  = ${userId}`,
+            '  user + credential account written, role superAdmin, email verified',
+        ])
+        return { userId }
+    })
+
+    // ─── The flow ────────────────────────────────────────────────────────────
+
+    initialize(
+        input: SetupInitializeLocalInput,
+        tracker: SetupStepTracker,
+        emit: EmitEvent
+    ): Effect.Effect<
+        { nodeId: string; databaseUrl: string },
+        SetupInitializationFailed,
+        LocalInitializationPorts
+    > {
+        return this.run(input, tracker, emit).pipe(
+            Effect.mapError(
+                (cause) =>
+                    new SetupInitializationFailed({
+                        reason: messageOf(cause),
+                        cause,
+                    })
+            )
+        )
     }
 
-    return {
-        initialize: (input, tracker, emit) =>
-            Effect.tryPromise({
-                try: () => initialize(input, tracker, emit),
-                catch: (cause) =>
-                    new SetupInitializationFailed({
-                        reason:
-                            cause instanceof Error
-                                ? cause.message
-                                : String(cause),
-                        cause,
-                    }),
-            }),
+    /** The flow, yielding every collaborator it needs from the container. */
+    private run(
+        input: SetupInitializeLocalInput,
+        tracker: SetupStepTracker,
+        emit: EmitEvent
+    ): Effect.Effect<
+        { nodeId: string; databaseUrl: string },
+        unknown,
+        LocalInitializationPorts
+    > {
+        const self = this
+        return Effect.fn('LocalInitialization.initialize')(function* () {
+            const steps = self.makeSteps()
+
+            const nodeId = yield* Effect.sync(() => randomUUID())
+            yield* Effect.annotateCurrentSpan('nodeId', nodeId)
+
+            // ── Database source resolution ───────────────────────────────────
+            // 1. existingDatabaseUrl in the request → operator-supplied URL.
+            // 2. Otherwise a URL already persisted for this node as a SETUP CANDIDATE → the node was GIVEN a database.
+            // 3. Otherwise → the API spawns its own Postgres ("local", supervised by GlobalDbSupervisorService).
+            const explicitUrl = input.existingDatabaseUrl?.trim() ?? ''
+
+            const nodeConfigRepository = yield* NodeConfigRepository
+            const providedUrl = explicitUrl
+                ? ''
+                : yield* nodeConfigRepository.find().pipe(
+                      Effect.map((cfg) =>
+                          cfg?.setupState !== 'setup_done' &&
+                          cfg?.databaseUrl?.trim() &&
+                          cfg.databaseProvisioning === 'external'
+                              ? cfg.databaseUrl.trim()
+                              : ''
+                      )
+                  )
+
+            // Read ONCE: the swarm step founds the cluster from it, `register_node` persists it,
+            // `finalize` reports it.
+            const swarmChoice = input.swarm
+            const databaseProvisioning =
+                explicitUrl || providedUrl ? 'external' : 'local'
+
+            // ── Swarm FIRST (unless the deployment owns everything) ──────────
+            // Locally-managed Postgres is a SWARM SERVICE, so the engine must be a cluster BEFORE the
+            // database step. Skipped for an externally-provided URL and when compose owns every service.
+            const deploymentOwnsEverything = yield* self.deploymentOwnsAllServices(
+                yield* ApiEnvironment
+            )
+
+            if (databaseProvisioning === 'local' && !deploymentOwnsEverything) {
+                yield* runStep(
+                    tracker,
+                    emit,
+                    'initialize_swarm',
+                    'Create the Swarm cluster',
+                    (stepLog) =>
+                        Effect.gen(function* () {
+                            yield* logLines(stepLog, [
+                                '▸ Initializing Docker Swarm…',
+                                `  mode    = ${swarmChoice?.mode ?? 'create'}`,
+                                `  policy  = ${swarmChoice?.policy ?? 'auto'}`,
+                                ...(swarmChoice?.advertiseAddr
+                                    ? [
+                                          `  advertise = ${swarmChoice.advertiseAddr}`,
+                                      ]
+                                    : []),
+                                ...(swarmChoice?.joinAddrs.length
+                                    ? [
+                                          `  join    = ${swarmChoice.joinAddrs.join(', ')}`,
+                                      ]
+                                    : []),
+                            ])
+
+                            // PERSIST THE OPERATOR'S CHOICE BEFORE CONVERGING: `converge()` reads
+                            // `node_config.swarmConfig`, not the request.
+                            const cfg = yield* nodeConfigRepository.find()
+                            const nowIso = yield* DateTime.now.pipe(
+                                Effect.map(DateTime.formatIso)
+                            )
+                            yield* nodeConfigRepository.upsert({
+                                ...(cfg ?? {}),
+                                nodeId,
+                                strategy: 'local',
+                                setupState: cfg?.setupState ?? 'not_started',
+                                deployerVersion: DEPLOYER_VERSION,
+                                swarmConfig: {
+                                    mode: swarmChoice?.mode ?? 'create',
+                                    policy: swarmChoice?.policy ?? 'auto',
+                                    advertiseAddr:
+                                        swarmChoice?.advertiseAddr ?? null,
+                                    joinToken: swarmChoice?.joinToken ?? null,
+                                    joinAddrs: swarmChoice?.joinAddrs ?? [],
+                                },
+                                updatedAt: nowIso,
+                            })
+                            yield* stepLog(
+                                '  → participation persisted (node_config.swarmConfig)'
+                            )
+
+                            yield* (yield* SwarmBootstrap).converge('setup')
+                            const snapshot = yield* (
+                                yield* SwarmCluster
+                            ).getLocalClusterSnapshot()
+
+                            if (snapshot.localNodeState !== 'active') {
+                                // A service-based database CANNOT be provisioned without a swarm.
+                                return yield* Effect.fail(
+                                    new AppError(
+                                        `Swarm cluster did not become active (state=${snapshot.localNodeState}); ` +
+                                            'a locally-managed Postgres is scheduled as a swarm service and cannot be provisioned without it',
+                                        'SWARM_UNAVAILABLE',
+                                        {
+                                            localNodeState:
+                                                snapshot.localNodeState,
+                                        }
+                                    )
+                                )
+                            }
+
+                            yield* logLines(stepLog, [
+                                '✅ Swarm cluster active',
+                                `  role    = ${snapshot.localNode.swarmRole}`,
+                                `  master  = ${snapshot.master?.nodeId ?? 'self'}`,
+                                `  nodes   = ${String(snapshot.nodeCount)} (managers ${String(snapshot.managerCount)})`,
+                            ])
+                        })
+                )
+            }
+
+            const databaseUrl = yield* runStep(
+                tracker,
+                emit,
+                'provision_database',
+                'Set up the database',
+                (stepLog) =>
+                    Effect.gen(function* () {
+                        const existingUrl = explicitUrl || providedUrl
+                        if (existingUrl) {
+                            yield* logLines(stepLog, [
+                                explicitUrl
+                                    ? '▸ Using database URL supplied in the setup request'
+                                    : '▸ Using the database URL provided for this node (MANAGED_GLOBAL_DB_ENABLED / SETUP_AUTO)',
+                                `  host = ${redactUrl(existingUrl)}`,
+                                '▸ Opening probe connection (max 1 client)…',
+                            ])
+                            return yield* steps.probeExistingDatabase(
+                                existingUrl,
+                                stepLog
+                            )
+                        }
+                        yield* logLines(stepLog, [
+                            '▸ Bootstrapping Docker Postgres 16…',
+                            '  image  = postgres:16-alpine',
+                            '  volume = deployer_postgres_data',
+                            '  port   = 5432 (host-assigned)',
+                            '▸ Pulling image (cached if present)…',
+                        ])
+                        return yield* steps.provisionDockerDatabase(
+                            stepLog,
+                            deploymentOwnsEverything
+                        )
+                    })
+            )
+
+            const readyLine = `✅ Database ready at ${redactUrl(databaseUrl)}`
+            yield* Effect.sync(() => {
+                tracker.log('provision_database', readyLine)
+                const readyEvent = tracker.logEvent(
+                    'provision_database',
+                    readyLine
+                )
+                if (readyEvent) emit(readyEvent)
+            })
+
+            const existingTables = yield* runStep(
+                tracker,
+                emit,
+                'ensure_empty',
+                'Ensure database is empty',
+                (stepLog) =>
+                    Effect.gen(function* () {
+                        yield* logLines(stepLog, [
+                            '▸ Querying information_schema.tables …',
+                            '  schema = public',
+                            '  type   = BASE TABLE',
+                        ])
+                        const tables =
+                            yield* steps.ensureDatabaseEmpty(databaseUrl)
+                        yield* tables.length === 0
+                            ? logLines(stepLog, [
+                                  '  result = 0 tables',
+                                  '✅ Database is empty',
+                              ])
+                            : logLines(stepLog, [
+                                  `  result = ${String(tables.length)} tables`,
+                                  `  tables = ${tables.join(', ')}`,
+                                  '✅ Database already initialized',
+                              ])
+                        return tables
+                    })
+            )
+
+            // Already initialized (tables exist): skip migration and seed.
+            if (existingTables.length === 0) {
+                yield* runStep(
+                    tracker,
+                    emit,
+                    'run_migrations',
+                    'Run migrations',
+                    (stepLog) =>
+                        Effect.gen(function* () {
+                            // Resolved by the package that owns the migrations — not a `../..` count.
+                            const migrationsFolder = GLOBAL_MIGRATIONS_DIR
+                            const migrationNames = yield* Effect.try({
+                                try: () => listMigrationNames(migrationsFolder),
+                                catch: (cause) =>
+                                    new MigrationFolderError({
+                                        folder: migrationsFolder,
+                                        message: messageOf(cause),
+                                        cause,
+                                    }),
+                            })
+                            const total = String(migrationNames.length)
+                            yield* logLines(stepLog, [
+                                `▸ Migration folder: ${migrationsFolder}`,
+                                `▸ Found ${total} migration file(s):`,
+                                ...migrationNames.map(
+                                    (name, i) =>
+                                        `  [${String(i + 1).padStart(2, '0')}/${total}] ${name}`
+                                ),
+                                '▸ Handing off to drizzle migrator (every statement will be streamed below)…',
+                            ])
+                            yield* steps.runMigrations(
+                                databaseUrl,
+                                migrationsFolder,
+                                stepLog
+                            )
+                            yield* stepLog(
+                                `✅ All ${total} migration(s) applied successfully`
+                            )
+                        }),
+                    'Connecting to the database and applying every Drizzle migration one statement at a time.'
+                )
+
+                yield* runStep(
+                    tracker,
+                    emit,
+                    'seed_initial_data',
+                    'Initialize workspace data',
+                    (stepLog) =>
+                        Effect.gen(function* () {
+                            yield* logLines(stepLog, [
+                                `▸ Creating super-admin user: ${input.email}`,
+                                `  name  = ${input.name}`,
+                                '  role  = super-admin',
+                                '▸ Hashing password (bcrypt, cost 12)…',
+                                '▸ Inserting user record…',
+                                '▸ Inserting credentials account…',
+                            ])
+                            const seedResult = yield* steps.seedInitialData(
+                                databaseUrl,
+                                input,
+                                stepLog
+                            )
+                            yield* logLines(stepLog, [
+                                `✅ User ${input.email} created with super-admin role`,
+                                `  user.id  = ${seedResult.userId}`,
+                            ])
+                        })
+                )
+            } else {
+                yield* Effect.logInfo(
+                    '⏭️  Database already initialized — skipping migration and seed steps'
+                )
+            }
+
+            yield* runStep(
+                tracker,
+                emit,
+                'register_node',
+                'Register this node',
+                (stepLog) =>
+                    Effect.gen(function* () {
+                        yield* logLines(stepLog, [
+                            `▸ Assigning node ID ${nodeId}…`,
+                            '  strategy = local',
+                            '  mesh     = (none)',
+                            '  database = ' +
+                                (databaseProvisioning === 'local'
+                                    ? 'locally managed (supervised)'
+                                    : 'external (provided URL)'),
+                            ...(swarmChoice
+                                ? [
+                                      `  swarm    = ${swarmChoice.mode} cluster (policy=${swarmChoice.policy})`,
+                                  ]
+                                : []),
+                            '▸ Persisting node config to global database…',
+                        ])
+                        const now = yield* DateTime.now.pipe(
+                            Effect.map(DateTime.formatIso)
+                        )
+                        yield* nodeConfigRepository.upsert({
+                            nodeId,
+                            strategy: 'local',
+                            setupState: 'setup_done',
+                            deployerVersion: DEPLOYER_VERSION,
+                            meshUrlsSnapshot: [],
+                            configuredAt: now,
+                            updatedAt: now,
+                            databaseUrl,
+                            databaseProvisioning,
+                            swarmConfig: swarmChoice
+                                ? {
+                                      mode: swarmChoice.mode,
+                                      policy: swarmChoice.policy,
+                                      advertiseAddr:
+                                          swarmChoice.advertiseAddr ?? null,
+                                      joinToken: swarmChoice.joinToken ?? null,
+                                      joinAddrs: swarmChoice.joinAddrs,
+                                  }
+                                : undefined,
+                        })
+                        yield* stepLog('✅ Node config persisted')
+                    })
+            )
+
+            yield* runStep(
+                tracker,
+                emit,
+                'finalize',
+                'Finalize setup',
+                (stepLog) =>
+                    Effect.gen(function* () {
+                        yield* logLines(stepLog, [
+                            '▸ Marking setup as completed…',
+                            `  nodeId  = ${nodeId}`,
+                            `  dbUrl   = ${redactUrl(databaseUrl)}`,
+                            '▸ Generating readiness summary…',
+                            '  database  = ready',
+                            '  migrations = applied',
+                            '  workspace  = seeded',
+                            '▸ Swarm summary…',
+                        ])
+
+                        // Reported from the LIVE engine snapshot, so a cluster that degraded since is
+                        // reported honestly instead of echoing a stale success.
+                        const swarmSnapshot = yield* (
+                            yield* SwarmCluster
+                        ).getLocalClusterSnapshot()
+                        yield* swarmSnapshot.localNodeState === 'active'
+                            ? logLines(stepLog, [
+                                  '✅ Swarm cluster active',
+                                  `  mode    = ${swarmChoice?.mode ?? 'create'}`,
+                                  `  policy  = ${swarmChoice?.policy ?? 'auto'}`,
+                                  `  role    = ${swarmSnapshot.localNode.swarmRole}`,
+                                  `  master  = ${swarmSnapshot.master?.nodeId ?? 'self'}`,
+                                  `  nodes   = ${String(swarmSnapshot.nodeCount)} (managers ${String(swarmSnapshot.managerCount)})`,
+                                  '  → every platform service is scheduled on Swarm',
+                              ])
+                            : logLines(stepLog, [
+                                  `⚠️  Swarm not active (state=${swarmSnapshot.localNodeState})`,
+                                  '  → re-converge from the Cluster page',
+                              ])
+
+                        yield* stepLog('✅ Setup complete')
+                    })
+            )
+
+            return { nodeId, databaseUrl }
+        })()
+    }
+
+    /**
+     * Whether the DEPLOYMENT owns every platform service (compose / operator).
+     *
+     * True for the plain `dev` profile, where every `MANAGED_*_ENABLED` is `true`: the supervisors all
+     * skip registration and NOTHING is ever scheduled onto a swarm. Read from the SAME
+     * `splitManagedEnv` source the supervisors use, so this cannot disagree with them.
+     */
+    private deploymentOwnsAllServices(
+        env: EnvService
+    ): Effect.Effect<boolean> {
+        return Effect.sync(() => {
+            const managed = splitManagedEnv(env)
+            return (
+                managed.traefik.enabled &&
+                managed.redis.enabled &&
+                managed.localDb.enabled
+            )
+        })
     }
 }
 
 export class LocalInitializationService extends Context.Service<
     LocalInitializationService,
     LocalInitializationServiceShape
->()('shared/LocalInitializationService') {}
+>()('shared/LocalInitializationService') {
+    /** The implementation: only the step overrides are per-instance; everything else is yielded. */
+    static readonly live = LocalInitializationServiceImpl
+}
