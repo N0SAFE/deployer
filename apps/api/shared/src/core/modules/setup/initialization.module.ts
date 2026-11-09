@@ -96,28 +96,12 @@ export class CoreInitializationModule extends createModuleContext({
             useFactory: () => new LocalInitializationService.live(),
         },
         {
+            // Every collaborator is yielded per run (see `RemoteInitializationPorts`); only the
+            // runtime host and the two test seams are per-instance.
             provide: RemoteInitializationService,
-            useFactory: (
-                nodeConfigRepository: NodeConfigRepositoryShape,
-                envService: EnvService,
-                swarmBootstrap: SwarmBootstrapShape,
-                swarmCluster: SwarmClusterShape,
-                host: EffectHostShape
-            ) =>
-                new RemoteInitializationService.live({
-                    nodeConfigRepository,
-                    envService,
-                    swarmBootstrap,
-                    swarmCluster,
-                    host,
-                }),
-            inject: [
-                NodeConfigRepository,
-                EnvService,
-                SwarmBootstrap,
-                SwarmCluster,
-                EffectHost,
-            ],
+            useFactory: (host: EffectHostShape) =>
+                new RemoteInitializationService.live({ host }),
+            inject: [EffectHost],
         },
         {
             provide: InitializationService,

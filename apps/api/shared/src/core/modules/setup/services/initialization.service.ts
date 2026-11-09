@@ -532,7 +532,9 @@ export function makeInitializationService(
         tracker: SetupStepTracker,
         emit: EmitEvent
     ): Promise<{ nodeId: string; databaseUrl: string }> {
-        return await runPromiseUnwrapped(
+        // The remote flow YIELDS its ports, so it needs the app runtime's context — the same
+        // reason the local flow does.
+        return await host.runUnwrapped(
             remoteInitializationService.initialize(input, tracker, emit)
         )
     }

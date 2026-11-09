@@ -1,17 +1,24 @@
-import { Cause, Effect } from 'effect'
+import { Cause, Effect, Layer } from 'effect'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { MeshSwarmJoinGrant } from '@deployer/contracts-entities'
 import { runPromiseUnwrapped } from '@deployer/effect-core'
 import type { NodeDoorClient } from '@deployer/mesh-client'
+import { NodeConfigRepository } from '@deployer/node-state'
 import type { NodeConfigRepositoryShape } from '@deployer/node-state'
-import type { SwarmBootstrapShape, SwarmClusterShape } from '@deployer/swarm'
+import {
+    SwarmBootstrap,
+    SwarmCluster,
+    type SwarmBootstrapShape,
+    type SwarmClusterShape,
+} from '@deployer/swarm'
 
 import { DEPLOYER_VERSION } from '../../../utils/deployer-version'
 
 import { RemoteInitializationService } from './remote-initialization.service'
 import { SetupStepTracker } from './setup-step-tracker'
 
+import { ApiEnvironment } from '../../../../config/env/env.module'
 import type { EnvService } from '../../../../config/env/env.module'
 import type { ClientContext, ClientLink } from '@orpc/client'
 
@@ -221,10 +228,6 @@ function makeJoiner(
                 return exit.value
             },
         } as never,
-        nodeConfigRepository: repository,
-        envService: env,
-        swarmBootstrap,
-        swarmCluster,
         nodeDoor: () => door,
         // Non-undefined so the fleet is "reachable"; the mocked `serviceLink` ignores it and routes to the fleet node.
         agentLink: () => ({
@@ -232,10 +235,21 @@ function makeJoiner(
                 Promise.reject(new Error('agent link is not used directly')),
         }),
     })
+
+    // The flow YIELDS its collaborators, so a spec provides them the way the module does: a Layer.
+    const ports = Layer.mergeAll(
+        Layer.succeed(NodeConfigRepository, repository),
+        Layer.succeed(SwarmBootstrap, swarmBootstrap),
+        Layer.succeed(SwarmCluster, swarmCluster),
+        Layer.succeed(ApiEnvironment, env)
+    )
+
     /** The flow is an Effect failing with a tagged refusal; the matrix asserts on the refusal's message, so run it unwrapped. */
     const service = {
         initialize: (...args: Parameters<typeof shape.initialize>) =>
-            runPromiseUnwrapped(shape.initialize(...args)),
+            runPromiseUnwrapped(
+                shape.initialize(...args).pipe(Effect.provide(ports))
+            ),
     }
     return { service, persisted, nodeId }
 }

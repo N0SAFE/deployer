@@ -1,13 +1,20 @@
-import { Cause, Effect } from 'effect'
+import { Cause, Effect, Layer } from 'effect'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { NodeDoorClient } from '@deployer/mesh-client'
+import { NodeConfigRepository } from '@deployer/node-state'
 import type { NodeConfigRepositoryShape } from '@deployer/node-state'
-import type { SwarmBootstrapShape, SwarmClusterShape } from '@deployer/swarm'
+import {
+    SwarmBootstrap,
+    SwarmCluster,
+    type SwarmBootstrapShape,
+    type SwarmClusterShape,
+} from '@deployer/swarm'
 
 import { RemoteInitializationService } from './remote-initialization.service'
 import { SetupStepTracker } from './setup-step-tracker'
 
+import { ApiEnvironment } from '../../../../config/env/env.module'
 import type { EnvService } from '../../../../config/env/env.module'
 import type { ClientContext, ClientLink } from '@orpc/client'
 
@@ -18,7 +25,7 @@ function serviceWith(
     joinWithToken: (token: string) => Promise<unknown>,
     agent?: ClientLink<ClientContext>
 ) {
-    return new RemoteInitializationService.live({
+    const service = new RemoteInitializationService.live({
         host: {
             run: (effect) => Effect.runPromise(effect as never),
             // Mirrors `runPromiseUnwrapped`: reject with the ORIGINAL failure, not a wrapper, so a
@@ -29,15 +36,28 @@ function serviceWith(
                 return exit.value
             },
         } as never,
-        nodeConfigRepository: {
-            find: () => Effect.succeed(null),
-        } as unknown as NodeConfigRepositoryShape,
-        envService: { get: noop } as unknown as EnvService,
-        swarmBootstrap: {} as SwarmBootstrapShape,
-        swarmCluster: {} as SwarmClusterShape,
         nodeDoor: () => ({ joinWithToken }) as unknown as NodeDoorClient,
         agentLink: () => agent,
     })
+
+    // The flow YIELDS its collaborators, so a spec provides them the way the module does: a Layer.
+    const ports = Layer.mergeAll(
+        Layer.succeed(NodeConfigRepository, {
+            find: () => Effect.succeed(null),
+        } as unknown as NodeConfigRepositoryShape),
+        Layer.succeed(SwarmBootstrap, {} as SwarmBootstrapShape),
+        Layer.succeed(SwarmCluster, {} as SwarmClusterShape),
+        Layer.succeed(ApiEnvironment, { get: noop } as unknown as EnvService)
+    )
+
+    return {
+        initialize: (
+            ...args: Parameters<typeof service.initialize>
+        ): Effect.Effect<
+            Effect.Success<ReturnType<typeof service.initialize>>,
+            Effect.Error<ReturnType<typeof service.initialize>>
+        > => service.initialize(...args).pipe(Effect.provide(ports)),
+    }
 }
 
 /** The flow's failure message, which is what the wizard shows. */

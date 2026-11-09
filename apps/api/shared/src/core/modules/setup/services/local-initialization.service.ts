@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { eq } from 'drizzle-orm'
+import { eq, and, sql } from 'drizzle-orm'
 import * as PgDrizzle from 'drizzle-orm/effect-postgres'
 import { migrate } from 'drizzle-orm/effect-postgres/migrator'
 import { drizzle as drizzleNodePg } from 'drizzle-orm/node-postgres'
@@ -33,6 +33,7 @@ import {
 import { splitManagedEnv } from '@deployer/env'
 import { AppError, ConflictError } from '@deployer/errors'
 import { GLOBAL_MIGRATIONS_DIR } from '@deployer/nest-schema'
+import { catalogTables } from '@deployer/nest-schema/global/catalog'
 import { globalRelations } from '../../database/global/global-database.service'
 import type { Logger as DrizzleLogger } from 'drizzle-orm/logger'
 import { user } from '@deployer/nest-schema/global/identity/auth'
@@ -66,6 +67,7 @@ import {
 
 import { ApiEnvironment, EnvService } from '../../../../config/env/env.module'
 import * as Redacted from 'effect/Redacted'
+import type { SQL } from 'drizzle-orm'
 import type { SqlError } from 'effect/sql/SqlError'
 import { DockerEngine, PostgresProvisioner } from '@deployer/docker'
 
@@ -203,27 +205,38 @@ const optionalEnv = (name: string) =>
  */
 const withPg = <A, E>(
     url: string,
-    use: (sql: PgClient) => Effect.Effect<A, E>
+    use: (sqlClient: PgClient) => Effect.Effect<A, E>
 ): Effect.Effect<A, E | SqlError> =>
     Effect.scoped(
         Effect.gen(function* () {
-            const sql = yield* PgClientTag
-            return yield* use(sql)
+            const sqlClient = yield* PgClientTag
+            return yield* use(sqlClient)
         }).pipe(Effect.provide(pgClientLayer({ url: Redacted.make(url) })))
     )
 
+/** The Drizzle query builder bound to the caller's own `PgClient` — no second pool. */
+const effectDatabase = (sqlClient: PgClient) =>
+    PgDrizzle
+        .makeWithDefaults({ relations: globalRelations })
+        .pipe(Effect.provideService(PgClientTag, sqlClient))
+
 /**
- * A typed query through the Effect driver. `sql` is `@effect/sql`'s client, so a statement IS an
- * Effect returning the rows — no Promise boundary, no `tryPromise`, no `.rows` unwrapping.
+ * A statement with no Drizzle table to hang off, through Drizzle's OWN compiler.
+ *
+ * `db.execute` takes a `SQLWrapper`, so the statement is a `sql\`…\`` template that drizzle compiles
+ * and binds — this is the query-builder path, not the driver's `unsafe` escape hatch. It is used for
+ * exactly two shapes: a `SELECT 1` liveness probe (there is no table to `select().from()`) and
+ * `CREATE DATABASE` (DDL the builder does not model). Everything that reads a real relation goes
+ * through `select().from().where()`.
  */
-const query = <T extends object = Record<string, unknown>>(
-    sql: PgClient,
-    statement: string,
-    operation = 'query'
+const rawQuery = <T extends Record<string, unknown>>(
+    db: EffectDatabase,
+    statement: SQL,
+    operation: string
 ) =>
-    sql.unsafe<T>(statement).pipe(
+    db.execute<T>(statement, 'objects').pipe(
         Effect.mapError(
-            (cause: SqlError) =>
+            (cause) =>
                 new PostgresOperationError({
                     operation,
                     message: messageOf(cause),
@@ -232,11 +245,8 @@ const query = <T extends object = Record<string, unknown>>(
         )
     )
 
-/** The Drizzle query builder bound to the caller's own `PgClient` — no second pool. */
-const effectDatabase = (sql: PgClient) =>
-    PgDrizzle
-        .makeWithDefaults({ relations: globalRelations })
-        .pipe(Effect.provideService(PgClientTag, sql))
+/** The Effect database handle, as `effectDatabase` returns it. */
+type EffectDatabase = Effect.Success<ReturnType<typeof effectDatabase>>
 
 /**
  * A Promise-facing Drizzle handle. NOT a fallback: better-auth's drizzle adapter `await`s every
@@ -328,10 +338,14 @@ const probeExistingDatabase: (
 ) => Effect.Effect<string, unknown> = Effect.fn('probeExistingDatabase')(
     function* (databaseUrl: string, log: StepLog) {
         const t0 = yield* Clock.currentTimeMillis
-        yield* withPg(databaseUrl, (sql) =>
+        yield* withPg(databaseUrl, (sqlClient) =>
             Effect.gen(function* () {
                 yield* log('dispatching SELECT 1 …')
-                yield* query(sql, 'SELECT 1', 'probe')
+                yield* rawQuery(
+                    yield* effectDatabase(sqlClient),
+                    sql`SELECT 1 AS ok`,
+                    'probe'
+                )
             })
         )
         const t1 = yield* Clock.currentTimeMillis
@@ -357,8 +371,10 @@ const waitForPostgres: (
     const maxRetries = 30
     const attempts = yield* Ref.make(0)
 
-    yield* withPg(connectionString, (sql) =>
-        query(sql, 'SELECT 1', 'wait-for-postgres')
+    yield* withPg(connectionString, (sqlClient) =>
+        Effect.flatMap(effectDatabase(sqlClient), (db) =>
+            rawQuery(db, sql`SELECT 1 AS ok`, 'wait-for-postgres')
+        )
     ).pipe(
         Effect.tapError((error) =>
             Ref.updateAndGet(attempts, (n) => n + 1).pipe(
@@ -399,13 +415,32 @@ const ensureDatabaseEmpty: (
     'ensureDatabaseEmpty'
 )(
     function* (databaseUrl: string) {
-        const tables = yield* withPg(databaseUrl, (sql) =>
-            query<{ table_name: string }>(
-                sql,
-                `SELECT table_name FROM information_schema.tables
-                 WHERE table_schema = 'public' AND table_type = 'BASE TABLE';`,
-                'list-tables'
-            ).pipe(Effect.map((rows) => rows.map((row) => row.table_name)))
+        // `information_schema.tables` is declared as a Drizzle table (`@deployer/nest-schema/global/
+        // catalog`), so this is an ordinary `select().from().where()`: bound parameters, typed
+        // columns, and no schema name interpolated into a string.
+        const tables = yield* withPg(databaseUrl, (sqlClient) =>
+            Effect.flatMap(effectDatabase(sqlClient), (db) =>
+                db
+                    .select({ tableName: catalogTables.tableName })
+                    .from(catalogTables)
+                    .where(
+                        and(
+                            eq(catalogTables.tableSchema, 'public'),
+                            eq(catalogTables.tableType, 'BASE TABLE')
+                        )
+                    )
+                    .pipe(
+                        Effect.mapError(
+                            (cause) =>
+                                new PostgresOperationError({
+                                    operation: 'list-tables',
+                                    message: messageOf(cause),
+                                    cause,
+                                })
+                        ),
+                        Effect.map((rows) => rows.map((row) => row.tableName))
+                    )
+            )
         )
 
         if (tables.length === 0) return tables
@@ -444,34 +479,34 @@ const runMigrations: (
     // array keeps the bridge side-effect-free: the array is flushed through `log` afterwards.
     const statements: string[] = []
     const migrationLogger: DrizzleLogger = {
-        logQuery: (sql: string, params: unknown[]) => {
+        logQuery: (statement: string, params: unknown[]) => {
             statements.push(
                 params.length > 0
-                    ? `${formatStatement(sql)}\n    -- params: ${JSON.stringify(params)}`
-                    : formatStatement(sql)
+                    ? `${formatStatement(statement)}\n    -- params: ${JSON.stringify(params)}`
+                    : formatStatement(statement)
             )
         },
     }
 
-    yield* withPg(databaseUrl, (sql) =>
+    yield* withPg(databaseUrl, (sqlClient) =>
         Effect.gen(function* () {
-            yield* log('acquiring connection')
-            yield* query(sql, 'SELECT 1', 'migration-probe')
-            yield* log('acquired — handing off to drizzle migrator')
-
             const db = yield* PgDrizzle
                 .make({ relations: globalRelations })
                 .pipe(
                     Effect.provide(
                         Layer.mergeAll(
                             PgDrizzle.DefaultServices,
-                            Layer.succeed(PgClientTag, sql),
+                            Layer.succeed(PgClientTag, sqlClient),
                             PgDrizzle.EffectLogger.layerFromDrizzle(
                                 migrationLogger
                             )
                         )
                     )
                 )
+
+            yield* log('acquiring connection')
+            yield* rawQuery(db, sql`SELECT 1 AS ok`, 'migration-probe')
+            yield* log('acquired — handing off to drizzle migrator')
 
             const t0 = yield* Clock.currentTimeMillis
             yield* migrate(db, { migrationsFolder }).pipe(
@@ -508,16 +543,17 @@ function provisionDatabaseNamespace(
         yield* log(`target database = ${databaseName}`)
         yield* log(`admin URL       = ${redactUrl(adminUrl)}`)
 
-        yield* withPg(adminUrl, (adminSql) =>
+        yield* withPg(adminUrl, (sqlClient) =>
             Effect.gen(function* () {
                 yield* log('▸ Probing shared Postgres admin endpoint …')
                 yield* waitForPostgres(adminUrl, log)
 
-                const escapedName = `"${databaseName.replaceAll('"', '""')}"`
-                yield* log(`▸ CREATE DATABASE ${escapedName} …`)
-                yield* query(
-                    adminSql,
-                    `CREATE DATABASE ${escapedName}`,
+                yield* log(`▸ CREATE DATABASE ${databaseName} …`)
+                // `sql.identifier` is what escapes it: the driver quotes it, so a name can never
+                // be read as SQL.
+                yield* rawQuery(
+                    yield* effectDatabase(sqlClient),
+                    sql`CREATE DATABASE ${sql.identifier(databaseName)}`,
                     'create-database'
                 )
                 yield* log('  database created')
@@ -727,9 +763,9 @@ const seedInitialData: (
 
     /** Read the admin row through the Effect driver — a statement IS an Effect here. */
     const findAdminId = (stage: string) =>
-        withPg(databaseUrl, (sql) =>
+        withPg(databaseUrl, (sqlClient) =>
             Effect.gen(function* () {
-                const db = yield* effectDatabase(sql)
+                const db = yield* effectDatabase(sqlClient)
                 return yield* db
                     .select({ id: user.id, role: user.role })
                     .from(user)

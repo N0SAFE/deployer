@@ -25,6 +25,11 @@
             "import": "./dist/esm/global/index.mjs",
             "require": "./dist/cjs/global/index.js"
         },
+        "./global/catalog": {
+            "types": "./dist/types/global/catalog.d.ts",
+            "import": "./dist/esm/global/catalog.mjs",
+            "require": "./dist/cjs/global/catalog.js"
+        },
         "./global/fleet/cluster": {
             "types": "./dist/types/global/fleet/cluster.d.ts",
             "import": "./dist/esm/global/fleet/cluster.mjs",
